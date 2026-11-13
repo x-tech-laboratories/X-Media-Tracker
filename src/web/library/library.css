@@ -1,0 +1,110 @@
+/* Layout only; every colour, size and widget look comes from Halon's tokens and stylesheet. */
+
+/* Posters are tall, so the media tiles take TMDB's 2:3. */
+.library-page,
+.add-page {
+  --media-aspect: 2 / 3;
+}
+
+.title-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-7);
+  align-items: flex-start;
+  margin-bottom: var(--space-7);
+}
+
+.title-poster {
+  width: min(240px, 100%);
+  border-radius: var(--radius-default);
+}
+
+.title-facts {
+  display: grid;
+  flex: 1 1 20rem;
+  gap: var(--space-5);
+  min-width: 0;
+}
+
+.title-overview {
+  max-width: 48rem;
+  margin: 0;
+}
+
+.cast-list {
+  display: flex;
+  gap: var(--space-5);
+  margin: 0;
+  padding: 0;
+  overflow-x: auto;
+  list-style: none;
+}
+
+.cast-member {
+  display: grid;
+  flex: none;
+  justify-items: center;
+  gap: var(--space-1);
+  width: 7rem;
+  text-align: center;
+}
+
+.cast-member span {
+  color: var(--text-secondary);
+  font-size: var(--text-caption);
+}
+
+.episode-list,
+.collection-list {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.episode {
+  display: flex;
+  gap: var(--space-4);
+  align-items: flex-start;
+}
+
+.episode-still {
+  flex: none;
+  width: 8rem;
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  border-radius: var(--radius-small);
+}
+
+.episode-text {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.episode-text p {
+  margin: 0;
+}
+
+.episode-facts {
+  color: var(--text-secondary);
+  font-size: var(--text-caption);
+}
+
+.collection-row,
+.add-field {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.add-field {
+  margin-top: var(--space-4);
+}
+
+@media (max-width: 600px) {
+  .episode-still {
+    display: none;
+  }
+}

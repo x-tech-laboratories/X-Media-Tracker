@@ -1,0 +1,13 @@
+{
+  "appId": "com.xtechlaboratories.xmediatracker",
+  "appName": "X-Media-Tracker",
+  "webDir": "out/android",
+  "android": {
+    "allowMixedContent": true
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    }
+  }
+}

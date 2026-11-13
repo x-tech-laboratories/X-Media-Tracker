@@ -1,0 +1,4 @@
+{
+  "database": "dev-data/media.db",
+  "backups_folder": "dev-data/backups"
+}
