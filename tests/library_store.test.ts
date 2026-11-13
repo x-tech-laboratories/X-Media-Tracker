@@ -2,7 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { refresh_concurrency } from "../src/shared/library/store.ts";
+import { refresh_concurrency, type LibraryRefresh } from "../src/shared/library/store.ts";
 import { bind_methods, open_store } from "../src/shared/store.ts";
 import { trilium_database, trilium_groups } from "./trilium_sample.ts";
 
@@ -54,12 +54,23 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function open_methods() {
+function open_methods(on_change: () => void = () => undefined) {
   const database = new DatabaseSync(":memory:");
   open_store(database);
-  const store = bind_methods(() => database, () => undefined);
+  const store = bind_methods(() => database, on_change);
   store.set_setting("library.tmdb_api_key", "test-key");
   return store;
+}
+
+// Starts a refresh and waits for it to end, as the page does.
+async function refreshed(store: ReturnType<typeof open_methods>): Promise<LibraryRefresh> {
+  store.refresh_library();
+  let refresh = store.get_library_refresh();
+  while (refresh.state === "running") {
+    await new Promise((resolve) => setTimeout(resolve, 1));
+    refresh = store.get_library_refresh();
+  }
+  return refresh;
 }
 
 // ── Adding ───────────────────────────────────────────────────────────────────
@@ -150,9 +161,9 @@ describe("watching", () => {
     store.import_trilium_media(trilium_database, "");
     store.set_episodes_watched("imdb:tt0903747", [{ season: 1, from: 1, to: 7 }], true, 0);
 
-    const report = await store.refresh_library();
+    const refresh = await refreshed(store);
 
-    expect(report).toEqual({ total: 3, metadata_updated: 2, status_updated: 1, failed: 1 });
+    expect(refresh).toMatchObject({ state: "done", done: 3, total: 3, report: { total: 3, metadata_updated: 2, status_updated: 1, failed: 1 } });
     expect(store.get_title("tmdb:693134")).toMatchObject({ poster_path: "/new.jpg", runtime: 166, rating: 9 });
     expect(store.get_title("imdb:tt0903747")).toMatchObject({ tmdb_id: "1396", total_episodes: 7, status: "watched" });
   });
@@ -170,11 +181,37 @@ describe("watching", () => {
       return new Response(JSON.stringify({ id: Number(new URL(address).pathname.split("/").pop()), title: "Movie" }), { status: 200 });
     });
 
-    const report = await store.refresh_library();
+    const { report } = await refreshed(store);
 
-    expect(report.total).toBe(refresh_concurrency * 3);
-    expect(report.failed).toBe(0);
+    expect(report!.total).toBe(refresh_concurrency * 3);
+    expect(report!.failed).toBe(0);
     expect(most_in_flight).toBe(refresh_concurrency);
+  });
+
+  it("answers a refresh at once, joins the one running, and tells other pages once it ends", async () => {
+    const on_change = vi.fn();
+    const store = open_methods(on_change);
+    store.import_trilium_media(trilium_database, "");
+    let answer_tmdb = (): void => undefined;
+    const answered = new Promise<void>((resolve) => (answer_tmdb = resolve));
+    vi.stubGlobal("fetch", async (address: string) => {
+      await answered;
+      return fetch_stub(address);
+    });
+    expect(store.get_library_refresh().state).toBe("none");
+    on_change.mockClear();
+
+    const started = store.refresh_library();
+    const joined = store.refresh_library();
+
+    expect(started).toMatchObject({ state: "running", done: 0, total: 3, report: null });
+    expect(joined.started_at).toBe(started.started_at);
+    const changes_while_running = on_change.mock.calls.length;
+    answer_tmdb();
+    const refresh = await refreshed(store);
+    await Promise.resolve();
+    expect(refresh).toMatchObject({ state: "done", done: 3 });
+    expect(on_change.mock.calls.length).toBeGreaterThan(changes_while_running);
   });
 });
 

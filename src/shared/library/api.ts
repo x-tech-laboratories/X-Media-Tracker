@@ -138,7 +138,11 @@ export const library_api = {
     ],
   },
   refresh_library: {
-    description: "Fetches every title's details from TMDB again, fills in missing ids and episode counts, and sets each show's status from its episodes. Never changes a rating or unwatches an episode.",
+    description: "Starts fetching every title's details from TMDB again in the background, filling in missing ids and episode counts and setting each show's status from its episodes; never changes a rating or unwatches an episode. Answers at once with the refresh's progress, or with the one already running; follow it with get_library_refresh.",
+    params: [],
+  },
+  get_library_refresh: {
+    description: "Shows the latest library refresh: running, done or failed, how many titles it has done out of how many, and once done its report of titles with new details, with a new status and not found on TMDB. State none means no refresh since the server started.",
     params: [],
   },
   import_trilium_media: {

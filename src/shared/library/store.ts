@@ -7,7 +7,7 @@ import { today } from "@x-tech-laboratories/x-libs/dates";
 import { and, asc, count, eq, inArray, or, synced_tables } from "@x-tech-laboratories/x-libs/drizzle";
 import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 
-import { define_feature, drizzle_of, new_id } from "../feature.ts";
+import { Background, define_feature, drizzle_of, new_id } from "../feature.ts";
 import { library_api } from "./api.ts";
 import { migrations } from "./migrations/index.ts";
 import {
@@ -62,6 +62,17 @@ export interface RefreshReport {
   metadata_updated: number;
   status_updated: number;
   failed: number;
+}
+
+// The latest refresh on this database since it opened: how far it has got, and its report once it has finished.
+export interface LibraryRefresh {
+  state: "none" | "running" | "done" | "failed";
+  done: number;
+  total: number;
+  started_at: string;
+  finished_at: string;
+  report: RefreshReport | null;
+  error: string;
 }
 
 export interface ImportReport {
@@ -244,6 +255,61 @@ function import_title(database: SqlDatabase, title: ImportedTitle, collection_id
   return existing ? "updated" : "added";
 }
 
+// ── Refreshing ───────────────────────────────────────────────────────────────
+
+const no_refresh: LibraryRefresh = { state: "none", done: 0, total: 0, started_at: "", finished_at: "", report: null, error: "" };
+const refreshes = new WeakMap<SqlDatabase, LibraryRefresh>();
+const running_work = new WeakMap<SqlDatabase, Promise<void>>();
+
+function snapshot_of(refresh: LibraryRefresh): LibraryRefresh {
+  return { ...refresh, report: refresh.report && { ...refresh.report } };
+}
+
+// Fetches every title's metadata again, fills in missing ids and episode counts, and sets each show's status from its
+// episodes, counting each title as it goes; it never changes a rating or unwatches an episode.
+async function run_refresh(database: SqlDatabase, refresh: LibraryRefresh): Promise<void> {
+  try {
+    const titles = list_titles(database);
+    const has_key = setting(database, "library.tmdb_api_key").trim() !== "";
+    const tmdb = has_key ? tmdb_of(database) : null;
+    const report: RefreshReport = { total: titles.length, metadata_updated: 0, status_updated: 0, failed: 0 };
+    refresh.total = titles.length;
+    const refresh_title = async (title: LibraryTitle): Promise<void> => {
+      if (tmdb) {
+        try {
+          const details = await resolve_details(tmdb, title.media_type, title.tmdb_id, title.imdb_id);
+          const fields = {
+            ...metadata_of(details),
+            imdb_id: details.imdb_id || title.imdb_id,
+            name: details.name || title.name,
+            poster_path: details.poster_path || title.poster_path,
+            total_episodes: details.total_episodes || title.total_episodes,
+          };
+          const changed = (Object.keys(fields) as (keyof typeof fields)[]).some((key) => fields[key] !== title[key]);
+          if (changed) {
+            drizzle_of(database).update(library_titles).set(fields).where(eq(library_titles.id, title.id)).run();
+            report.metadata_updated++;
+          }
+        } catch {
+          report.failed++;
+        }
+      }
+      if (title.media_type === "show" && settle_status(database, title.id) !== title.status) report.status_updated++;
+      refresh.done++;
+    };
+    // A few titles at a time, so a large library finishes soon without crowding TMDB.
+    let next = 0;
+    const worker = async (): Promise<void> => {
+      while (next < titles.length) await refresh_title(titles[next++]!);
+    };
+    await Promise.all(Array.from({ length: refresh_concurrency }, worker));
+    Object.assign(refresh, { state: "done", report });
+  } catch (error) {
+    Object.assign(refresh, { state: "failed", error: (error as Error).message });
+  }
+  refresh.finished_at = new Date().toISOString();
+}
+
 // ── Feature ──────────────────────────────────────────────────────────────────
 
 export const library_feature = define_feature({
@@ -401,43 +467,18 @@ export const library_feature = define_feature({
       in_transaction(database, () => groups.forEach((group, position) => db.update(library_collection_groups).set({ position }).where(eq(library_collection_groups.id, group.id)).run()));
     },
 
-    // Fetches every title's metadata again, fills in missing ids and episode counts, and sets each show's status from its
-    // episodes; it never changes a rating or unwatches an episode.
-    refresh_library: async (database: SqlDatabase): Promise<RefreshReport> => {
-      const titles = list_titles(database);
-      const has_key = setting(database, "library.tmdb_api_key").trim() !== "";
-      const tmdb = has_key ? tmdb_of(database) : null;
-      const report: RefreshReport = { total: titles.length, metadata_updated: 0, status_updated: 0, failed: 0 };
-      const refresh_title = async (title: LibraryTitle): Promise<void> => {
-        if (tmdb) {
-          try {
-            const details = await resolve_details(tmdb, title.media_type, title.tmdb_id, title.imdb_id);
-            const fields = {
-              ...metadata_of(details),
-              imdb_id: details.imdb_id || title.imdb_id,
-              name: details.name || title.name,
-              poster_path: details.poster_path || title.poster_path,
-              total_episodes: details.total_episodes || title.total_episodes,
-            };
-            const changed = (Object.keys(fields) as (keyof typeof fields)[]).some((key) => fields[key] !== title[key]);
-            if (changed) {
-              drizzle_of(database).update(library_titles).set(fields).where(eq(library_titles.id, title.id)).run();
-              report.metadata_updated++;
-            }
-          } catch {
-            report.failed++;
-          }
-        }
-        if (title.media_type === "show" && settle_status(database, title.id) !== title.status) report.status_updated++;
-      };
-      // A few titles at a time, so a large library answers well inside a proxy's timeout without crowding TMDB.
-      let next = 0;
-      const worker = async (): Promise<void> => {
-        while (next < titles.length) await refresh_title(titles[next++]!);
-      };
-      await Promise.all(Array.from({ length: refresh_concurrency }, worker));
-      return report;
+    // Starts fetching every title's metadata again in the background, or answers with the refresh already running.
+    refresh_library: (database: SqlDatabase): Background<LibraryRefresh> => {
+      const running = refreshes.get(database);
+      if (running?.state === "running") return new Background(snapshot_of(running), running_work.get(database)!);
+      const refresh: LibraryRefresh = { ...no_refresh, state: "running", started_at: new Date().toISOString() };
+      refreshes.set(database, refresh);
+      const work = run_refresh(database, refresh);
+      running_work.set(database, work);
+      return new Background(snapshot_of(refresh), work);
     },
+
+    get_library_refresh: (database: SqlDatabase): LibraryRefresh => snapshot_of(refreshes.get(database) ?? no_refresh),
 
     // The Trilium Media Tracker's Database note, and optionally its collection groups setting; adds and merges, never removes.
     import_trilium_media: (database: SqlDatabase, database_json: string, groups_json: string): ImportReport => {

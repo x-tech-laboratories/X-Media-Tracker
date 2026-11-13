@@ -7,6 +7,7 @@ import type { ApiSpec } from "@x-tech-laboratories/x-libs/api_spec";
 import { migrate, type SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 import { create_sync_engine } from "@x-tech-laboratories/x-libs/sync_engine";
 
+import { Background } from "./feature.ts";
 import { forget_synced_changes, history_feature, install_history, record_history } from "./history/store.ts";
 import { is_read_only } from "./page_api.ts";
 import { library_feature } from "./library/store.ts";
@@ -58,8 +59,11 @@ const all_methods = {
   get_settings: (database: SqlDatabase): Record<string, unknown> => ({ ...setting_defaults, ...settings_feature.methods.get_settings(database) }),
 };
 
+// A call that leaves work running answers with what the work's Background carries.
+type Answer<Result> = Result extends Background<infer Carried> ? Carried : Result;
+
 type Bound<Methods> = {
-  [Name in keyof Methods]: Methods[Name] extends (database: SqlDatabase, ...args: infer Args) => infer Result ? (...args: Args) => Result : never;
+  [Name in keyof Methods]: Methods[Name] extends (database: SqlDatabase, ...args: infer Args) => infer Result ? (...args: Args) => Answer<Result> : never;
 };
 
 // Every call the page can make, as it makes them, without the database.
@@ -72,8 +76,8 @@ export { is_read_only };
 // What every call does and takes, for programs other than the page.
 export const media_api = Object.assign({}, ...features.map((feature) => feature.api)) as ApiSpec<MediaMethods>;
 
-// The calls run on the database given; after each write the history records what it touched and on_change tells the
-// other pages and devices.
+// The calls run on the database given; after each write, and again once any work it left running has finished, the
+// history records what it touched and on_change tells the other pages and devices.
 export function bind_methods(database: () => SqlDatabase, on_change: () => void): MediaMethods {
   const bound = method_names.map((name) => {
     const method = all_methods[name] as (database: SqlDatabase, ...args: unknown[]) => unknown;
@@ -86,7 +90,9 @@ export function bind_methods(database: () => SqlDatabase, on_change: () => void)
       };
       if (result instanceof Promise) return result.then((value: unknown) => (after_write(), value));
       after_write();
-      return result;
+      if (!(result instanceof Background)) return result;
+      void result.finished.then(after_write, after_write);
+      return result.answer;
     };
     return [name, call];
   });

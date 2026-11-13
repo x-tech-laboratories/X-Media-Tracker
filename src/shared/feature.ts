@@ -29,6 +29,18 @@ export interface Feature<Methods extends Record<string, StoreMethod>> {
   secret_settings?: string[];
 }
 
+// A call's answer while its work goes on, such as a library refresh; the history and the other pages hear of the work's
+// writes once it has finished.
+export class Background<Answer> {
+  readonly answer: Answer;
+  readonly finished: Promise<unknown>;
+
+  constructor(answer: Answer, finished: Promise<unknown>) {
+    this.answer = answer;
+    this.finished = finished;
+  }
+}
+
 export function define_feature<Methods extends Record<string, StoreMethod>>(feature: Feature<Methods>): Feature<Methods> {
   return feature;
 }
