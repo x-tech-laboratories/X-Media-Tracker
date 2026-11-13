@@ -5,7 +5,7 @@
 
 import type { BackupClient } from "@x-tech-laboratories/x-libs/backup_protocol";
 import type { Client } from "@x-tech-laboratories/x-libs/electron/bridge";
-import { LoginNeeded } from "@x-tech-laboratories/x-libs/web/states";
+import { create_api } from "@x-tech-laboratories/x-libs/web/api";
 
 import type { PageApi } from "../../shared/page_api.ts";
 import type { MediaMethods } from "../../shared/store.ts";
@@ -21,17 +21,12 @@ const client_id_header = "x-client-id";
 // Given by the server when the page connects, so the page is not told about its own changes.
 let client_id = "";
 
-// A signed-out page shows the sign-in form rather than stale data.
-async function call_server(method: string, args: unknown[], path = call_path): Promise<unknown> {
-  const response = await fetch(path + method, {
-    method: "POST",
-    headers: { "content-type": "application/json", [client_id_header]: client_id },
-    body: JSON.stringify(args),
-  });
-  if (response.status === 401) throw new LoginNeeded("Sign in first.");
-  if (!response.ok) throw new Error(await response.text());
-  const text = await response.text();
-  return text === "" ? undefined : JSON.parse(text);
+// A signed-out page shows the sign-in form rather than stale data, and a refusal the server's words, or plain ones for a
+// proxy's error page.
+const server_api = create_api({ headers: () => ({ [client_id_header]: client_id }) });
+
+function call_server(method: string, args: unknown[], path = call_path): Promise<unknown> {
+  return server_api(path + method, "POST", args);
 }
 
 // ── Change events ────────────────────────────────────────────────────────────
