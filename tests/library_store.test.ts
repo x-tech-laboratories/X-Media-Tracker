@@ -2,6 +2,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { refresh_concurrency } from "../src/shared/library/store.ts";
 import { bind_methods, open_store } from "../src/shared/store.ts";
 import { trilium_database, trilium_groups } from "./trilium_sample.ts";
 
@@ -154,6 +155,26 @@ describe("watching", () => {
     expect(report).toEqual({ total: 3, metadata_updated: 2, status_updated: 1, failed: 1 });
     expect(store.get_title("tmdb:693134")).toMatchObject({ poster_path: "/new.jpg", runtime: 166, rating: 9 });
     expect(store.get_title("imdb:tt0903747")).toMatchObject({ tmdb_id: "1396", total_episodes: 7, status: "watched" });
+  });
+
+  it("refreshes several titles at once, never more than its limit", async () => {
+    const store = open_methods();
+    const ids = Array.from({ length: refresh_concurrency * 3 }, (_, index) => String(index + 1));
+    store.import_trilium_media(JSON.stringify({ titles: Object.fromEntries(ids.map((id) => [`tmdb:${id}`, { tmdbId: id, mediaType: "movie", title: `Movie ${id}`, status: "planned" }])) }), "");
+    let in_flight = 0;
+    let most_in_flight = 0;
+    vi.stubGlobal("fetch", async (address: string) => {
+      most_in_flight = Math.max(most_in_flight, ++in_flight);
+      await new Promise((resolve) => setTimeout(resolve, 5));
+      in_flight--;
+      return new Response(JSON.stringify({ id: Number(new URL(address).pathname.split("/").pop()), title: "Movie" }), { status: 200 });
+    });
+
+    const report = await store.refresh_library();
+
+    expect(report.total).toBe(refresh_concurrency * 3);
+    expect(report.failed).toBe(0);
+    expect(most_in_flight).toBe(refresh_concurrency);
   });
 });
 

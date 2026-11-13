@@ -82,6 +82,9 @@ export function tmdb_of(database: SqlDatabase): Tmdb {
   return create_tmdb(setting(database, "library.tmdb_api_key"));
 }
 
+// How many titles a refresh asks TMDB about at once, well under TMDB's rate limit.
+export const refresh_concurrency = 8;
+
 // ── Reading ──────────────────────────────────────────────────────────────────
 
 function read_seasons(database: SqlDatabase, title_id: string): Seasons {
@@ -405,7 +408,7 @@ export const library_feature = define_feature({
       const has_key = setting(database, "library.tmdb_api_key").trim() !== "";
       const tmdb = has_key ? tmdb_of(database) : null;
       const report: RefreshReport = { total: titles.length, metadata_updated: 0, status_updated: 0, failed: 0 };
-      for (const title of titles) {
+      const refresh_title = async (title: LibraryTitle): Promise<void> => {
         if (tmdb) {
           try {
             const details = await resolve_details(tmdb, title.media_type, title.tmdb_id, title.imdb_id);
@@ -426,7 +429,13 @@ export const library_feature = define_feature({
           }
         }
         if (title.media_type === "show" && settle_status(database, title.id) !== title.status) report.status_updated++;
-      }
+      };
+      // A few titles at a time, so a large library answers well inside a proxy's timeout without crowding TMDB.
+      let next = 0;
+      const worker = async (): Promise<void> => {
+        while (next < titles.length) await refresh_title(titles[next++]!);
+      };
+      await Promise.all(Array.from({ length: refresh_concurrency }, worker));
       return report;
     },
 
