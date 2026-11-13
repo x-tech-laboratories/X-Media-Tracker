@@ -8,6 +8,7 @@ import { ChipField } from "@x-tech-laboratories/x-libs/web/react/chip_field";
 import { Select } from "@x-tech-laboratories/x-libs/web/react/controls";
 import { confirm_dialog } from "@x-tech-laboratories/x-libs/web/react/dialog";
 import { Facts, PageHeading, Section, Stack } from "@x-tech-laboratories/x-libs/web/react/layout";
+import { PluginSlot } from "@x-tech-laboratories/x-libs/web/react/plugins";
 import { ProgressBar } from "@x-tech-laboratories/x-libs/web/react/progress";
 import { Rating } from "@x-tech-laboratories/x-libs/web/react/rating";
 import { Empty, Failure, Loaded, Skeleton, use_resource } from "@x-tech-laboratories/x-libs/web/react/states";
@@ -16,6 +17,7 @@ import { toast } from "@x-tech-laboratories/x-libs/web/react/toasts";
 import { calls, use_data, use_settings } from "../api.ts";
 import { has_episode, image_url, next_unwatched, parse_episodes, status_labels, statuses, type Collection, type EpisodeRange, type LibraryTitle, type Seasons } from "../../shared/library/model.ts";
 import type { TmdbFullDetails, TmdbSeason } from "../../shared/library/tmdb.ts";
+import { use_page_plugins } from "../sources/plugins.tsx";
 import { set_status } from "./status.tsx";
 
 // ── Episodes ─────────────────────────────────────────────────────────────────
@@ -121,6 +123,7 @@ function TitlePage({ title, collections, settings }: { title: LibraryTitle; coll
   // TMDB is asked once per visit, not after each tick.
   const details = use_resource(() => calls().lookup_title_details(title.id), [title.id]);
   const genres_on = settings["library.genres_enabled"] !== false;
+  const plugins = use_page_plugins();
 
   const remove = () =>
     confirm_dialog({
@@ -141,9 +144,12 @@ function TitlePage({ title, collections, settings }: { title: LibraryTitle; coll
         title={title.name}
         subtitle={[title.year, title.media_type === "show" ? "TV" : "Movie", tmdb?.runtime ? `${tmdb.runtime} min` : ""].filter(Boolean).join(" · ")}
         actions={
-          <button type="button" className="danger" onClick={remove}>
-            Remove
-          </button>
+          <>
+            {plugins && <PluginSlot host={plugins} name="title_actions" props={{ media_type: title.media_type, imdb_id: title.imdb_id || tmdb?.imdb_id || "" }} />}
+            <button type="button" className="danger" onClick={remove}>
+              Remove
+            </button>
+          </>
         }
       />
       <div className="title-head">

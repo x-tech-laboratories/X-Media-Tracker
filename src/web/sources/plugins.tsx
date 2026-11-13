@@ -1,6 +1,6 @@
-// The page's side of the source plugins: each fills Settings' Import section with its own panel. On or off and each
-// plugin's settings are the same synced records the store's side reads, so a source turned off here stops importing
-// everywhere.
+// The page's side of the source plugins: each fills Settings' Import section with its own panel, and Stremio adds its
+// links to each title's page. On or off and each plugin's settings are the same synced records the store's side reads,
+// so a source turned off here stops importing everywhere.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -9,18 +9,30 @@ import { create_plugin_host, define_plugin, type PluginHost, type PluginRecords 
 
 import { calls } from "../api.ts";
 import { app_info, plugins_setting, stremio_manifest, trakt_manifest } from "../../shared/sources/manifests.ts";
+import type { MediaType } from "../../shared/library/model.ts";
 import { StremioPanel } from "./StremioPanel.tsx";
+import { StremioTitleLinks } from "./StremioTitleLinks.tsx";
 import { TraktPanel } from "./TraktPanel.tsx";
 
 // ── Api ──────────────────────────────────────────────────────────────────────
 
 export interface PageSourceApi {
-  slots: { import_panel: ComponentType<Record<string, never>> };
+  slots: {
+    import_panel: ComponentType<Record<string, never>>;
+    // Buttons beside a title's name; imdb_id is "" when neither the title nor TMDB has one.
+    title_actions: ComponentType<{ media_type: MediaType; imdb_id: string }>;
+  };
 }
 
 const trakt_page = define_plugin<PageSourceApi>({ ...trakt_manifest, start: (context) => context.fill_slot("import_panel", TraktPanel) });
 
-const stremio_page = define_plugin<PageSourceApi>({ ...stremio_manifest, start: (context) => context.fill_slot("import_panel", StremioPanel) });
+const stremio_page = define_plugin<PageSourceApi>({
+  ...stremio_manifest,
+  start: (context) => {
+    context.fill_slot("import_panel", StremioPanel);
+    context.fill_slot("title_actions", StremioTitleLinks);
+  },
+});
 
 // ── Host ─────────────────────────────────────────────────────────────────────
 

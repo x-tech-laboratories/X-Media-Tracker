@@ -3,6 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { apply_import, import_item } from "../src/shared/library/importing.ts";
+import { stremio_links } from "../src/shared/sources/stremio/links.ts";
 import { items_from_stremio } from "../src/shared/sources/stremio/mapping.ts";
 import { history_rows, items_from_ratings, items_from_watched } from "../src/shared/sources/trakt/mapping.ts";
 import { bind_methods, open_store } from "../src/shared/store.ts";
@@ -255,6 +256,18 @@ describe("Stremio", () => {
 });
 
 // ── Schedule ─────────────────────────────────────────────────────────────────
+
+describe("Stremio's links", () => {
+  it("opens a movie or a show by its IMDb id in the app and on the web", () => {
+    expect(stremio_links("movie", "tt0111161")).toEqual({ app: "stremio:///detail/movie/tt0111161", web: "https://web.stremio.com/#/detail/movie/tt0111161" });
+    expect(stremio_links("show", "TT0903747")?.app).toBe("stremio:///detail/series/tt0903747");
+  });
+
+  it("has no link for a title without an IMDb id", () => {
+    expect(stremio_links("movie", "")).toBeNull();
+    expect(stremio_links("movie", "693134")).toBeNull();
+  });
+});
 
 describe("automatic imports", () => {
   it("run only the sources set to, once the hours have passed, and record a failure as a run", async () => {

@@ -22,6 +22,7 @@ import { file_sync_storage } from "@x-tech-laboratories/x-libs/sync_file_storage
 import { media_backup_naming, read_schedule } from "../shared/backups.ts";
 import { certificate_bridge, device_bridge, media_bridge, media_events } from "../shared/bridge.ts";
 import { keep_importing } from "../shared/sources/schedule.ts";
+import { stremio_scheme } from "../shared/sources/stremio/links.ts";
 import { bind_methods, needs_upgrade, open_store, sync_engine } from "../shared/store.ts";
 
 // ── Profile ──────────────────────────────────────────────────────────────────
@@ -111,6 +112,8 @@ function open_window(): BrowserWindow {
     min_size: { width: 360, height: 480 },
     native_theme: nativeTheme,
     shell,
+    // The title page's "Open in Stremio" button opens the installed app.
+    external_schemes: [stremio_scheme],
     screen,
     state_file: join(profile, "window.json"),
   });
