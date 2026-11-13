@@ -1,4 +1,4 @@
-// The Stremio panel on the Import page: signing in with the account's email and password, and importing.
+// The Stremio panel in Settings' Import section: signing in with the account's email and password, and importing.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 

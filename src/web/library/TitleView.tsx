@@ -7,7 +7,7 @@ import { Avatar } from "@x-tech-laboratories/x-libs/web/react/media";
 import { ChipField } from "@x-tech-laboratories/x-libs/web/react/chip_field";
 import { Select } from "@x-tech-laboratories/x-libs/web/react/controls";
 import { confirm_dialog } from "@x-tech-laboratories/x-libs/web/react/dialog";
-import { Facts, PageHeading, Section } from "@x-tech-laboratories/x-libs/web/react/layout";
+import { Facts, PageHeading, Section, Stack } from "@x-tech-laboratories/x-libs/web/react/layout";
 import { ProgressBar } from "@x-tech-laboratories/x-libs/web/react/progress";
 import { Rating } from "@x-tech-laboratories/x-libs/web/react/rating";
 import { Empty, Failure, Loaded, Skeleton, use_resource } from "@x-tech-laboratories/x-libs/web/react/states";
@@ -136,7 +136,7 @@ function TitlePage({ title, collections, settings }: { title: LibraryTitle; coll
 
   const tmdb = details.data;
   return (
-    <>
+    <Stack>
       <PageHeading
         title={title.name}
         subtitle={[title.year, title.media_type === "show" ? "TV" : "Movie", tmdb?.runtime ? `${tmdb.runtime} min` : ""].filter(Boolean).join(" · ")}
@@ -188,7 +188,7 @@ function TitlePage({ title, collections, settings }: { title: LibraryTitle; coll
         </Section>
       )}
       {tmdb && title.media_type === "show" && <EpisodesSection title={title} details={tmdb} />}
-    </>
+    </Stack>
   );
 }
 

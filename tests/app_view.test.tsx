@@ -44,18 +44,38 @@ afterEach(() => {
 });
 
 describe("sidebar", () => {
-  it("opens on the Library, lists its pages, and opens one when picked", async () => {
+  it("opens on the Library, lists Library and History alike, and marks the one shown", async () => {
     fake_page();
     render(<App />);
 
-    const tree = screen.getByRole("tree", { name: "Sections" });
+    const nav = screen.getByRole("navigation", { name: "Sections" });
     expect(await screen.findByRole("heading", { level: 1, name: "Library" })).toBeTruthy();
-    expect(tree.querySelector("[data-id='library/titles']")?.getAttribute("aria-selected")).toBe("true");
+    expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual(["Library", "History"]);
+    expect(within(nav).getByRole("link", { name: "Library" }).getAttribute("aria-current")).toBe("page");
 
-    fireEvent.click(within(tree).getByText("Add", { selector: "[data-id='library/add'] *" }));
-    expect(window.location.hash).toBe("#/library/add");
-    go("#/library/add");
-    expect(await screen.findByRole("heading", { level: 1, name: "Add" })).toBeTruthy();
+    go("#/history");
+    expect(await screen.findByRole("heading", { level: 1, name: "History" })).toBeTruthy();
+    expect(within(nav).getByRole("link", { name: "History" }).getAttribute("aria-current")).toBe("page");
+  });
+});
+
+describe("search", () => {
+  it("opens the results from the top bar and shows the library's matches", async () => {
+    const store = fake_page();
+    store.import_trilium_media(trilium_database, "");
+    render(<App />);
+
+    const box = await screen.findByLabelText("Search your library and TMDB, or paste a link");
+    fireEvent.change(box, { target: { value: "dune" } });
+    fireEvent.keyDown(box, { key: "Enter" });
+    expect(window.location.hash).toBe("#/library/search/dune");
+    go("#/library/search/dune");
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Search" })).toBeTruthy();
+    const mine = screen.getByRole("heading", { name: "In your library" }).closest("section")!;
+    expect(within(mine).getByRole("link", { name: "Dune: Part Two" })).toBeTruthy();
+    expect(within(mine).queryByRole("link", { name: "Severance" })).toBeNull();
+    expect(screen.getByRole("heading", { name: "From TMDB" })).toBeTruthy();
   });
 });
 
@@ -80,6 +100,22 @@ describe("library page", () => {
   });
 });
 
+describe("library table", () => {
+  it("shows the titles as table rows once Table is picked, and keeps the choice", async () => {
+    const store = fake_page();
+    store.import_trilium_media(trilium_database, "");
+    render(<App />);
+
+    fireEvent.click(await screen.findByRole("radio", { name: "Table" }));
+    const table = await screen.findByRole("table", { name: "Titles" });
+    const row = within(table).getAllByRole("row").find((each) => each.textContent?.includes("Severance"))!;
+    expect(row.textContent).toContain("Watching");
+    expect(row.textContent).toContain("10/19");
+    expect(within(row).getByRole("link", { name: "Severance" }).getAttribute("href")).toBe("#/library/title/tmdb%3A95396");
+    expect(window.localStorage.getItem("x-media-tracker-library-layout")).toContain("table");
+  });
+});
+
 describe("title page", () => {
   it("shows a title's status and rating and changes its status", async () => {
     const store = fake_page();
@@ -95,11 +131,11 @@ describe("title page", () => {
   });
 });
 
-describe("import page", () => {
+describe("importing in settings", () => {
   it("shows a panel for each source that is on, and none for one turned off", async () => {
     const store = fake_page();
     render(<App />);
-    go("#/library/import");
+    go("#/settings");
 
     expect(await screen.findByRole("heading", { name: "Trakt" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Stremio" })).toBeTruthy();
@@ -109,7 +145,7 @@ describe("import page", () => {
     forget_page_plugins();
     store.set_setting("plugins", { "x-media-tracker.trakt": { enabled: false } });
     render(<App />);
-    go("#/library/import");
+    go("#/settings");
     expect(await screen.findByRole("heading", { name: "Stremio" })).toBeTruthy();
     expect(screen.queryByRole("heading", { name: "Trakt" })).toBeNull();
   });
@@ -117,7 +153,7 @@ describe("import page", () => {
   it("saves the Trakt app and offers to sign in once there is a Client ID", async () => {
     const store = fake_page();
     render(<App />);
-    go("#/library/import");
+    go("#/settings");
 
     fireEvent.change(await screen.findByLabelText(/Client ID/), { target: { value: "client-id" } });
     fireEvent.change(screen.getByLabelText(/Client Secret/), { target: { value: "client-secret" } });

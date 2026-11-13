@@ -2,7 +2,7 @@
 
 /* Posters are tall, so the media tiles take TMDB's 2:3. */
 .library-page,
-.add-page {
+.search-page {
   --media-aspect: 2 / 3;
 }
 
@@ -11,7 +11,6 @@
   flex-wrap: wrap;
   gap: var(--space-7);
   align-items: flex-start;
-  margin-bottom: var(--space-7);
 }
 
 .title-poster {
@@ -104,9 +103,26 @@
   margin-top: var(--space-4);
 }
 
+/* A new collection's or group's name takes the room its row has, so its placeholder shows whole. */
+.add-field input {
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+
 @media (max-width: 600px) {
   .episode-still {
     display: none;
+  }
+}
+
+/* On a phone each of the Library's choice strips takes a whole row, and the sort direction stays a small button. */
+@media (max-width: 640px) {
+  .library-page .toolbar > .segmented {
+    flex-basis: 100%;
+  }
+
+  .library-page .toolbar > .sort-direction {
+    flex: none;
   }
 }
 

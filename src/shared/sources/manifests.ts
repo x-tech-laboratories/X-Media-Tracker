@@ -19,7 +19,7 @@ export const plugins_setting = "plugins";
 const auto_import = (service: string) => ({
   key: "auto_import",
   label: "Import automatically",
-  hint: `Imports from ${service} on the schedule under Settings → Library → Automatic imports.`,
+  hint: `Imports from ${service} on the schedule under Settings → Sources → Automatic imports.`,
   type: "switch" as const,
   default: false,
 });

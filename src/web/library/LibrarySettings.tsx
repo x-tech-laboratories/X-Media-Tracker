@@ -5,7 +5,7 @@
 
 import { useRef, useState, type ChangeEvent } from "react";
 import { ChipField } from "@x-tech-laboratories/x-libs/web/react/chip_field";
-import { CommitInput, NumberField, Select, Switch } from "@x-tech-laboratories/x-libs/web/react/controls";
+import { CommitInput, Select, Switch } from "@x-tech-laboratories/x-libs/web/react/controls";
 import { confirm_dialog } from "@x-tech-laboratories/x-libs/web/react/dialog";
 import { RowActions, Section, SettingRow, type SettingsSection } from "@x-tech-laboratories/x-libs/web/react/layout";
 import { Loaded } from "@x-tech-laboratories/x-libs/web/react/states";
@@ -271,17 +271,6 @@ function LibraryData() {
   );
 }
 
-// ── Automatic imports ────────────────────────────────────────────────────────
-
-function AutomaticImports({ settings, set_setting }: FeatureSettingsProps) {
-  const ran_at = String(settings["sources.last_auto_import"] ?? "");
-  return (
-    <SettingRow label="Hours between imports" hint={ran_at ? `Last ran ${new Date(ran_at).toLocaleString()}: ${String(settings["sources.last_auto_result"])}` : "Not run yet."}>
-      <NumberField label="Hours between imports" bare unit="hours" min={1} max={168} value={Number(settings["sources.auto_import_hours"])} on_change={(hours) => void set_setting("sources.auto_import_hours", hours ?? 6)} />
-    </SettingRow>
-  );
-}
-
 // ── Sections ─────────────────────────────────────────────────────────────────
 
 export function library_settings(props: FeatureSettingsProps): SettingsSection[] {
@@ -294,12 +283,6 @@ export function library_settings(props: FeatureSettingsProps): SettingsSection[]
       heading: "Collections",
       hint: "Collections are yours: a title can be in several. Each group, such as Mood or Franchise, becomes its own filter on the Library.",
       content: <CollectionSettings />,
-    },
-    {
-      id: "automatic-imports",
-      heading: "Automatic imports",
-      hint: "Sources set to import automatically under Plugins run on this schedule, on the server and the desktop app.",
-      content: <AutomaticImports {...props} />,
     },
     { id: "library-data", heading: "Import and export", content: <LibraryData /> },
   ];

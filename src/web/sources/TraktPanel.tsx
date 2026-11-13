@@ -1,5 +1,5 @@
-// The Trakt panel on the Import page: the user's own Trakt app, signing in by a code entered on Trakt's site, importing,
-// archiving everything before leaving Trakt, and Trakt's history beside the library, one watch at a time.
+// The Trakt panel in Settings' Import section: the user's own Trakt app, signing in by a code entered on Trakt's site,
+// importing, archiving everything before leaving Trakt, and Trakt's history beside the library, one watch at a time.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -237,6 +237,7 @@ export function TraktPanel() {
   const status = use_data((api) => api.get_trakt_status());
   return (
     <Section title="Trakt">
+      <p className="source-hint">Imports watched movies and every episode's history. Trakt changes only when you remove a watch from it below, once the library holds that watch.</p>
       <Loaded resource={status}>
         {(loaded) => (
           <>

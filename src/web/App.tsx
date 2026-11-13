@@ -67,7 +67,7 @@ function Pages({ me, on_sign_out }: { me: Me | null; on_sign_out?: () => void })
   const shown_feature = feature ?? (section === "library" ? page_features[0] : undefined);
   const page = shown_feature?.pages.find((candidate) => candidate.id === rest[0]) ?? shown_feature?.pages[0];
   const own_labels: Record<string, string> = { settings: "Settings", history: "History", account: "Your account", users: "Users" };
-  const label = shown_feature ? page!.label : own_labels[section]!;
+  const label = shown_feature ? (rest[0] === "search" ? "Search" : page!.label) : own_labels[section]!;
   const view_key = route.parts.join("/");
   const is_admin = me !== null && me.role === me.roles.at(-1);
 
@@ -89,6 +89,7 @@ function Pages({ me, on_sign_out }: { me: Me | null; on_sign_out?: () => void })
       brand_icon={app_icon}
       sidebar={<Sidebar features={page_features} section={section} page={page?.id ?? ""} />}
       sidebar_foot={<SidebarFoot section={section} show_users={is_admin} />}
+      tools={page_features.map((each) => <Fragment key={each.id}>{each.top_bar}</Fragment>)}
       theme={theme}
       view_key={view_key}
       user={me?.name}

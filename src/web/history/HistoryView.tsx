@@ -8,7 +8,7 @@ import type { VersionKind } from "@x-tech-laboratories/x-libs/history";
 import { StateBadge, type Tone } from "@x-tech-laboratories/x-libs/web/react/badges";
 import { Select } from "@x-tech-laboratories/x-libs/web/react/controls";
 import { confirm_dialog, Dialog, open_dialog } from "@x-tech-laboratories/x-libs/web/react/dialog";
-import { PageHeading, Toolbar } from "@x-tech-laboratories/x-libs/web/react/layout";
+import { PageHeading, Stack, Toolbar } from "@x-tech-laboratories/x-libs/web/react/layout";
 import { Empty, Loaded } from "@x-tech-laboratories/x-libs/web/react/states";
 import { DataTable, type TableColumn } from "@x-tech-laboratories/x-libs/web/react/table";
 import { toast } from "@x-tech-laboratories/x-libs/web/react/toasts";
@@ -27,7 +27,7 @@ const change_labels: Record<VersionKind, [text: string, tone: Tone]> = {
 };
 
 function when(changed_at: string): string {
-  return new Date(changed_at).toLocaleString();
+  return new Date(changed_at).toLocaleString(undefined, { dateStyle: "medium", timeStyle: "medium" });
 }
 
 // Brings the version back after a confirm, since the item's current state becomes a version of its own.
@@ -117,7 +117,7 @@ export function HistoryView() {
   ];
 
   return (
-    <>
+    <Stack>
       <PageHeading title="History" subtitle="The latest changes to titles, their episodes and collections." />
       <Toolbar>
         <Select label="Changes shown" options={limits} value={limit} on_change={set_limit} />
@@ -125,6 +125,6 @@ export function HistoryView() {
       <Loaded resource={changes}>
         {(list) => (list.length === 0 ? <Empty title="No changes yet." /> : <DataTable caption="Latest changes" columns={columns} rows={list} row_key={(change) => `${change.kind}:${change.id}`} />)}
       </Loaded>
-    </>
+    </Stack>
   );
 }

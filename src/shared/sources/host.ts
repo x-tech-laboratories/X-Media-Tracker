@@ -47,7 +47,7 @@ export function is_switched_on(database: SqlDatabase, manifest: PluginManifest):
 }
 
 export function require_switched_on(database: SqlDatabase, manifest: PluginManifest): void {
-  if (!is_switched_on(database, manifest)) throw new Error(`The ${manifest.name} plugin is off; turn it on under Settings → Plugins.`);
+  if (!is_switched_on(database, manifest)) throw new Error(`The ${manifest.name} plugin is off; turn it on under Settings → Sources → Plugins.`);
 }
 
 // ── Host ─────────────────────────────────────────────────────────────────────

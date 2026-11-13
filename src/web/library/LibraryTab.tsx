@@ -1,14 +1,16 @@
-// The Library: every tracked title as a poster, narrowed by name, type, status, genre and each collection group, each
-// choice showing how many titles it would leave, sorted and optionally grouped under its collections.
+// The Library: every tracked title as a poster, narrowed by type, status, genre and each collection group, each choice
+// showing how many titles it would leave, sorted, shown as posters or a table, and optionally grouped under its
+// collections.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
 import { useState } from "react";
 import { MediaGrid, MediaTile } from "@x-tech-laboratories/x-libs/web/react/media";
 import { MenuButton } from "@x-tech-laboratories/x-libs/web/react/menu_button";
-import { SearchBox, Segmented, Select } from "@x-tech-laboratories/x-libs/web/react/controls";
-import { PageHeading, Section, Toolbar } from "@x-tech-laboratories/x-libs/web/react/layout";
+import { Segmented, Select } from "@x-tech-laboratories/x-libs/web/react/controls";
+import { PageHeading, Section, Stack, Toolbar } from "@x-tech-laboratories/x-libs/web/react/layout";
 import { Empty, Loaded } from "@x-tech-laboratories/x-libs/web/react/states";
+import { DataTable, type TableColumn } from "@x-tech-laboratories/x-libs/web/react/table";
 import { is_boolean, one_of } from "@x-tech-laboratories/x-libs/web/prefs";
 import { use_pref } from "@x-tech-laboratories/x-libs/web/react/prefs";
 import { toast } from "@x-tech-laboratories/x-libs/web/react/toasts";
@@ -51,38 +53,61 @@ function progress_text(title: LibraryTitle): string {
   return title.total_episodes ? `${title.watched_count}/${title.total_episodes}` : title.watched_count ? `${title.watched_count} watched` : "";
 }
 
-function TitleTile({ title, poster_size }: { title: LibraryTitle; poster_size: string }) {
+function href_of(title: LibraryTitle): string {
+  return `#/library/title/${encodeURIComponent(title.id)}`;
+}
+
+function TitleActions({ title }: { title: LibraryTitle }) {
   const remove = async () => {
     await calls().remove_title(title.id);
     toast(`Removed ${title.name}.`, { link: { href: "#/history", text: "History" } });
   };
   return (
-    <MediaTile
-      title={title.name}
-      href={`#/library/title/${encodeURIComponent(title.id)}`}
-      image={image_url(title.poster_path, poster_size)}
-      corner={progress_text(title) || undefined}
-      lines={[[title.year, title.media_type === "show" ? "TV" : "Movie"].filter(Boolean).join(" · "), status_labels[title.status]]}
-      dimmed={title.status === "dropped"}
-      actions={
-        <MenuButton
-          label={`${title.name} actions`}
-          items={() => [...status_menu_items(title), { label: "Remove", danger: true, separator_before: true, run: () => void remove() }]}
-        />
-      }
+    <MenuButton
+      label={`${title.name} actions`}
+      items={() => [...status_menu_items(title), { label: "Remove", danger: true, separator_before: true, run: () => void remove() }]}
     />
   );
 }
 
-function Tiles({ titles, poster_size, rows }: { titles: LibraryTitle[]; poster_size: string; rows: boolean }) {
+function TitleTile({ title, poster_size }: { title: LibraryTitle; poster_size: string }) {
   return (
-    <MediaGrid label="Titles" rows={rows}>
+    <MediaTile
+      title={title.name}
+      href={href_of(title)}
+      image={image_url(title.poster_path, poster_size)}
+      corner={progress_text(title) || undefined}
+      lines={[[title.year, title.media_type === "show" ? "TV" : "Movie"].filter(Boolean).join(" · "), status_labels[title.status]]}
+      dimmed={title.status === "dropped"}
+      actions={<TitleActions title={title} />}
+    />
+  );
+}
+
+const table_columns: TableColumn<LibraryTitle>[] = [
+  { label: "Title", cell: (title) => <a href={href_of(title)}>{title.name}</a> },
+  { label: "Year", cell: (title) => title.year || "—" },
+  { label: "Type", cell: (title) => (title.media_type === "show" ? "TV" : "Movie") },
+  { label: "Status", cell: (title) => status_labels[title.status] },
+  { label: "Rating", cell: (title) => (title.rating ? `★ ${title.rating}` : "—") },
+  { label: "Episodes", cell: (title) => (title.media_type === "show" ? (title.total_episodes ? `${title.watched_count}/${title.total_episodes}` : String(title.watched_count)) : "—") },
+  { label: "Last watched", cell: (title) => title.last_watched || "—" },
+  { label: "Added", cell: (title) => title.added_at || "—" },
+  { label: "Actions", id: "actions", header: <span className="visually-hidden">Actions</span>, class: "actions-cell", cell: (title) => <TitleActions title={title} /> },
+];
+
+function Titles({ titles, poster_size, layout }: { titles: LibraryTitle[]; poster_size: string; layout: Layout }) {
+  if (layout === "table") return <DataTable caption="Titles" columns={table_columns} rows={titles} row_key={(title) => title.id} />;
+  return (
+    <MediaGrid label="Titles">
       {titles.map((title) => (
         <TitleTile key={title.id} title={title} poster_size={poster_size} />
       ))}
     </MediaGrid>
   );
 }
+
+type Layout = "posters" | "table";
 
 // ── Filters ──────────────────────────────────────────────────────────────────
 
@@ -99,12 +124,11 @@ function group_filters(collections: Collection[], groups: CollectionGroup[]): { 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 function LibraryPage({ library, settings }: { library: Library; settings: Record<string, unknown> }) {
-  const [search, set_search] = useState("");
   const [remembered, set_remembered] = use_pref("x-media-tracker-library-filters", remembered_defaults, is_filters);
   const [sort_key, set_sort_key] = use_pref<SortKey>("x-media-tracker-library-sort", "name", one_of(...sort_keys));
   const [descending, set_descending] = use_pref("x-media-tracker-library-descending", false, is_boolean);
   const [grouped, set_grouped] = use_pref("x-media-tracker-library-grouped", false, is_boolean);
-  const [rows, set_rows] = use_pref("x-media-tracker-library-rows", false, is_boolean);
+  const [layout, set_layout] = use_pref<Layout>("x-media-tracker-library-layout", "posters", one_of("posters", "table"));
   const [refreshing, set_refreshing] = useState(false);
 
   const genres_on = settings["library.genres_enabled"] !== false;
@@ -114,7 +138,7 @@ function LibraryPage({ library, settings }: { library: Library; settings: Record
   // A leftover filter on a genre now hidden, or a group now gone, stops applying.
   const filters: LibraryFilters = {
     ...remembered,
-    search,
+    search: "",
     genre: genres.some((genre) => genre.toLowerCase() === remembered.genre.toLowerCase()) ? remembered.genre : "all",
     groups: Object.fromEntries(shown_groups.map((group) => [group.id, remembered.groups[group.id] ?? "all"])),
   };
@@ -136,23 +160,17 @@ function LibraryPage({ library, settings }: { library: Library; settings: Record
   };
 
   return (
-    <>
+    <Stack>
       <PageHeading
         title="Library"
         subtitle={`${shown.length} of ${library.titles.length} titles`}
         actions={
-          <>
-            <a className="button" href="#/library/add">
-              Add
-            </a>
-            <button type="button" disabled={refreshing} onClick={() => void refresh()}>
-              {refreshing ? "Refreshing…" : "Refresh"}
-            </button>
-          </>
+          <button type="button" disabled={refreshing} onClick={() => void refresh()}>
+            {refreshing ? "Refreshing…" : "Refresh"}
+          </button>
         }
       />
       <Toolbar>
-        <SearchBox label="Search titles" value={search} on_input={set_search} />
         <Segmented
           label="Type"
           choices={[
@@ -194,7 +212,7 @@ function LibraryPage({ library, settings }: { library: Library; settings: Record
           );
         })}
         <Select label="Sort by" options={sort_keys.map((key) => [key, sort_labels[key]] as [SortKey, string])} value={sort_key} on_change={set_sort_key} />
-        <button type="button" aria-label={descending ? "Sort ascending" : "Sort descending"} onClick={() => set_descending(!descending)}>
+        <button type="button" className="sort-direction" aria-label={descending ? "Sort ascending" : "Sort descending"} onClick={() => set_descending(!descending)}>
           {descending ? "↓" : "↑"}
         </button>
         <Segmented
@@ -210,26 +228,26 @@ function LibraryPage({ library, settings }: { library: Library; settings: Record
           label="Layout"
           choices={[
             { value: "posters", label: "Posters" },
-            { value: "rows", label: "Rows" },
+            { value: "table", label: "Table" },
           ]}
-          value={rows ? "rows" : "posters"}
-          on_change={(choice) => set_rows(choice === "rows")}
+          value={layout}
+          on_change={set_layout}
         />
       </Toolbar>
       {library.titles.length === 0 ? (
-        <Empty title="Nothing tracked yet." hint={<a href="#/library/add">Add a movie or show</a>} />
+        <Empty title="Nothing tracked yet." hint="Search for a movie or show in the bar at the top to add it." />
       ) : shown.length === 0 ? (
         <Empty title="No titles match these filters." />
       ) : grouped ? (
         group_by_collection(shown, library.collections).map(([heading, titles]) => (
           <Section key={heading} title={`${heading} (${titles.length})`}>
-            <Tiles titles={titles} poster_size={poster_size} rows={rows} />
+            <Titles titles={titles} poster_size={poster_size} layout={layout} />
           </Section>
         ))
       ) : (
-        <Tiles titles={shown} poster_size={poster_size} rows={rows} />
+        <Titles titles={shown} poster_size={poster_size} layout={layout} />
       )}
-    </>
+    </Stack>
   );
 }
 

@@ -5,12 +5,13 @@ and your own collections. It runs as a web page served by your own server, as a 
 desktop and Android apps keep their own copy of the library, work offline, and sync with the server whenever it can be
 reached. It is the X-Tech port of the Trilium Media Tracker add-on, and imports its library.
 
-- **Library:** every title as a poster, narrowed by name, type, status, genre and each collection group, each choice
-  showing how many titles it would leave; sorted by name, last watched, release, rating, when added or progress, and
-  optionally grouped under its collections.
+- **Library:** every title as a poster or a table row, narrowed by type, status, genre and each collection group, each
+  choice showing how many titles it would leave; sorted by name, last watched, release, rating, when added or progress,
+  and optionally grouped under its collections.
 - **A title's page:** status, rating, collections, TMDB's overview and cast, and for a show every season's episodes to
   tick off one at a time, the rest of a season, or the whole show at once. A show's status follows its episodes.
-- **Add:** search TMDB for movies, shows or both, or paste a TMDB or IMDb link to add it at once.
+- **Search:** the bar at the top searches your library and TMDB at once, each TMDB result added with a button; a pasted
+  TMDB or IMDb link is added at once.
 - **Collections:** yours, a title in as many as you like, sorted into groups such as Mood or Franchise, each group its
   own filter on the Library.
 - **Refresh:** fetches every title's details from TMDB again and settles each show's status; it never changes a rating
@@ -61,9 +62,9 @@ already here without changing their status or rating. **Export JSON** writes the
 
 ## Importing from Trakt and Stremio
 
-**Library → Import** shows a panel for each source plugin that is on. Imports only add and merge: a title is matched on
-any shared id (TMDB, IMDb or Trakt), episodes are merged and never unwatched, and status and rating are kept unless
-**Settings → Library → New titles** and the import settings say otherwise. Nothing is ever written to Stremio.
+**Settings → Sources → Import** shows a panel for each source plugin that is on. Imports only add and merge: a title is
+matched on any shared id (TMDB, IMDb or Trakt), episodes are merged and never unwatched, and status and rating are kept
+unless **Settings → Library → New titles** and the import settings say otherwise. Nothing is ever written to Stremio.
 
 - **Trakt:** make an API app at [trakt.tv/oauth/applications](https://trakt.tv/oauth/applications) with
   `urn:ietf:wg:oauth:2.0:oob` as its redirect address, save its Client ID and Secret, then **Sign in to Trakt** and enter
@@ -77,7 +78,7 @@ any shared id (TMDB, IMDb or Trakt), episodes are merged and never unwatched, an
 - **Stremio:** sign in with the account's email and password; the password is sent once for a key and kept nowhere.
   Stremio keeps only where each show is up to, so a show's episodes up to the one last played count as watched.
 
-**Settings → Plugins** turns each source on or off and sets it to import automatically; **Settings → Library →
+**Settings → Sources → Plugins** turns each source on or off and sets it to import automatically; **Settings → Sources →
 Automatic imports** sets the hours between runs (6 unless set). The server and the desktop app check hourly; the last
 run syncs, so they do not both run it, and a failing source still counts as a run.
 

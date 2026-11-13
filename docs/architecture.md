@@ -31,7 +31,8 @@ A feature is two folders:
   - `api` describes every method for other programs in `src/shared/<feature>/api.ts`; the server serves them as MCP
     tools at `/api/mcp`, as `/api/openapi.json`, and lets `/api/call/<method>` take the arguments by name.
   - Settings keys are namespaced, such as `library.poster_size`, with their defaults in the feature's `settings.ts`.
-- `src/web/<feature>/index.tsx` exports its view, its pages for the sidebar, and its sections for the Settings page.
+- `src/web/<feature>/index.tsx` exports its view, its pages for the sidebar, its sections for the Settings page and
+  anything it puts in the top bar, such as the library's search.
 
 `src/shared/store.ts` and `src/web/features.tsx` list the features; nothing else knows them.
 
@@ -58,8 +59,9 @@ Trakt and Stremio are bundled X-Libs plugins, each named once by a manifest in `
   `run_due_imports` go through it.
 - Each source is also a feature, `src/shared/sources/<source>/`, with its calls and their specs, its settings (its keys
   and tokens listed as secret settings) and, for Trakt, its archive table. Its calls refuse while its plugin is off.
-- The page's side (`src/web/sources/plugins.tsx`) fills the Import page's `import_panel` slot; Settings shows
-  `PluginSettings`. Both hosts keep on or off and each plugin's settings in the synced `plugins` setting.
+- The page's side (`src/web/sources/plugins.tsx`) fills the `import_panel` slot in Settings' Sources category, beside
+  `PluginSettings` and the automatic imports' schedule (`src/web/sources/SourceSettings.tsx`). Both hosts keep on or
+  off and each plugin's settings in the synced `plugins` setting.
 - Every source imports through `apply_import` (`src/shared/library/importing.ts`): TMDB is asked first, then one
   transaction writes, matching on any id and merging episodes.
 - `keep_importing` (`src/shared/sources/schedule.ts`) checks the automatic imports hourly on the server and the desktop.

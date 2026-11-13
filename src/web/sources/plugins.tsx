@@ -1,5 +1,6 @@
-// The page's side of the source plugins: each fills the Import page with its own panel. On or off and each plugin's
-// settings are the same synced records the store's side reads, so a source turned off here stops importing everywhere.
+// The page's side of the source plugins: each fills Settings' Import section with its own panel. On or off and each
+// plugin's settings are the same synced records the store's side reads, so a source turned off here stops importing
+// everywhere.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
