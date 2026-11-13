@@ -115,17 +115,6 @@
   }
 }
 
-/* On a phone each of the Library's choice strips takes a whole row, and the sort direction stays a small button. */
-@media (max-width: 640px) {
-  .library-page .toolbar > .segmented {
-    flex-basis: 100%;
-  }
-
-  .library-page .toolbar > .sort-direction {
-    flex: none;
-  }
-}
-
 /* A source's form stacks its rows, its button under them. */
 .source-form {
   display: grid;

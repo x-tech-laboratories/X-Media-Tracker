@@ -4,7 +4,7 @@
 
 import { Fragment, useEffect } from "react";
 import { create_accounts_client, type Me } from "@x-tech-laboratories/x-libs/web/accounts";
-import { AccountView, UsersView } from "@x-tech-laboratories/x-libs/web/react/accounts";
+import { AccountView, users_settings } from "@x-tech-laboratories/x-libs/web/react/accounts";
 import { SyncCertificatePrompt } from "@x-tech-laboratories/x-libs/web/react/certificates";
 import { Shell, use_route } from "@x-tech-laboratories/x-libs/web/react/shell";
 import { SignInForm, use_account } from "@x-tech-laboratories/x-libs/web/react/sign_in";
@@ -14,7 +14,7 @@ import { data_watch, page } from "./api.ts";
 import { page_features } from "./features.tsx";
 import { HistoryView } from "./history/HistoryView.tsx";
 import { SettingsView } from "./settings/SettingsView.tsx";
-import { Sidebar, SidebarFoot } from "./Sidebar.tsx";
+import { Sidebar } from "./Sidebar.tsx";
 
 // ── Sections ─────────────────────────────────────────────────────────────────
 
@@ -26,8 +26,8 @@ const accounts = create_accounts_client({ base: "api" });
 // The logo beside the app's name, relative like the page's own icon link.
 const app_icon = "./icon.svg";
 
-// Sections outside the features, the account pages only for someone signed in on the server.
-const own_sections = ["settings", "account", "users"];
+// Sections outside the features, Your account only for someone signed in on the server.
+const own_sections = ["settings", "account"];
 
 // ── App ──────────────────────────────────────────────────────────────────────
 
@@ -66,10 +66,9 @@ function Pages({ me, on_sign_out }: { me: Me | null; on_sign_out?: () => void })
   const section = feature || is_own ? named_section : "library";
   const shown_feature = feature ?? (section === "library" ? page_features[0] : undefined);
   const page = shown_feature?.pages.find((candidate) => candidate.id === rest[0]) ?? shown_feature?.pages[0];
-  const own_labels: Record<string, string> = { settings: "Settings", history: "History", account: "Your account", users: "Users" };
+  const own_labels: Record<string, string> = { settings: "Settings", history: "History", account: "Your account" };
   const label = shown_feature ? (rest[0] === "search" ? "Search" : page!.label) : own_labels[section]!;
   const view_key = route.parts.join("/");
-  const is_admin = me !== null && me.role === me.roles.at(-1);
 
   useEffect(() => {
     document.title = `${label} · X-Media-Tracker`;
@@ -78,9 +77,9 @@ function Pages({ me, on_sign_out }: { me: Me | null; on_sign_out?: () => void })
   const view = () => {
     if (shown_feature) return shown_feature.view(feature ? rest : []);
     if (me && section === "account") return <AccountView client={accounts} />;
-    if (me && section === "users") return <UsersView client={accounts} me={me} />;
     if (section === "history") return <HistoryView />;
-    return <SettingsView />;
+    // An admin signed in on the server manages users from Settings.
+    return <SettingsView server_sections={me ? users_settings({ client: accounts, me }) : []} />;
   };
 
   return (
@@ -88,7 +87,6 @@ function Pages({ me, on_sign_out }: { me: Me | null; on_sign_out?: () => void })
       brand="X-Media-Tracker"
       brand_icon={app_icon}
       sidebar={<Sidebar features={page_features} section={section} page={page?.id ?? ""} />}
-      sidebar_foot={<SidebarFoot section={section} show_users={is_admin} />}
       tools={page_features.map((each) => <Fragment key={each.id}>{each.top_bar}</Fragment>)}
       theme={theme}
       view_key={view_key}

@@ -1,4 +1,4 @@
-// The sidebar: each feature's pages and History as rows alike, and Users above the Shell's own foot rows.
+// The sidebar: each feature's pages and History as rows alike, above the Shell's own foot rows.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -33,9 +33,4 @@ export function Sidebar({ features, section, page }: SidebarProps) {
       <Row href="#/history" label="History" active={section === "history"} />
     </nav>
   );
-}
-
-// Users, for an admin signed in on the server, above the Shell's own theme, account and Settings rows.
-export function SidebarFoot({ section, show_users = false }: { section: string; show_users?: boolean }) {
-  return show_users ? <Row href="#/users" label="Users" active={section === "users"} /> : null;
 }

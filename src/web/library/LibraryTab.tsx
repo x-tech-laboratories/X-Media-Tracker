@@ -266,7 +266,7 @@ function LibraryPage({ library, settings }: { library: Library; settings: Record
           );
         })}
         <Select label="Sort by" options={sort_keys.map((key) => [key, sort_labels[key]] as [SortKey, string])} value={sort_key} on_change={set_sort_key} />
-        <button type="button" className="sort-direction" aria-label={descending ? "Sort ascending" : "Sort descending"} onClick={() => set_descending(!descending)}>
+        <button type="button" className="icon" aria-label={descending ? "Sort ascending" : "Sort descending"} onClick={() => set_descending(!descending)}>
           {descending ? "↓" : "↑"}
         </button>
         <Segmented

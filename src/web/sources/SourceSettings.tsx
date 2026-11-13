@@ -15,7 +15,7 @@ import { use_page_plugins } from "./plugins.tsx";
 
 function SourcePluginSettings() {
   const host = use_page_plugins();
-  return host ? <PluginSettings host={host} heading="Installed" /> : <Skeleton lines={2} />;
+  return host ? <PluginSettings host={host} heading={null} /> : <Skeleton lines={2} />;
 }
 
 function SourceImports() {

@@ -94,7 +94,7 @@ with the app's full rights; only bundled plugins are loaded.
 A browser signs in with a name and password, the X-Libs accounts every X-app shares. Unless "Keep me signed in" is
 ticked, the session ends when the browser closes; ticked, it lasts until it is signed out from **Your account**. There
 each user changes their password, turns on a second factor, sees where they are signed in and makes tokens; an admin
-adds users on **Users**.
+adds users under **Settings → Server → Users**.
 
 ## Sync
 

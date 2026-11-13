@@ -1,5 +1,5 @@
 // Settings: each feature's own settings, how long History keeps changes, the sources to import from, sync with a server
-// on a device, and backups.
+// on a device, backups, and for an admin on the server its users and tokens.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -50,8 +50,9 @@ function Backups() {
   return <BackupSettings key={folder_name} device={backups} data_name="media library" on_restored={() => data_watch.bump()} folder_row={folder_row} can_back_up={!backup_folder || folder_name !== ""} />;
 }
 
-// Sync on a device with its own database, and backups of whichever database the page works on.
-function data_category(): SettingsCategory[] {
+// Sync on a device with its own database, backups of whichever database the page works on, and the server's own
+// sections, such as its users.
+function data_category(server_sections: SettingsSection[]): SettingsCategory[] {
   const { device, backups, backup_folder, certificates } = page();
   const sections: SettingsSection[] = [
     ...(device ? [{ id: "sync", heading: "Sync", hint: "Keep this device's data alike with your X-Media-Tracker server.", content: <>
@@ -61,11 +62,12 @@ function data_category(): SettingsCategory[] {
     ...(backups
       ? [{ id: "backups", heading: "Backups", hint: backup_folder ? "Copies of this device's data, kept in a folder you pick." : device ? "Copies of this device's data, kept beside it." : "Copies of the server's data, kept in its data folder. A restore restarts the server.", content: <Backups /> }]
       : []),
+    ...server_sections,
   ];
   return sections.length ? [{ heading: device ? "This device" : "Server", sections }] : [];
 }
 
-export function SettingsView() {
+export function SettingsView({ server_sections = [] }: { server_sections?: SettingsSection[] }) {
   const settings = use_settings();
   const set_setting = (key: string, value: unknown) => calls().set_setting(key, value);
 
@@ -81,7 +83,7 @@ export function SettingsView() {
                 .map((feature) => ({ heading: feature.label, sections: feature.settings({ settings: values, set_setting }) }))
                 .filter((category) => category.sections.length > 0),
               { heading: "Sources", sections: source_settings({ settings: values, set_setting }) },
-              ...data_category(),
+              ...data_category(server_sections),
             ]}
           />
         )}
