@@ -93,7 +93,8 @@
 }
 
 .collection-row,
-.add-field {
+.add-field,
+.key-field {
   display: flex;
   gap: var(--space-3);
   align-items: center;

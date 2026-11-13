@@ -39,9 +39,9 @@ describe("settings", () => {
     fireEvent.change(screen.getByLabelText("Status for new titles"), { target: { value: "watching" } });
     await waitFor(() => expect(calls.set_setting).toHaveBeenCalledWith("library.default_status", "watching"));
 
-    const key = screen.getByLabelText(/TMDB API key/);
-    fireEvent.change(key, { target: { value: " a-key " } });
-    fireEvent.blur(key);
+    expect(screen.getByText(/No key is set yet/)).toBeTruthy();
+    fireEvent.change(screen.getByLabelText("TMDB API key"), { target: { value: " a-key " } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(calls.set_setting).toHaveBeenCalledWith("library.tmdb_api_key", "a-key"));
     expect(screen.queryByText("Sync")).toBeNull();
   });

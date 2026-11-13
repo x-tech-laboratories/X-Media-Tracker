@@ -19,19 +19,44 @@ import type { Library } from "../../shared/library/store.ts";
 
 // ── General ──────────────────────────────────────────────────────────────────
 
+// The key is typed in and saved with a button; a key already set is never shown again, only said to be set.
 function TmdbSettings({ settings, set_setting }: FeatureSettingsProps) {
+  const [key, set_key] = useState("");
+  const is_set = String(settings["library.tmdb_api_key"] ?? "") !== "";
+  const save = (value: string, message: string) =>
+    set_setting("library.tmdb_api_key", value)
+      .then(() => {
+        set_key("");
+        toast(message, { tone: "good" });
+      })
+      .catch((error: unknown) => toast((error as Error).message, { tone: "bad" }));
   return (
-    <SettingRow label="TMDB API key" hint="A free v3 key from themoviedb.org/settings/api; search, posters, episode lists and details need it." as_label>
-      <CommitInput
-        type="password"
-        autoComplete="off"
-        spellCheck={false}
-        value={String(settings["library.tmdb_api_key"] ?? "")}
-        on_commit={(event) => {
-          const key = event.currentTarget.value.trim();
-          if (key !== settings["library.tmdb_api_key"]) void set_setting("library.tmdb_api_key", key);
+    <SettingRow label="TMDB API key" hint={`A free v3 key from themoviedb.org/settings/api; search, posters, episode lists and details need it. ${is_set ? "A key is set." : "No key is set yet."}`}>
+      <form
+        className="key-field"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (key.trim()) void save(key.trim(), "Saved the TMDB API key.");
         }}
-      />
+      >
+        <input
+          type="password"
+          aria-label="TMDB API key"
+          autoComplete="off"
+          spellCheck={false}
+          placeholder={is_set ? "Enter a new key to replace it" : "Paste your key"}
+          value={key}
+          onChange={(event) => set_key(event.currentTarget.value)}
+        />
+        <button type="submit" disabled={!key.trim()}>
+          Save
+        </button>
+        {is_set && (
+          <button type="button" onClick={() => void save("", "Removed the TMDB API key.")}>
+            Remove
+          </button>
+        )}
+      </form>
     </SettingRow>
   );
 }
