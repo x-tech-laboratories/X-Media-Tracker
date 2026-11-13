@@ -30,7 +30,8 @@ const stremio_page = define_plugin<PageSourceApi>({
   ...stremio_manifest,
   start: (context) => {
     context.fill_slot("import_panel", StremioPanel);
-    context.fill_slot("title_actions", StremioTitleLinks);
+    // The Web button follows the address in the plugin's settings, read again on each draw.
+    context.fill_slot("title_actions", (props) => <StremioTitleLinks {...props} web_address={String(context.settings().web_address ?? "")} />);
   },
 });
 

@@ -263,6 +263,13 @@ describe("Stremio's links", () => {
     expect(stremio_links("show", "TT0903747")?.app).toBe("stremio:///detail/series/tt0903747");
   });
 
+  it("opens Stremio Web at the address set, falling back to Stremio's own", () => {
+    expect(stremio_links("movie", "tt0111161", "https://stremio.example.org/")?.web).toBe("https://stremio.example.org/#/detail/movie/tt0111161");
+    expect(stremio_links("show", "tt0903747", " http://media.lan:8080/web ")?.web).toBe("http://media.lan:8080/web/#/detail/series/tt0903747");
+    expect(stremio_links("movie", "tt0111161", "")?.web).toBe("https://web.stremio.com/#/detail/movie/tt0111161");
+    expect(stremio_links("movie", "tt0111161", "javascript:alert(1)")?.web).toBe("https://web.stremio.com/#/detail/movie/tt0111161");
+  });
+
   it("has no link for a title without an IMDb id", () => {
     expect(stremio_links("movie", "")).toBeNull();
     expect(stremio_links("movie", "693134")).toBeNull();

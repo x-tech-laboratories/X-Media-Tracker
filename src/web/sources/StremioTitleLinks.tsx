@@ -7,8 +7,8 @@ import { stremio_links } from "../../shared/sources/stremio/links.ts";
 
 // ── Links ────────────────────────────────────────────────────────────────────
 
-export function StremioTitleLinks({ media_type, imdb_id }: { media_type: MediaType; imdb_id: string }) {
-  const links = stremio_links(media_type, imdb_id);
+export function StremioTitleLinks({ media_type, imdb_id, web_address }: { media_type: MediaType; imdb_id: string; web_address: string }) {
+  const links = stremio_links(media_type, imdb_id, web_address);
   if (!links) return null;
   return (
     <>

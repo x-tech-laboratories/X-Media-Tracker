@@ -6,6 +6,7 @@
 import type { AppInfo, PluginManifest } from "@x-tech-laboratories/x-libs/plugins";
 
 import package_json from "../../../package.json" with { type: "json" };
+import { default_stremio_web } from "./stremio/links.ts";
 
 // ── App ──────────────────────────────────────────────────────────────────────
 
@@ -39,7 +40,17 @@ export const stremio_manifest: PluginManifest = {
   version: app_info.version,
   app: app_info.id,
   description: "Imports the Stremio library: watched movies, and each show up to the episode last played.",
-  settings: [auto_import("Stremio")],
+  settings: [
+    auto_import("Stremio"),
+    {
+      key: "web_address",
+      label: "Stremio Web address",
+      hint: "The Stremio Web instance a title's Stremio Web button opens, such as a self-hosted one.",
+      type: "text",
+      default: default_stremio_web,
+      placeholder: default_stremio_web,
+    },
+  ],
 };
 
 export const source_manifests = [trakt_manifest, stremio_manifest];
