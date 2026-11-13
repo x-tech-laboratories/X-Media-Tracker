@@ -30,7 +30,7 @@ import {
   type TitleIds,
 } from "./model.ts";
 import { library_collection_groups, library_collections, library_episodes, library_tables, library_title_collections, library_titles } from "./schema.ts";
-import { library_setting_defaults } from "./settings.ts";
+import { library_secret_settings, library_setting_defaults } from "./settings.ts";
 import { create_tmdb, resolve_details, type Tmdb, type TmdbDetails, type TmdbFullDetails, type TmdbTitle } from "./tmdb.ts";
 import { read_trilium_database, read_trilium_groups, write_trilium_database, type ImportedTitle } from "./trilium.ts";
 
@@ -73,12 +73,12 @@ export interface ImportReport {
 
 type LibrarySetting = keyof typeof library_setting_defaults;
 
-function setting<Key extends LibrarySetting>(database: SqlDatabase, key: Key): (typeof library_setting_defaults)[Key] {
+export function setting<Key extends LibrarySetting>(database: SqlDatabase, key: Key): (typeof library_setting_defaults)[Key] {
   const row = database.prepare("SELECT value FROM settings WHERE key = ?").get(key) as { value: string } | undefined;
   return row ? JSON.parse(row.value) : library_setting_defaults[key];
 }
 
-function tmdb_of(database: SqlDatabase): Tmdb {
+export function tmdb_of(database: SqlDatabase): Tmdb {
   return create_tmdb(setting(database, "library.tmdb_api_key"));
 }
 
@@ -95,7 +95,7 @@ function as_title(row: typeof library_titles.$inferSelect): Title {
   return { ...row, media_type: row.media_type === "show" ? "show" : "movie", status: is_status(row.status) ? row.status : "planned" };
 }
 
-function list_titles(database: SqlDatabase, ids?: string[]): LibraryTitle[] {
+export function list_titles(database: SqlDatabase, ids?: string[]): LibraryTitle[] {
   const db = drizzle_of(database);
   const rows = ids ? db.select().from(library_titles).where(inArray(library_titles.id, ids)).all() : db.select().from(library_titles).orderBy(asc(library_titles.name)).all();
   const links = db.select().from(library_title_collections).all();
@@ -109,14 +109,14 @@ function list_titles(database: SqlDatabase, ids?: string[]): LibraryTitle[] {
   });
 }
 
-function require_title(database: SqlDatabase, id: string): LibraryTitle {
+export function require_title(database: SqlDatabase, id: string): LibraryTitle {
   const [title] = list_titles(database, [id]);
   if (!title) throw new Error("That title is not in the library.");
   return title;
 }
 
 // The library's title with any of the ids given, so sources that know a title by different ids land on one row.
-function find_title(database: SqlDatabase, ids: Partial<TitleIds>): string {
+export function find_title(database: SqlDatabase, ids: Partial<TitleIds>): string {
   const key = title_key(ids);
   const db = drizzle_of(database);
   if (key && db.select({ id: library_titles.id }).from(library_titles).where(eq(library_titles.id, key)).get()) return key;
@@ -131,18 +131,19 @@ function find_title(database: SqlDatabase, ids: Partial<TitleIds>): string {
 
 // ── Writing ──────────────────────────────────────────────────────────────────
 
-function write_episodes(database: SqlDatabase, title_id: string, episodes: { season: number; episode: number }[], watched: boolean): void {
+// An episode already watched keeps the day it was first marked.
+export function write_episodes(database: SqlDatabase, title_id: string, episodes: { season: number; episode: number; watched_at?: string }[], watched: boolean): void {
   const db = drizzle_of(database);
-  const watched_at = today();
-  for (const { season, episode } of episodes) {
+  const marked_on = today();
+  for (const { season, episode, watched_at } of episodes) {
     const where = and(eq(library_episodes.title_id, title_id), eq(library_episodes.season, season), eq(library_episodes.episode, episode));
-    if (watched) db.insert(library_episodes).values({ title_id, season, episode, watched_at }).onConflictDoNothing().run();
+    if (watched) db.insert(library_episodes).values({ title_id, season, episode, watched_at: watched_at || marked_on }).onConflictDoNothing().run();
     else db.delete(library_episodes).where(where).run();
   }
 }
 
 // A show's status follows how many of its episodes are watched.
-function settle_status(database: SqlDatabase, title_id: string): Status {
+export function settle_status(database: SqlDatabase, title_id: string): Status {
   const db = drizzle_of(database);
   const row = db.select({ total: library_titles.total_episodes }).from(library_titles).where(eq(library_titles.id, title_id)).get();
   const watched = db.select({ watched: count() }).from(library_episodes).where(eq(library_episodes.title_id, title_id)).get()!.watched;
@@ -247,6 +248,7 @@ export const library_feature = define_feature({
   migrations: migrations.map((migration) => migration.statements),
   tables: synced_tables(library_tables),
   setting_defaults: library_setting_defaults,
+  secret_settings: library_secret_settings,
   methods: {
     list_library: (database: SqlDatabase): Library => {
       const db = drizzle_of(database);

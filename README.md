@@ -15,6 +15,7 @@ reached. It is the X-Tech port of the Trilium Media Tracker add-on, and imports 
   own filter on the Library.
 - **Refresh:** fetches every title's details from TMDB again and settles each show's status; it never changes a rating
   or unwatches an episode.
+- **Import:** from Trakt and Stremio, each a bundled plugin, by hand or on a schedule; one way and additive.
 
 TMDB supplies search, posters, episode lists and details, and needs a free API key from
 [themoviedb.org/settings/api](https://www.themoviedb.org/settings/api), set under **Settings → Library → TMDB**.
@@ -57,7 +58,35 @@ Open the add-on's `Database` note under your Library Root, save its text as a `.
 `tmdb:693134`), status, rating, watched episodes, dates and collections; an import adds new titles and merges ones
 already here without changing their status or rating. **Export JSON** writes the library back in the same shape.
 
-The Trakt and Stremio imports, the Trakt archive and the Trakt history comparison are not ported yet.
+
+## Importing from Trakt and Stremio
+
+**Library → Import** shows a panel for each source plugin that is on. Imports only add and merge: a title is matched on
+any shared id (TMDB, IMDb or Trakt), episodes are merged and never unwatched, and status and rating are kept unless
+**Settings → Library → New titles** and the import settings say otherwise. Nothing is ever written to Stremio.
+
+- **Trakt:** make an API app at [trakt.tv/oauth/applications](https://trakt.tv/oauth/applications) with
+  `urn:ietf:wg:oauth:2.0:oob` as its redirect address, save its Client ID and Secret, then **Sign in to Trakt** and enter
+  the code it shows at Trakt's address. **Import from Trakt** brings in watched movies and every watched episode.
+- **Leaving Trakt:** **Archive everything** reads every list Trakt holds (watched, full history with each watch's time,
+  ratings, watchlist, collection) and keeps Trakt's answers whole, then imports what was watched and the ratings of
+  titles already here. It names any list that failed; delete nothing while one did. **Export** saves an archive as a
+  file. **Compare with Trakt** shows Trakt's whole history beside the library: **Import** brings in one watch the library
+  lacks, and **Remove from Trakt** deletes one watch from Trakt by its history id, refused unless the library holds it.
+  Trakt has no undo.
+- **Stremio:** sign in with the account's email and password; the password is sent once for a key and kept nowhere.
+  Stremio keeps only where each show is up to, so a show's episodes up to the one last played count as watched.
+
+**Settings → Plugins** turns each source on or off and sets it to import automatically; **Settings → Library →
+Automatic imports** sets the hours between runs (6 unless set). The server and the desktop app check hourly; the last
+run syncs, so they do not both run it, and a failing source still counts as a run.
+
+## Plugins
+
+Trakt and Stremio are plugins bundled with the app, on the X-Libs plugin host: each has a side in the store, which
+provides its importer, and a side in the page, which draws its panel. On or off and their settings are synced like any
+other setting, so a source turned off on one device is off everywhere, and its calls refuse while it is off. Plugins run
+with the app's full rights; only bundled plugins are loaded.
 
 ## Signing in
 
@@ -88,7 +117,8 @@ whichever device, page, API call or MCP tool made it. **History** in the sidebar
 can be restored, and a removed title brought back with its episodes. Versions sync. Changes older than
 **Settings → General → History** (180 days unless set) are pruned, each item keeping its latest.
 
-Collection groups are left out: a group is a heading for collections, and removing one keeps its collections.
+Collection groups are left out: a group is a heading for collections, and removing one keeps its collections. Trakt
+archives are left out too: each is a copy of Trakt's answers, never edited.
 
 ## Other programs: the API and MCP
 
@@ -103,7 +133,7 @@ Every call the page makes is open to other programs on the server, behind a toke
   claude mcp add --transport http x-media-tracker https://<server>/api/mcp --header "Authorization: Bearer <token>"
   ```
 
-The TMDB key is left out of what MCP reads.
+The TMDB key, the Trakt secret and tokens and the Stremio key are left out of what MCP reads.
 
 ## NixOS
 

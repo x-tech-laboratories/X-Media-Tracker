@@ -124,10 +124,13 @@ describe("server", () => {
     expect(JSON.parse((library.content as { text: string }[])[0]!.text).collections).toContainEqual(expect.objectContaining({ id: collection_id, name: "Comfort" }));
 
     await signed({ method: "POST", url: "/api/call/set_setting", payload: ["library.tmdb_api_key", "not-a-real-key"] });
+    await signed({ method: "POST", url: "/api/call/set_setting", payload: ["trakt.access_token", "not-a-real-token"] });
     const settings = await mcp("tools/call", { name: "get_settings", arguments: {} });
     const values = JSON.parse((settings.content as { text: string }[])[0]!.text) as Record<string, unknown>;
     expect(values).toHaveProperty("library.poster_size");
     expect(values).not.toHaveProperty("library.tmdb_api_key");
+    expect(values).not.toHaveProperty("trakt.access_token");
+    expect(values).toHaveProperty("trakt.client_id");
   });
 
   it("serves sync to devices", async () => {

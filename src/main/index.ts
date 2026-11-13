@@ -21,6 +21,7 @@ import { file_sync_storage } from "@x-tech-laboratories/x-libs/sync_file_storage
 
 import { media_backup_naming, read_schedule } from "../shared/backups.ts";
 import { certificate_bridge, device_bridge, media_bridge, media_events } from "../shared/bridge.ts";
+import { keep_importing } from "../shared/sources/schedule.ts";
 import { bind_methods, needs_upgrade, open_store, sync_engine } from "../shared/store.ts";
 
 // ── Profile ──────────────────────────────────────────────────────────────────
@@ -68,6 +69,8 @@ function read_backup_schedule(): BackupSchedule {
 }
 
 const backing_up = keep_backing_up(kept, read_backup_schedule);
+
+let stop_importing = (): void => undefined;
 
 function announce_change(): void {
   media_events.emit(BrowserWindow.getAllWindows(), "changed", null);
@@ -153,9 +156,11 @@ if (hold_single_instance(app, show_existing_window)) {
     );
     open_window();
     sync.start();
+    stop_importing = keep_importing(() => bind_methods(() => database, () => undefined), announce_change);
   });
 
   app.on("window-all-closed", () => {
+    stop_importing();
     sync.stop();
     backing_up.stop();
     database.close();

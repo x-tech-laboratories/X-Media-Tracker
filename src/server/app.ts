@@ -18,8 +18,8 @@ import { register_web_folder } from "@x-tech-laboratories/x-libs/server/web_fold
 import type { SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 
 import { media_bridge } from "../shared/bridge.ts";
-import { library_secret_settings } from "../shared/library/settings.ts";
-import { bind_methods, media_api, is_read_only, sync_engine, type MediaMethods } from "../shared/store.ts";
+import { keep_importing } from "../shared/sources/schedule.ts";
+import { bind_methods, media_api, is_read_only, secret_settings, sync_engine, type MediaMethods } from "../shared/store.ts";
 
 // ── Options ──────────────────────────────────────────────────────────────────
 
@@ -30,6 +30,8 @@ export interface AppOptions {
   web_folder: string;
   // The database's backups, which an admin manages from the page; one is taken before a device's data replaces it.
   backups: BackupMethods;
+  // Whether the sources set to import automatically run on their schedule; on unless false.
+  auto_import?: boolean;
 }
 
 // ── Other programs ───────────────────────────────────────────────────────────
@@ -43,7 +45,6 @@ const instructions = [
 ].join(" ");
 
 // Settings that hold another service's key, which stay on the server and in the page's own settings.
-const secret_settings = library_secret_settings;
 
 function without_secrets(method: string, result: unknown): unknown {
   if (method !== "get_settings") return result;
@@ -123,6 +124,14 @@ export async function build_app(options: AppOptions): Promise<FastifyInstance> {
     },
     { prefix: "/api" },
   );
+
+  if (options.auto_import !== false) {
+    const stop_importing = keep_importing(
+      () => bind_methods(database, () => undefined),
+      () => changes.announce_change(),
+    );
+    app.addHook("onClose", async () => stop_importing());
+  }
 
   await register_web_folder(app, { folder: options.web_folder });
   return app;

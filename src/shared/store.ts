@@ -11,12 +11,18 @@ import { forget_synced_changes, history_feature, install_history, record_history
 import { is_read_only } from "./page_api.ts";
 import { library_feature } from "./library/store.ts";
 import { settings_feature } from "./settings.ts";
+import { sources_feature } from "./sources/store.ts";
+import { stremio_feature } from "./sources/stremio/store.ts";
+import { trakt_feature } from "./sources/trakt/store.ts";
 
 // ── Features ─────────────────────────────────────────────────────────────────
 
-export const features = [settings_feature, library_feature, history_feature];
+export const features = [settings_feature, library_feature, trakt_feature, stremio_feature, sources_feature, history_feature];
 
 export const sync_engine = create_sync_engine({ tables: features.flatMap((feature) => feature.tables), after_apply: forget_synced_changes });
+
+// Settings holding another service's key or token, left out of what other programs read.
+export const secret_settings = features.flatMap((feature) => feature.secret_settings ?? []);
 
 export const setting_defaults = Object.assign({}, ...features.map((feature) => feature.setting_defaults ?? {})) as Record<string, unknown>;
 
@@ -42,7 +48,12 @@ export function open_store(database: SqlDatabase): void {
 // ── Calls ────────────────────────────────────────────────────────────────────
 
 const all_methods = {
-  ...(Object.assign({}, ...features.map((feature) => feature.methods)) as typeof settings_feature.methods & typeof library_feature.methods & typeof history_feature.methods),
+  ...(Object.assign({}, ...features.map((feature) => feature.methods)) as typeof settings_feature.methods &
+    typeof library_feature.methods &
+    typeof trakt_feature.methods &
+    typeof stremio_feature.methods &
+    typeof sources_feature.methods &
+    typeof history_feature.methods),
   // Every setting, the ones never set at their defaults, so a page needs no list of defaults of its own.
   get_settings: (database: SqlDatabase): Record<string, unknown> => ({ ...setting_defaults, ...settings_feature.methods.get_settings(database) }),
 };

@@ -13,6 +13,7 @@ import { SyncSettings } from "@x-tech-laboratories/x-libs/web/react/sync_setting
 
 import { calls, data_watch, page, use_settings } from "../api.ts";
 import { page_features } from "../features.tsx";
+import { SourcePluginSettings } from "../sources/ImportTab.tsx";
 
 // ── History ──────────────────────────────────────────────────────────────────
 
@@ -78,6 +79,7 @@ export function SettingsView() {
               ...page_features
                 .map((feature) => ({ heading: feature.label, sections: feature.settings({ settings: values, set_setting }) }))
                 .filter((category) => category.sections.length > 0),
+              { heading: "Plugins", sections: [{ id: "plugins", heading: "Plugins", hint: "Bundled with the app; each runs with its full rights.", content: <SourcePluginSettings /> }] },
               ...data_category(),
             ]}
           />

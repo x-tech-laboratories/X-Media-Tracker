@@ -1,6 +1,6 @@
 {
   "name": "x-media-tracker",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Movies and TV shows to watch, watching and watched, with ratings, episodes and collections, kept on every device and synced through your own server",
   "license": "GPL-3.0-or-later",
@@ -20,7 +20,7 @@
     "hash-password": "node src/server/hash_password.ts",
     "start:desktop": "electron-vite preview",
     "typecheck": "tsc -b",
-    "db:generate": "for config in src/shared/*/drizzle.config.ts; do drizzle-kit generate --config \"$config\" && x-libs-bundle-migrations \"$(dirname \"$config\")/migrations\" || exit 1; done",
+    "db:generate": "for config in src/shared/*/drizzle.config.ts src/shared/*/*/drizzle.config.ts; do drizzle-kit generate --config \"$config\" && x-libs-bundle-migrations \"$(dirname \"$config\")/migrations\" || exit 1; done",
     "test": "vitest run",
     "lint": "oxlint",
     "icons": "x-libs-icons"

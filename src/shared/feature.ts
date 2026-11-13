@@ -25,6 +25,8 @@ export interface Feature<Methods extends Record<string, StoreMethod>> {
   api: ApiSpec<Methods>;
   // Settings this feature reads, by key such as "library.poster_size", with their defaults.
   setting_defaults?: Record<string, unknown>;
+  // Settings holding another service's key or token, left out of what other programs read.
+  secret_settings?: string[];
 }
 
 export function define_feature<Methods extends Record<string, StoreMethod>>(feature: Feature<Methods>): Feature<Methods> {

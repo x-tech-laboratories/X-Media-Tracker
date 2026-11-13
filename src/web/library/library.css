@@ -108,3 +108,42 @@
     display: none;
   }
 }
+
+/* A source's form stacks its rows, its button under them. */
+.source-form {
+  display: grid;
+  gap: var(--space-4);
+  justify-items: stretch;
+  margin-bottom: var(--space-5);
+}
+
+.source-form > button {
+  justify-self: start;
+}
+
+.source-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  align-items: flex-end;
+  margin-bottom: var(--space-5);
+}
+
+.source-hint {
+  max-width: 48rem;
+  color: var(--text-secondary);
+}
+
+.archive-list {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-4) 0;
+  padding: 0;
+  list-style: none;
+}
+
+.archive-list li {
+  display: flex;
+  gap: var(--space-4);
+  align-items: center;
+}

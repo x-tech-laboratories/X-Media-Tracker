@@ -10,6 +10,7 @@ import type { Client } from "@x-tech-laboratories/x-libs/electron/bridge";
 import { bind_methods, open_store, type MediaMethods } from "../src/shared/store.ts";
 import { set_page_api } from "../src/web/api.ts";
 import { App } from "../src/web/App.tsx";
+import { forget_page_plugins } from "../src/web/sources/plugins.tsx";
 import { trilium_database, trilium_groups } from "./trilium_sample.ts";
 
 // The page's calls answered by a real store on a throwaway database, as the desktop app would, which needs no sign-in.
@@ -38,6 +39,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  forget_page_plugins();
   vi.useRealTimers();
 });
 
@@ -90,6 +92,39 @@ describe("title page", () => {
     expect(status.value).toBe("watched");
     fireEvent.change(status, { target: { value: "dropped" } });
     await waitFor(() => expect(store.get_title("tmdb:693134")!.status).toBe("dropped"));
+  });
+});
+
+describe("import page", () => {
+  it("shows a panel for each source that is on, and none for one turned off", async () => {
+    const store = fake_page();
+    render(<App />);
+    go("#/library/import");
+
+    expect(await screen.findByRole("heading", { name: "Trakt" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Stremio" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Sign in to Stremio" })).toHaveProperty("disabled", true);
+
+    cleanup();
+    forget_page_plugins();
+    store.set_setting("plugins", { "x-media-tracker.trakt": { enabled: false } });
+    render(<App />);
+    go("#/library/import");
+    expect(await screen.findByRole("heading", { name: "Stremio" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { name: "Trakt" })).toBeNull();
+  });
+
+  it("saves the Trakt app and offers to sign in once there is a Client ID", async () => {
+    const store = fake_page();
+    render(<App />);
+    go("#/library/import");
+
+    fireEvent.change(await screen.findByLabelText(/Client ID/), { target: { value: "client-id" } });
+    fireEvent.change(screen.getByLabelText(/Client Secret/), { target: { value: "client-secret" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Trakt app" }));
+
+    expect(await screen.findByRole("button", { name: "Sign in to Trakt" })).toBeTruthy();
+    expect(store.get_trakt_status()).toMatchObject({ client_id: "client-id", has_client_secret: true });
   });
 });
 

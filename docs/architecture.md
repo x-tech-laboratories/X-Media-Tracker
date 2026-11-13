@@ -49,6 +49,21 @@ A feature is two folders:
 - `tmdb.ts` is the TMDB client; `trilium.ts` reads and writes the Trilium add-on's Database note.
 - A title is found by any shared id, so a title first known only by its IMDb id is matched once TMDB names it.
 
+## Sources and plugins
+
+Trakt and Stremio are bundled X-Libs plugins, each named once by a manifest in `src/shared/sources/manifests.ts`:
+
+- The store's side (`src/shared/sources/store.ts`) provides an `importer` to a plugin host that `open_source_host`
+  makes afresh for each use, so a plugin switched on any device holds at once. `list_sources`, `run_source_import` and
+  `run_due_imports` go through it.
+- Each source is also a feature, `src/shared/sources/<source>/`, with its calls and their specs, its settings (its keys
+  and tokens listed as secret settings) and, for Trakt, its archive table. Its calls refuse while its plugin is off.
+- The page's side (`src/web/sources/plugins.tsx`) fills the Import page's `import_panel` slot; Settings shows
+  `PluginSettings`. Both hosts keep on or off and each plugin's settings in the synced `plugins` setting.
+- Every source imports through `apply_import` (`src/shared/library/importing.ts`): TMDB is asked first, then one
+  transaction writes, matching on any id and merging episodes.
+- `keep_importing` (`src/shared/sources/schedule.ts`) checks the automatic imports hourly on the server and the desktop.
+
 ## History
 
 `src/shared/history/store.ts` keeps a version of every title (with its episodes and collections) and every collection
