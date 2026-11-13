@@ -23,6 +23,9 @@ const theme = theme_choice("x-media-tracker-theme");
 // Relative, so a server behind a proxy under a folder keeps it.
 const accounts = create_accounts_client({ base: "api" });
 
+// The logo beside the app's name, relative like the page's own icon link.
+const app_icon = "./icon.svg";
+
 // Sections outside the features, the account pages only for someone signed in on the server.
 const own_sections = ["settings", "account", "users"];
 
@@ -47,8 +50,8 @@ function SignedInApp() {
   if (account.state === "checking") return null;
   if (account.state === "signed_out") {
     return (
-      <Shell brand="X-Media-Tracker" theme={theme} user={null}>
-        <SignInForm client={accounts} title="X-Media-Tracker" on_signed_in={refresh} />
+      <Shell brand="X-Media-Tracker" brand_icon={app_icon} theme={theme} user={null}>
+        <SignInForm client={accounts} title="X-Media-Tracker" icon={app_icon} on_signed_in={refresh} />
       </Shell>
     );
   }
@@ -83,6 +86,7 @@ function Pages({ me, on_sign_out }: { me: Me | null; on_sign_out?: () => void })
   return (
     <Shell
       brand="X-Media-Tracker"
+      brand_icon={app_icon}
       sidebar={<Sidebar features={page_features} section={section} page={page?.id ?? ""} />}
       sidebar_foot={<SidebarFoot section={section} show_users={is_admin} />}
       theme={theme}
