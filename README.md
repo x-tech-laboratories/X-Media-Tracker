@@ -1,5 +1,7 @@
 # X-Media-Tracker
 
+<a href="https://liberapay.com/BeatLink/donate"><img alt="Donate using Liberapay" src="https://liberapay.com/assets/widgets/donate.svg"></a>
+
 Movies and TV shows you plan to watch, are watching, have watched or dropped, with ratings, every episode ticked off,
 and your own collections. It runs as a web page served by your own server, as a desktop app and as an Android app; the
 desktop and Android apps keep their own copy of the library, work offline, and sync with the server whenever it can be
