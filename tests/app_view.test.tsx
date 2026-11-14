@@ -139,7 +139,7 @@ describe("importing in settings", () => {
 
     expect(await screen.findByRole("heading", { name: "Trakt" })).toBeTruthy();
     expect(screen.getByRole("heading", { name: "Stremio" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Sign in to Stremio" })).toHaveProperty("disabled", true);
+    expect(await screen.findByRole("button", { name: "Sign in to Stremio" })).toHaveProperty("disabled", true);
 
     cleanup();
     forget_page_plugins();
