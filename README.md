@@ -1,6 +1,6 @@
 # X-Media-Tracker
 
-<a href="https://liberapay.com/BeatLink/donate"><img alt="Donate using Liberapay" src="https://liberapay.com/assets/widgets/donate.svg"></a>
+<a href="https://liberapay.com/BeatLink/donate"><img alt="Donate using Liberapay" src="https://liberapay.com/assets/widgets/donate.svg"></a> <a href="https://ko-fi.com/I4V52ANK6N"><img alt="Support me on Ko-fi" src="https://ko-fi.com/img/githubbutton_sm.svg"></a>
 
 Movies and TV shows you plan to watch, are watching, have watched or dropped, with ratings, every episode ticked off,
 and your own collections. It runs as a web page served by your own server, as a desktop app and as an Android app; the
