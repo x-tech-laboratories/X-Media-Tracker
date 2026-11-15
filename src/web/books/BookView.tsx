@@ -153,10 +153,13 @@ function ReadDialog({ book, read, close }: { book: LibraryBook; read: BookRead |
         },
       }}
     >
-      <DateTimeField label="Started" value={started_on || null} on_change={(day) => set_started_on(day ?? "")} />
-      <DateTimeField label="Finished" value={finished_on || null} on_change={(day) => set_finished_on(day ?? "")} />
-      <Select label="Format" bare options={book_formats.map((each) => [each, book_format_labels[each]] as [BookFormat, string])} value={format} on_change={set_format} />
-      <Switch label="Did not finish" checked={dnf} on_change={set_dnf} />
+      <DateTimeField label="Started" allow_time={false} value={started_on || null} on_change={(day) => set_started_on(day ?? "")} />
+      <DateTimeField label="Finished" allow_time={false} value={finished_on || null} on_change={(day) => set_finished_on(day ?? "")} />
+      <Select label="Format" options={book_formats.map((each) => [each, book_format_labels[each]] as [BookFormat, string])} value={format} on_change={set_format} />
+      <div className="book-row">
+        <Switch label="Did not finish" checked={dnf} on_change={set_dnf} />
+        <span aria-hidden="true">Did not finish</span>
+      </div>
     </Dialog>
   );
 }
@@ -173,7 +176,7 @@ function read_text(read: BookRead): string {
 function Reads({ book }: { book: LibraryBook }) {
   return (
     <Section
-      title={`Reads (${book.read_count})`}
+      title={`Reads (${book.reads.length})`}
       tools={
         <button type="button" onClick={() => open_read(book, null)}>
           Add a read
@@ -231,7 +234,7 @@ function JournalForm({ book }: { book: LibraryBook }) {
     >
       <RichText key={round} label="New journal entry" placeholder="A thought, a quote, where you are…" value={text} on_change={set_text} />
       <div className="journal-form-row">
-        <DateTimeField label="Day" value={written_on} on_change={(day) => set_written_on(day ?? today())} />
+        <DateTimeField label="Day" allow_time={false} value={written_on} on_change={(day) => set_written_on(day ?? today())} />
         <NumberField label="Page" min={1} value={page} on_change={set_page} />
         <button type="submit" disabled={!text.trim()}>
           Add to journal

@@ -236,9 +236,12 @@ async function gather(database: SqlDatabase, start: CatalogBook): Promise<Catalo
   let book = start;
   let answered = start.title !== "";
   const failures: string[] = [];
+  const series_from: Partial<Record<CatalogSource, CatalogBook>> = {};
   const ask = async (source: CatalogSource, lookup: () => Promise<CatalogBook>) => {
     try {
-      book = merge_books(book, await lookup());
+      const found = await lookup();
+      book = merge_books(book, found);
+      if (found.series) series_from[source] = found;
       answered = true;
     } catch (error) {
       failures.push(`${catalog_labels[source]}: ${(error as Error).message}`);
@@ -254,7 +257,10 @@ async function gather(database: SqlDatabase, start: CatalogBook): Promise<Catalo
     else if (book.isbn) await ask("hardcover", () => hardcover.book_by_isbn(book.isbn));
   }
   if (!answered) throw new Error(failures.join("; ") || "No catalogue knows that book.");
-  return book;
+  // The series comes from the catalogue that knows it best: Hardcover has each book's place, BookBrainz is curated, and
+  // Open Library's comes from its subjects.
+  const best = series_from.hardcover ?? series_from.bookbrainz;
+  return best ? { ...book, series: best.series, series_position: best.series_position } : book;
 }
 
 function metadata_of(book: CatalogBook) {
@@ -542,9 +548,12 @@ async function refresh_book(database: SqlDatabase, book: LibraryBook): Promise<b
     start = match;
   }
   const details = await gather(database, start);
+  const db = drizzle_of(database);
+  const row = db.select().from(books_books).where(eq(books_books.id, book.id)).get();
+  if (!row) return false;
   const fields = metadata_of(details);
-  const kept = Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, value === "" || value === 0 || value === "[]" ? book[key as keyof LibraryBook] : value]));
-  drizzle_of(database).update(books_books).set(kept).where(eq(books_books.id, book.id)).run();
+  const kept = Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, value === "" || value === 0 || value === "[]" ? row[key as keyof typeof row] : value]));
+  db.update(books_books).set(kept).where(eq(books_books.id, book.id)).run();
   return true;
 }
 

@@ -159,7 +159,7 @@ export function merge_books(first: CatalogBook, second: CatalogBook): CatalogBoo
     title: fill(first.title, second.title),
     subtitle: fill(first.subtitle, second.subtitle),
     authors: merge_authors(first.authors, second.authors),
-    series: first.series && second.series ? merge_refs(first.series, second.series) : (first.series ?? second.series),
+    series: first.series && second.series ? (person_words(first.series.name) === person_words(second.series.name) ? merge_refs(first.series, second.series) : first.series) : (first.series ?? second.series),
     series_position: fill(first.series_position, second.series_position),
     year: fill(first.year, second.year),
     release_date: fill(first.release_date, second.release_date),

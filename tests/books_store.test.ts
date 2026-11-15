@@ -284,3 +284,23 @@ describe("history", () => {
     expect(store.list_book_journal(id)).toHaveLength(1);
   });
 });
+
+// ── Refreshing ───────────────────────────────────────────────────────────────
+
+describe("refreshing", () => {
+  it("fills in an imported book's details from its ISBN and keeps its authors' ids", async () => {
+    const store = open_methods();
+    store.import_storygraph(storygraph_csv);
+    answers["openlibrary.org/isbn/9780765311788.json"] = { works: [{ key: "/works/OL5738148W" }] };
+    // No series, so the stored one is kept as it is written.
+    (answers["openlibrary.org/works/OL5738148W.json"] as { subjects: string[] }).subjects = ["Fantasy"];
+
+    store.refresh_books();
+    await vi.waitFor(() => expect(store.get_books_refresh().state).toBe("done"));
+
+    expect(store.get_books_refresh().report).toMatchObject({ total: 2, updated: 1 });
+    const empire = store.list_books().books.find((book) => book.isbn === "9780765311788")!;
+    expect(empire).toMatchObject({ openlibrary_id: "OL5738148W", bookbrainz_id: work_id, cover_url: "https://covers.openlibrary.org/b/id/14658160-L.jpg", rating: 9, status: "read" });
+    expect(empire.author_refs[0]!.name).toBe("Brandon Sanderson");
+  });
+});

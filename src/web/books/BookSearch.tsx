@@ -140,7 +140,7 @@ export function BookSearchView({ query }: { query: string }) {
   return (
     <div className="books-page">
       <Stack>
-        <PageHeading title="Search" subtitle={`Results for “${query}” in your books, Open Library, BookBrainz and Hardcover.`} />
+        <PageHeading title="Search" subtitle={`Results for “${query}” in your books and the catalogues.`} />
         <LibraryMatches query={query} />
         <CatalogMatches query={query} />
       </Stack>
