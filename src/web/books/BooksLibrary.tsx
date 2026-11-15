@@ -190,11 +190,11 @@ function LibraryPage({ library }: { library: Books }) {
       />
       {refreshing && <ProgressBar value={refresh.total ? refresh.done : null} max={refresh.total} label="Refreshing from the catalogues" detail={`${refresh.done} of ${refresh.total} books`} />}
       <Toolbar>
-        <Select
+        <Segmented
           label="Status"
-          options={[["all", with_count("Any status", counts.status.all)], ...book_statuses.map((status) => [status, with_count(book_status_labels[status], counts.status[status])] as [string, string])]}
+          choices={[{ value: "all", label: with_count("Any status", counts.status.all) }, ...book_statuses.map((status) => ({ value: status, label: with_count(book_status_labels[status], counts.status[status]) }))]}
           value={filters.status}
-          on_change={(status) => set_filter({ status: status as BookFilters["status"] })}
+          on_change={(status) => set_filter({ status })}
         />
         <Select
           label="Format"

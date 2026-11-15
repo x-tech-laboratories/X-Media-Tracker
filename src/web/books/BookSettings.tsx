@@ -4,7 +4,7 @@
 // ── Imports ──────────────────────────────────────────────────────────────────
 
 import { useRef, useState, type ChangeEvent } from "react";
-import { CommitInput, NumberField, Select, Switch } from "@x-tech-laboratories/x-libs/web/react/controls";
+import { CommitInput, NumberField, Segmented, Select, Switch } from "@x-tech-laboratories/x-libs/web/react/controls";
 import { confirm_dialog } from "@x-tech-laboratories/x-libs/web/react/dialog";
 import { SettingRow, type SettingsSection } from "@x-tech-laboratories/x-libs/web/react/layout";
 import { Loaded } from "@x-tech-laboratories/x-libs/web/react/states";
@@ -85,11 +85,10 @@ function NewBookSettings({ settings, set_setting }: FeatureSettingsProps) {
   return (
     <>
       <SettingRow label="Status for new books" hint="A book added by hand starts with this; an import takes its status from the file.">
-        <Select
+        <Segmented
           label="Status for new books"
-          bare
-          options={book_statuses.map((status) => [status, book_status_labels[status]] as [string, string])}
-          value={String(settings["books.default_status"])}
+          choices={book_statuses.map((status) => ({ value: status, label: book_status_labels[status] }))}
+          value={String(settings["books.default_status"]) as (typeof book_statuses)[number]}
           on_change={(status) => attempt(set_setting("books.default_status", status))}
         />
       </SettingRow>

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import "@x-tech-laboratories/x-libs/web/react/test_stubs";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Client } from "@x-tech-laboratories/x-libs/electron/bridge";
@@ -36,7 +36,7 @@ describe("settings", () => {
     render(<SettingsView />);
 
     expect(((await screen.findByLabelText("Poster size")) as HTMLSelectElement).value).toBe("w500");
-    fireEvent.change(screen.getByLabelText("Status for new titles"), { target: { value: "watching" } });
+    fireEvent.click(within(screen.getByRole("radiogroup", { name: "Status for new titles" })).getByRole("radio", { name: "Watching" }));
     await waitFor(() => expect(calls.set_setting).toHaveBeenCalledWith("library.default_status", "watching"));
 
     expect(screen.getByText(/No key is set yet/)).toBeTruthy();
