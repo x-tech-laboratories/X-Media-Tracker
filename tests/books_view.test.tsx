@@ -74,9 +74,9 @@ describe("book page", () => {
     go("#/books/book/title%3Apiranesi%2Fsusanna%20clarke");
 
     expect(await screen.findByRole("heading", { level: 1, name: "Piranesi" })).toBeTruthy();
-    const status = screen.getByLabelText("Status") as HTMLSelectElement;
-    expect(status.value).toBe("reading");
-    fireEvent.change(status, { target: { value: "read" } });
+    const status = screen.getByRole("radiogroup", { name: "Status" });
+    expect(within(status).getByRole("radio", { name: "Reading" }).getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(within(status).getByRole("radio", { name: "Read" }));
     await waitFor(() => expect(store.get_book("title:piranesi/susanna clarke")).toMatchObject({ status: "read", last_read: "2026-11-15" }));
     expect(await screen.findByRole("heading", { name: "Reads (1)" })).toBeTruthy();
 

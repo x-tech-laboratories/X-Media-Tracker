@@ -6,7 +6,7 @@
 import { useState } from "react";
 import { Badge } from "@x-tech-laboratories/x-libs/web/react/badges";
 import { ChipField } from "@x-tech-laboratories/x-libs/web/react/chip_field";
-import { DateTimeField, NumberField, Select, Switch } from "@x-tech-laboratories/x-libs/web/react/controls";
+import { DateTimeField, NumberField, Segmented, Select, Switch } from "@x-tech-laboratories/x-libs/web/react/controls";
 import { confirm_dialog, Dialog, open_dialog } from "@x-tech-laboratories/x-libs/web/react/dialog";
 import { Facts, PageHeading, Section, Stack } from "@x-tech-laboratories/x-libs/web/react/layout";
 import { Markdown } from "@x-tech-laboratories/x-libs/web/react/markdown";
@@ -359,7 +359,7 @@ function BookPage({ book, collections, books }: { book: LibraryBook; collections
             rows={[
               [
                 "Status",
-                <Select label="Status" bare options={book_statuses.map((status) => [status, book_status_labels[status]] as [string, string])} value={book.status} on_change={(status) => set_book_status(book, status as LibraryBook["status"])} />,
+                <Segmented label="Status" choices={book_statuses.map((status) => ({ value: status, label: book_status_labels[status] }))} value={book.status} on_change={(status) => set_book_status(book, status)} />,
               ],
               ["Rating", <Rating label="Rating" max={10} value={book.rating} on_change={(rating) => attempt(calls().set_book_rating(book.id, rating))} />],
               ["Progress", <Progress book={book} />],

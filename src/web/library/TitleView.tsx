@@ -5,7 +5,7 @@
 
 import { Avatar } from "@x-tech-laboratories/x-libs/web/react/media";
 import { ChipField } from "@x-tech-laboratories/x-libs/web/react/chip_field";
-import { Select } from "@x-tech-laboratories/x-libs/web/react/controls";
+import { Segmented } from "@x-tech-laboratories/x-libs/web/react/controls";
 import { confirm_dialog } from "@x-tech-laboratories/x-libs/web/react/dialog";
 import { Facts, PageHeading, Section, Stack } from "@x-tech-laboratories/x-libs/web/react/layout";
 import { PluginSlot } from "@x-tech-laboratories/x-libs/web/react/plugins";
@@ -159,12 +159,11 @@ function TitlePage({ title, collections, settings }: { title: LibraryTitle; coll
             rows={[
               [
                 "Status",
-                <Select
+                <Segmented
                   label="Status"
-                  bare
-                  options={statuses.map((status) => [status, status_labels[status]] as [string, string])}
+                  choices={statuses.map((status) => ({ value: status, label: status_labels[status] }))}
                   value={title.status}
-                  on_change={(status) => void set_status(title, status as LibraryTitle["status"])}
+                  on_change={(status) => void set_status(title, status)}
                 />,
               ],
               ["Rating", <Rating label="Rating" max={10} value={title.rating} on_change={(rating) => void calls().set_title_rating(title.id, rating)} />],
