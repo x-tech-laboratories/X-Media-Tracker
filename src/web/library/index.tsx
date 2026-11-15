@@ -15,7 +15,7 @@ export { SearchBar } from "./SearchView.tsx";
 
 export const library_pages = [{ id: "titles", label: "Library" }];
 
-// #/library/title/<id> is a title's page and #/library/search/<words> the search's results, which the sidebar does not list.
+// #/movies/title/<id> is a title's page and #/movies/search/<words> the search's results, which the sidebar does not list.
 export function LibraryView({ parts }: { parts: string[] }) {
   const [page, id] = parts;
   if (page === "title" && id) return <TitleView key={id} id={decodeURIComponent(id)} />;

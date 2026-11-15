@@ -1,4 +1,4 @@
-// The sidebar: each feature's pages and History as rows alike, above the Shell's own foot rows.
+// The sidebar: each section's heading, such as Movies & Series, over its pages, then History, above the Shell's own foot rows.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -14,11 +14,19 @@ function Row({ href, label, active }: { href: string; label: string; active: boo
   );
 }
 
+function Heading({ label }: { label: string }) {
+  return (
+    <div className="tree-row tree-heading" role="heading" aria-level={2}>
+      <span className="tree-label">{label}</span>
+    </div>
+  );
+}
+
 // ── Sidebar ──────────────────────────────────────────────────────────────────
 
 interface SidebarProps {
   features: PageFeature[];
-  // The route's first part, such as "library", "history" or "settings".
+  // The route's first part, such as "movies", "history" or "settings".
   section: string;
   // The page within that section, such as "titles".
   page: string;
@@ -27,9 +35,10 @@ interface SidebarProps {
 export function Sidebar({ features, section, page }: SidebarProps) {
   return (
     <nav className="sidebar-nav" aria-label="Sections">
-      {features.flatMap((feature) =>
-        feature.pages.map((each) => <Row key={`${feature.id}/${each.id}`} href={`#/${feature.id}/${each.id}`} label={each.label} active={section === feature.id && page === each.id} />),
-      )}
+      {features.flatMap((feature) => [
+        <Heading key={feature.id} label={feature.label} />,
+        ...feature.pages.map((each) => <Row key={`${feature.id}/${each.id}`} href={`#/${feature.id}/${each.id}`} label={each.label} active={section === feature.id && page === each.id} />),
+      ])}
       <Row href="#/history" label="History" active={section === "history"} />
     </nav>
   );

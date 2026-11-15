@@ -1,4 +1,5 @@
-// The sections of the app, each a feature's page with its own settings, in the order the sidebar lists them.
+// The sections of the app, such as Movies & Series and Books, each a heading in the sidebar over its pages, with its own
+// settings, in the order the sidebar lists them.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -16,22 +17,24 @@ export interface FeatureSettingsProps {
 
 // One of a feature's pages, a row under it in the sidebar; the first is shown when none is named.
 export interface FeaturePage {
-  // The route's second part, such as "titles" for #/library/titles.
+  // The route's second part, such as "titles" for #/movies/titles.
   id: string;
   label: string;
 }
 
 export interface PageFeature {
-  // The route's first part, such as "library" for #/library.
+  // The route's first part, such as "movies" for #/movies.
   id: string;
   label: string;
   pages: FeaturePage[];
   view: (parts: string[]) => ReactNode;
   settings: (props: FeatureSettingsProps) => SettingsSection[];
-  // What the feature puts in the top bar, such as the search.
+  // What the feature puts in the top bar while it is open, such as its search.
   top_bar?: ReactNode;
+  // Older first parts of its routes, such as "library", still opening it.
+  aliases?: string[];
 }
 
 export const page_features: PageFeature[] = [
-  { id: "library", label: "Library", pages: library_pages, view: (parts) => <LibraryView parts={parts} />, settings: library_settings, top_bar: <SearchBar /> },
+  { id: "movies", label: "Movies & Series", pages: library_pages, view: (parts) => <LibraryView parts={parts} />, settings: library_settings, top_bar: <SearchBar />, aliases: ["library"] },
 ];

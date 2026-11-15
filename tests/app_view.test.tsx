@@ -68,8 +68,8 @@ describe("search", () => {
     const box = await screen.findByLabelText("Search your library and TMDB, or paste a link");
     fireEvent.change(box, { target: { value: "dune" } });
     fireEvent.keyDown(box, { key: "Enter" });
-    expect(window.location.hash).toBe("#/library/search/dune");
-    go("#/library/search/dune");
+    expect(window.location.hash).toBe("#/movies/search/dune");
+    go("#/movies/search/dune");
 
     expect(await screen.findByRole("heading", { level: 1, name: "Search" })).toBeTruthy();
     const mine = screen.getByRole("heading", { name: "In your library" }).closest("section")!;
@@ -111,7 +111,7 @@ describe("library table", () => {
     const row = within(table).getAllByRole("row").find((each) => each.textContent?.includes("Severance"))!;
     expect(row.textContent).toContain("Watching");
     expect(row.textContent).toContain("10/19");
-    expect(within(row).getByRole("link", { name: "Severance" }).getAttribute("href")).toBe("#/library/title/tmdb%3A95396");
+    expect(within(row).getByRole("link", { name: "Severance" }).getAttribute("href")).toBe("#/movies/title/tmdb%3A95396");
     expect(window.localStorage.getItem("x-media-tracker-library-layout")).toContain("table");
   });
 });
@@ -121,7 +121,7 @@ describe("title page", () => {
     const store = fake_page();
     store.import_trilium_media(trilium_database, "");
     render(<App />);
-    go("#/library/title/tmdb%3A693134");
+    go("#/movies/title/tmdb%3A693134");
 
     expect(await screen.findByRole("heading", { level: 1, name: "Dune: Part Two" })).toBeTruthy();
     const status = screen.getByLabelText("Status") as HTMLSelectElement;
