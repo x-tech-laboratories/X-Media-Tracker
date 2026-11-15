@@ -17,6 +17,7 @@ import { Empty, Failure, Loaded, Skeleton, use_resource } from "@x-tech-laborato
 import { today } from "@x-tech-laboratories/x-libs/dates";
 
 import { calls, use_data } from "../api.ts";
+import { HistoryButton } from "../history/HistoryView.tsx";
 import {
   book_format_labels,
   book_formats,
@@ -340,9 +341,12 @@ function BookPage({ book, collections, books }: { book: LibraryBook; collections
         title={book.title}
         subtitle={[book.subtitle, book.authors, book.year].filter(Boolean).join(" · ")}
         actions={
-          <button type="button" className="danger" onClick={remove}>
-            Remove
-          </button>
+          <>
+            <HistoryButton kind="book" item_id={book.id} name={book.title} />
+            <button type="button" className="danger" onClick={remove}>
+              Remove
+            </button>
+          </>
         }
       />
       <div className="title-head">

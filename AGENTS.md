@@ -1,6 +1,6 @@
 # Instructions for AI agents
 
-X-Media-Tracker tracks movies and TV shows: status, ratings, watched episodes and collections. It is a React page that runs in a browser against its own
+X-Media-Tracker tracks movies, TV shows and books: status, ratings, watched episodes, reads and collections. It is a React page that runs in a browser against its own
 server, in Electron with its own database, and on Android in Capacitor with its own database, all syncing through the
 server. Read `README.md` first, then `docs/architecture.md`. It follows the
 [X-Tech Application Standard](https://x-tech-laboratories.github.io/standards/application/).
@@ -23,6 +23,8 @@ server. Read `README.md` first, then `docs/architecture.md`. It follows the
 - A released migration step is never edited; add a new step after it. For a feature on Drizzle, change `schema.ts` and run `npm run db:generate`.
 - Queries go through X-Libs `drizzle` (`drizzle_of(database)`), never an import of `drizzle-orm` itself.
 - TMDB is reached only through `src/shared/library/tmdb.ts`, with the key from settings; never put the key in an error or a log.
+- BookBrainz, Open Library and Hardcover are reached only through their clients in `src/shared/books/`; the Hardcover key
+  comes from settings and never goes in an error or a log.
 - Use X-Libs widgets and Halon classes; `app.css` holds layout only and never a colour. A widget two apps could use goes into X-Libs.
 - Tests use a throwaway database (`:memory:` or a temp file), never `dev-data/` or a real profile.
 - Comments are one plain line saying what the code does now; names are snake_case, components PascalCase.
