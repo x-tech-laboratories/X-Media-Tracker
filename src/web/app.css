@@ -4,3 +4,18 @@
   max-width: 48rem;
   color: var(--text-secondary);
 }
+
+/* A sidebar section's rows sit in the sidebar's own column, as if the group were not there. */
+.sidebar-section {
+  display: contents;
+}
+
+/* Each section after the first, and History after them, is ruled off from the one above, as Halon rules off the
+   sidebar's other parts. */
+.sidebar-section ~ .sidebar-section > .tree-heading,
+.sidebar-section + .tree-row {
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: var(--border-width) solid var(--border-default);
+  border-radius: 0;
+}

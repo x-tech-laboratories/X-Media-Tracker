@@ -60,11 +60,11 @@ function SignedInApp() {
 
 function Pages({ me, on_sign_out }: { me: Me | null; on_sign_out?: () => void }) {
   const route = use_route();
-  const [named_section = "library", ...rest] = route.parts;
-  const feature = page_features.find((candidate) => candidate.id === named_section);
+  const [named_section = page_features[0]!.id, ...rest] = route.parts;
+  const feature = page_features.find((candidate) => candidate.id === named_section || candidate.aliases?.includes(named_section));
   const is_own = named_section === "settings" || named_section === "history" || (me !== null && own_sections.includes(named_section));
-  const section = feature || is_own ? named_section : "library";
-  const shown_feature = feature ?? (section === "library" ? page_features[0] : undefined);
+  const section = feature ? feature.id : is_own ? named_section : page_features[0]!.id;
+  const shown_feature = feature ?? (is_own ? undefined : page_features[0]);
   const page = shown_feature?.pages.find((candidate) => candidate.id === rest[0]) ?? shown_feature?.pages[0];
   const own_labels: Record<string, string> = { settings: "Settings", history: "History", account: "Your account" };
   const label = shown_feature ? (rest[0] === "search" ? "Search" : page!.label) : own_labels[section]!;
@@ -87,7 +87,7 @@ function Pages({ me, on_sign_out }: { me: Me | null; on_sign_out?: () => void })
       brand="X-Media-Tracker"
       brand_icon={app_icon}
       sidebar={<Sidebar features={page_features} section={section} page={page?.id ?? ""} />}
-      tools={page_features.map((each) => <Fragment key={each.id}>{each.top_bar}</Fragment>)}
+      tools={(shown_feature ?? page_features[0]!).top_bar}
       theme={theme}
       view_key={view_key}
       user={me?.name}

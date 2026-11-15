@@ -34,7 +34,10 @@ A feature is two folders:
 - `src/web/<feature>/index.tsx` exports its view, its pages for the sidebar, its sections for the Settings page and
   anything it puts in the top bar, such as the library's search.
 
-`src/shared/store.ts` and `src/web/features.tsx` list the features; nothing else knows them.
+`src/shared/store.ts` and `src/web/features.tsx` list the features; nothing else knows them. Each entry in
+`src/web/features.tsx` is a section of the sidebar, such as Movies & Series (`#/movies`, which `#/library` still opens)
+and Books (`#/books`): its heading over its pages, its own search in the top bar while it is open, and its own category
+on the Settings page.
 
 ## The library
 
@@ -49,6 +52,29 @@ A feature is two folders:
   `library_title_collections` between titles and collections.
 - `tmdb.ts` is the TMDB client; `trilium.ts` reads and writes the Trilium add-on's Database note.
 - A title is found by any shared id, so a title first known only by its IMDb id is matched once TMDB names it.
+
+## Books
+
+`src/shared/books/`:
+
+- `model.ts` holds the rules that need no database, and is the books file the page imports for more than types:
+  statuses and formats, which ids name one book, pasted links and ISBNs, progress, series order, sorting, the Books
+  library's filters with counts, release days and a year's reading stats.
+- `schema.ts`: `books_books`, keyed by the strongest id (`bookbrainz:…`, else `openlibrary:…`, else `hardcover:…`, else
+  `isbn:…`; a StoryGraph book with none is `title:<title>/<author>`); `books_reads`, one row per time through a book;
+  `books_journal`; `books_collections` and `books_book_collections`; `books_follows`, the authors and series followed;
+  `books_releases`, the books found for them; and `books_goals`, one per year. All of them sync.
+- `bookbrainz.ts`, `openlibrary.ts` and `hardcover.ts` are the catalogues' clients, each answering in `catalog.ts`'s
+  shape. Adding a book asks BookBrainz, then Open Library (whose work names its BookBrainz work, and BookBrainz its Open
+  Library work), then Hardcover when a key is set, each filling what the one before lacks; search asks them all at once
+  and joins the same book into one result. Hardcover is reached only with the user's key from settings, which never
+  appears in an error or a log.
+- `storygraph.ts` reads StoryGraph's export CSV and writes the Goodreads library CSV StoryGraph imports; `csv.ts` reads
+  and writes CSV.
+- `schedule.ts` runs `run_release_check` hourly on the server and the desktop; the check's last run syncs, so they do
+  not both run it. A follow's first check stores what it finds as already alerted. The server's
+  `src/server/book_alerts.ts` then sends one alert per book still unalerted through X-Libs' `server/notify` channels,
+  so books found on any device are announced once, by the server.
 
 ## Sources and plugins
 

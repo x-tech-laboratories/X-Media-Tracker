@@ -22,7 +22,7 @@ function history_section(settings: Record<string, unknown>, set_setting: (key: s
   return {
     id: "history",
     heading: "History",
-    hint: "Every change to a title, its episodes and collections, and to a collection is kept, to look back on or restore under History.",
+    hint: "Every change to a title with its episodes and collections, to a book with its reads and journal, to a collection and to a follow is kept, to look back on or restore under History.",
     content: (
       <SettingRow label="Keep changes for" hint="Older changes are pruned; each item always keeps its latest.">
         <NumberField label="Keep changes for" bare unit="days" min={1} value={Number(settings["history.keep_days"])} on_change={(days) => void set_setting("history.keep_days", days ?? 180)} />

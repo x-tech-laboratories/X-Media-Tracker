@@ -2,10 +2,16 @@
 
 <a href="https://liberapay.com/BeatLink/donate"><img alt="Donate using Liberapay" src="https://liberapay.com/assets/widgets/donate.svg"></a> <a href="https://ko-fi.com/I4V52ANK6N"><img alt="Support me on Ko-fi" src="https://ko-fi.com/img/githubbutton_sm.svg"></a>
 
-Movies and TV shows you plan to watch, are watching, have watched or dropped, with ratings, every episode ticked off,
-and your own collections. It runs as a web page served by your own server, as a desktop app and as an Android app; the
-desktop and Android apps keep their own copy of the library, work offline, and sync with the server whenever it can be
-reached. It is the X-Tech port of the Trilium Media Tracker add-on, and imports its library.
+Movies, TV shows and books: what you plan to watch or read, are in the middle of, have finished or dropped, with
+ratings, every episode ticked off, every read of a book with its days, and your own collections. It runs as a web page
+served by your own server, as a desktop app and as an Android app; the desktop and Android apps keep their own copy of
+the library, work offline, and sync with the server whenever it can be reached. It is the X-Tech port of the Trilium
+Media Tracker add-on, and imports its library.
+
+The sidebar has a section for each: **Movies & Series** and **Books**, each with its own pages, search in the top bar
+and settings.
+
+### Movies & Series
 
 - **Library:** every title as a poster or a table row, narrowed by type, status, genre and each collection group, each
   choice showing how many titles it would leave; sorted by name, last watched, release, rating, when added or progress,
@@ -21,7 +27,56 @@ reached. It is the X-Tech port of the Trilium Media Tracker add-on, and imports 
 - **Import:** from Trakt and Stremio, each a bundled plugin, by hand or on a schedule; one way and additive.
 
 TMDB supplies search, posters, episode lists and details, and needs a free API key from
-[themoviedb.org/settings/api](https://www.themoviedb.org/settings/api), set under **Settings → Library → TMDB**.
+[themoviedb.org/settings/api](https://www.themoviedb.org/settings/api), set under **Settings → Movies & Series → TMDB**.
+
+
+### Books
+
+- **Library:** every book as a cover or a table row, narrowed by status (Want to read, Reading, Paused, Read, Did not
+  finish), format, owned and collection, each choice showing how many books it would leave, and sorted.
+- **A book's page:** status, rating, format, owned, progress in pages, percent or audiobook minutes, collections, the
+  review, every read with its start and finish days (a book read twice has two), a reading journal of dated notes, and
+  the series in order with what you have read and a button to add the rest.
+- **Search:** the bar at the top, in Books, searches your books, Open Library, BookBrainz and Hardcover at once, the same
+  book from several catalogues shown once; a pasted BookBrainz, Open Library or Hardcover link or an ISBN is added at
+  once.
+- **Upcoming:** follow authors and series, from a book's page or a search, and their new books are looked for on a
+  schedule: books coming soon first, those you have not looked at marked new. The server can send an alert for each
+  new book by ntfy, a webhook or email.
+- **Goals & stats:** a yearly goal in books, and how far along it is against an even pace; books and pages by month,
+  ratings, formats and top genres.
+- **StoryGraph:** import its export, and export the library for StoryGraph to import.
+
+BookBrainz and Open Library need no key: search, covers, descriptions, series and new books by the authors you follow
+come from them. A [Hardcover](https://hardcover.app) key, set under **Settings → Books → Catalogues**, adds Hardcover's
+search, series in order and new books in the series you follow. Make the key with only the `read:catalog` scope (the
+**Open Hardcover** link there ticks it for you), so it can read books but nothing of your account.
+
+## Coming from StoryGraph
+
+StoryGraph has no API, so books travel through files. Export your library from StoryGraph's **Manage Account → Export
+StoryGraph Library**, and pick the `.csv` under **Settings → Books → StoryGraph → Import StoryGraph**. Each book keeps
+its status, read days, read count, rating (quarter stars rounded to the nearest half), review, format, owned, moods and
+pace, and its tags become collections. A book already here, matched by ISBN or by title and author, gains what it lacks
+and keeps its rating unless **Imports replace ratings** is on. Books from StoryGraph without an ISBN have no cover until
+**Refresh** in Books finds them on Open Library.
+
+**Export CSV** writes the library as a Goodreads library export, which StoryGraph's Goodreads import reads, as does
+Hardcover's.
+
+## Alerts for new books
+
+The server and the desktop app look for new books by the authors and series you follow on the hours set under
+**Settings → Books → New books and alerts** (24 unless set); the last check syncs, so they do not both run it.
+Authors are looked up on Open Library and Hardcover, series on Hardcover only. Books already announced when you follow
+someone fill Upcoming without an alert; books found later get one, sent by the server alone, so a book found on any
+device is announced once, through:
+
+- **ntfy:** a server (ntfy.sh unless set), a topic and an optional access token.
+- **Webhook:** a POST of JSON with the book's title, authors, series, position, release day and link.
+- **Email:** an SMTP server, port, STARTTLS, TLS or none, a user name and password, and the from and to addresses.
+
+With no channel set, new books show only on Upcoming.
 
 ## Running it
 
@@ -56,7 +111,7 @@ The address and port come from `X_MEDIA_TRACKER_HOST` and `X_MEDIA_TRACKER_PORT`
 ## Coming from Trilium
 
 Open the add-on's `Database` note under your Library Root, save its text as a `.json` file, and pick it under
-**Settings → Library → Import and export → Import Trilium**. To keep your collection groups, paste the add-on's
+**Settings → Movies & Series → Import and export → Import Trilium**. To keep your collection groups, paste the add-on's
 `collectionGroups` setting from its config note into the field above first. Titles keep their ids (such as
 `tmdb:693134`), status, rating, watched episodes, dates and collections; an import adds new titles and merges ones
 already here without changing their status or rating. **Export JSON** writes the library back in the same shape.
@@ -66,7 +121,7 @@ already here without changing their status or rating. **Export JSON** writes the
 
 **Settings → Sources → Import** shows a panel for each source plugin that is on. Imports only add and merge: a title is
 matched on any shared id (TMDB, IMDb or Trakt), episodes are merged and never unwatched, and status and rating are kept
-unless **Settings → Library → New titles** and the import settings say otherwise. Nothing is ever written to Stremio.
+unless **Settings → Movies & Series → New titles** and the import settings say otherwise. Nothing is ever written to Stremio.
 
 - **Trakt:** make an API app at [trakt.tv/oauth/applications](https://trakt.tv/oauth/applications) with
   `urn:ietf:wg:oauth:2.0:oob` as its redirect address, save its Client ID and Secret, then **Sign in to Trakt** and enter
@@ -136,7 +191,8 @@ Every call the page makes is open to other programs on the server, behind a toke
   claude mcp add --transport http x-media-tracker https://<server>/api/mcp --header "Authorization: Bearer <token>"
   ```
 
-The TMDB key, the Trakt secret and tokens and the Stremio key are left out of what MCP reads.
+The TMDB and Hardcover keys, the Trakt secret and tokens, the Stremio key and the alert channels' topic, tokens,
+address and password are left out of what MCP reads.
 
 ## NixOS
 
@@ -166,7 +222,26 @@ docs/        architecture.md
 nix/         package.nix, desktop-package.nix, module.nix
 ```
 
+## Credits
+
+X-Media-Tracker is built on these services and the people who keep them:
+
+- [TMDB](https://www.themoviedb.org/): film and TV details and images. This product uses the TMDB API but is not
+  endorsed or certified by TMDB.
+- [Trakt](https://trakt.tv/) and [Stremio](https://www.stremio.com/): watch history imported from each.
+- [BookBrainz](https://bookbrainz.org/), the open book database of the MetaBrainz Foundation: works, authors, series
+  and editions.
+- [Open Library](https://openlibrary.org/), a project of the Internet Archive: book details, covers and authors' new
+  books.
+- [Hardcover](https://hardcover.app/): book details, series in order and upcoming books, through its API; its reading
+  progress, re-reads, reading journal, goals and stats inspired the Books section's.
+- [The StoryGraph](https://thestorygraph.com/): its library export is imported, and the export for it is written in the
+  Goodreads format its importer reads.
+- [BookNotification](https://www.booknotification.com/): its alerts for new books by the authors and series you follow
+  inspired Upcoming and its alerts.
+
+None of them endorse this app. The names are their owners' trademarks.
+
 ## License
 
-GPL-3.0-or-later. Film and TV details and images come from [TMDB](https://www.themoviedb.org/); this product uses the
-TMDB API but is not endorsed or certified by TMDB.
+GPL-3.0-or-later.

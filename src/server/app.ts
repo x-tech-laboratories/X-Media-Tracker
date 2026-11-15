@@ -18,6 +18,8 @@ import { register_web_folder } from "@x-tech-laboratories/x-libs/server/web_fold
 import type { SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 
 import { media_bridge } from "../shared/bridge.ts";
+import { send_book_alerts } from "./book_alerts.ts";
+import { keep_checking_releases } from "../shared/books/schedule.ts";
 import { keep_importing } from "../shared/sources/schedule.ts";
 import { bind_methods, media_api, is_read_only, secret_settings, sync_engine, type MediaMethods } from "../shared/store.ts";
 
@@ -32,6 +34,8 @@ export interface AppOptions {
   backups: BackupMethods;
   // Whether the sources set to import automatically run on their schedule; on unless false.
   auto_import?: boolean;
+  // Whether new books by the authors and series followed are looked for and alerted on their schedule; on unless false.
+  release_checks?: boolean;
 }
 
 // ── Other programs ───────────────────────────────────────────────────────────
@@ -131,6 +135,12 @@ export async function build_app(options: AppOptions): Promise<FastifyInstance> {
       () => changes.announce_change(),
     );
     app.addHook("onClose", async () => stop_importing());
+  }
+
+  if (options.release_checks !== false) {
+    const methods = () => bind_methods(database, () => undefined);
+    const stop_checking = keep_checking_releases(methods, () => changes.announce_change(), () => send_book_alerts(methods()));
+    app.addHook("onClose", async () => stop_checking());
   }
 
   await register_web_folder(app, { folder: options.web_folder });

@@ -44,14 +44,23 @@ afterEach(() => {
 });
 
 describe("sidebar", () => {
-  it("opens on the Library, lists Library and History alike, and marks the one shown", async () => {
+  it("opens on the Library, lists each section's pages under it and History after, and marks the one shown", async () => {
     fake_page();
     render(<App />);
 
     const nav = screen.getByRole("navigation", { name: "Sections" });
     expect(await screen.findByRole("heading", { level: 1, name: "Library" })).toBeTruthy();
-    expect(within(nav).getAllByRole("link").map((link) => link.textContent)).toEqual(["Library", "History"]);
-    expect(within(nav).getByRole("link", { name: "Library" }).getAttribute("aria-current")).toBe("page");
+    const movies = within(nav).getByRole("group", { name: "Movies & Series" });
+    const books = within(nav).getByRole("group", { name: "Books" });
+    expect(within(movies).getAllByRole("link").map((link) => link.textContent)).toEqual(["Library"]);
+    expect(within(books).getAllByRole("link").map((link) => link.textContent)).toEqual(["Library", "Upcoming", "Goals & stats"]);
+    expect(within(nav).getAllByRole("link").at(-1)!.textContent).toBe("History");
+    expect(within(movies).getByRole("link", { name: "Library" }).getAttribute("aria-current")).toBe("page");
+
+    go("#/books/upcoming");
+    expect(await screen.findByRole("heading", { level: 1, name: "Upcoming" })).toBeTruthy();
+    expect(within(books).getByRole("link", { name: "Upcoming" }).getAttribute("aria-current")).toBe("page");
+    expect(screen.getByLabelText("Search your books and the catalogues, or paste a link or ISBN")).toBeTruthy();
 
     go("#/history");
     expect(await screen.findByRole("heading", { level: 1, name: "History" })).toBeTruthy();
@@ -68,8 +77,8 @@ describe("search", () => {
     const box = await screen.findByLabelText("Search your library and TMDB, or paste a link");
     fireEvent.change(box, { target: { value: "dune" } });
     fireEvent.keyDown(box, { key: "Enter" });
-    expect(window.location.hash).toBe("#/library/search/dune");
-    go("#/library/search/dune");
+    expect(window.location.hash).toBe("#/movies/search/dune");
+    go("#/movies/search/dune");
 
     expect(await screen.findByRole("heading", { level: 1, name: "Search" })).toBeTruthy();
     const mine = screen.getByRole("heading", { name: "In your library" }).closest("section")!;
@@ -111,7 +120,7 @@ describe("library table", () => {
     const row = within(table).getAllByRole("row").find((each) => each.textContent?.includes("Severance"))!;
     expect(row.textContent).toContain("Watching");
     expect(row.textContent).toContain("10/19");
-    expect(within(row).getByRole("link", { name: "Severance" }).getAttribute("href")).toBe("#/library/title/tmdb%3A95396");
+    expect(within(row).getByRole("link", { name: "Severance" }).getAttribute("href")).toBe("#/movies/title/tmdb%3A95396");
     expect(window.localStorage.getItem("x-media-tracker-library-layout")).toContain("table");
   });
 });
@@ -121,7 +130,7 @@ describe("title page", () => {
     const store = fake_page();
     store.import_trilium_media(trilium_database, "");
     render(<App />);
-    go("#/library/title/tmdb%3A693134");
+    go("#/movies/title/tmdb%3A693134");
 
     expect(await screen.findByRole("heading", { level: 1, name: "Dune: Part Two" })).toBeTruthy();
     const status = screen.getByLabelText("Status") as HTMLSelectElement;

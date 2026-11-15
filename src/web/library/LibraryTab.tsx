@@ -55,7 +55,7 @@ function progress_text(title: LibraryTitle): string {
 }
 
 function href_of(title: LibraryTitle): string {
-  return `#/library/title/${encodeURIComponent(title.id)}`;
+  return `#/movies/title/${encodeURIComponent(title.id)}`;
 }
 
 function TitleActions({ title }: { title: LibraryTitle }) {

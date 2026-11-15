@@ -1,0 +1,251 @@
+// The books' calls described for other programs: what each does and the arguments it takes.
+
+// ── Imports ──────────────────────────────────────────────────────────────────
+
+import type { JsonSchema, MethodSpec } from "@x-tech-laboratories/x-libs/api_spec";
+
+import { day, id_of, json_file, text } from "../api_schemas.ts";
+import { book_formats, book_statuses, progress_units } from "./model.ts";
+
+// ── Shapes ───────────────────────────────────────────────────────────────────
+
+const book_id: JsonSchema = { ...id_of("book"), description: 'The book\'s id, such as "bookbrainz:797946a0-32b3-43fb-b58d-cd12343a9c07" or "openlibrary:OL5738148W", as list_books gives it.' };
+
+const format: JsonSchema = { type: "string", enum: [...book_formats], description: 'print, ebook or audiobook, or "" when not said.' };
+
+const kind: JsonSchema = { type: "string", enum: ["author", "series"], description: "An author or a series." };
+
+const ref: JsonSchema = {
+  type: "object",
+  description: "An author or series as search_book_people gives it: its name and any catalogue ids known.",
+  properties: {
+    name: text("Such as Brandon Sanderson or The Stormlight Archive."),
+    bookbrainz_id: text("Its BookBrainz id, or empty."),
+    openlibrary_id: text("Its Open Library id, such as OL1394865A, or empty."),
+    hardcover_id: text("Its Hardcover id, or empty."),
+  },
+  required: ["name"],
+};
+
+const ids: JsonSchema = { type: "array", items: { type: "string" }, description: "Release ids from list_releases." };
+
+// ── Calls ────────────────────────────────────────────────────────────────────
+
+export const books_api = {
+  list_books: {
+    description:
+      "Lists every tracked book, sorted by title, with its catalogue ids (BookBrainz, Open Library, Hardcover, ISBN), authors, series and place in it, " +
+      "status (want_to_read, reading, paused, read or dnf), rating 1 to 10 (half stars out of five) or null, review, format, whether owned, progress, " +
+      "every read with its start and finish days, and the collections it is in; then every book collection.",
+    params: [],
+  },
+  get_book: {
+    description: "Gives one tracked book as list_books does, or null when there is none with that id.",
+    params: [{ name: "id", schema: book_id }],
+  },
+  search_books: {
+    description:
+      "Searches Open Library, BookBrainz and, when a key is set, Hardcover for books by title, author or ISBN at once, the same book from several " +
+      "catalogues joined into one result, each marked with the id of the library's book when already tracked. Names any catalogue that failed.",
+    params: [{ name: "query", schema: text("Words of the title or author, or an ISBN, such as The Final Empire.") }],
+  },
+  lookup_book_series: {
+    description: "Looks up the series a tracked book is in: every book in it in order, from Hardcover when a key is set, else BookBrainz, else the library's own books in that series; null when it is in none.",
+    params: [{ name: "id", schema: book_id }],
+  },
+  list_book_journal: {
+    description: "Lists a book's reading journal, newest first: each entry's day, the page it is about or null, and its text.",
+    params: [{ name: "book_id", schema: book_id }],
+  },
+  add_book: {
+    description: "Adds a book from a catalogue by its id there, or by ISBN, filling in what every catalogue says of it, with the default status from Settings; one already tracked only has its details refreshed. Gives back its id.",
+    params: [
+      { name: "source", schema: { type: "string", enum: ["bookbrainz", "openlibrary", "hardcover", "isbn"], description: "Which catalogue the id is from, or isbn." } },
+      { name: "id", schema: text("The id there, such as OL5738148W for Open Library, a BookBrainz work's id, a Hardcover book's number, or an ISBN.") },
+    ],
+  },
+  add_book_from_link: {
+    description: "Adds a book from a BookBrainz work, Open Library work or Hardcover book link, or a bare ISBN. Gives back its id.",
+    params: [{ name: "link", schema: text("Such as https://openlibrary.org/works/OL5738148W, https://hardcover.app/books/the-final-empire or 9780765311788.") }],
+  },
+  remove_book: {
+    description: "Removes a book from the library, with its reads and journal; History can bring it back.",
+    params: [{ name: "id", schema: book_id }],
+  },
+  set_book_status: {
+    description: "Sets a book's status. reading opens a read starting today; read and dnf close the open read today, or add one ending today; read also clears the progress.",
+    params: [
+      { name: "id", schema: book_id },
+      { name: "status", schema: { type: "string", enum: [...book_statuses], description: "The new status." } },
+    ],
+  },
+  set_book_rating: {
+    description: "Rates a book 1 to 10, shown as half stars out of five, or clears its rating with null or 0.",
+    params: [
+      { name: "id", schema: book_id },
+      { name: "rating", schema: { type: ["number", "null"], minimum: 0, maximum: 10, description: "1 to 10, or null for none." } },
+    ],
+  },
+  set_book_review: {
+    description: "Sets a book's review, replacing any before; empty clears it.",
+    params: [
+      { name: "id", schema: book_id },
+      { name: "review", schema: text("The review's text, in Markdown.") },
+    ],
+  },
+  set_book_owned: {
+    description: "Marks whether a copy of the book is owned.",
+    params: [
+      { name: "id", schema: book_id },
+      { name: "owned", schema: { type: "boolean", description: "True when owned." } },
+    ],
+  },
+  set_book_format: {
+    description: "Sets the format a book is read in.",
+    params: [
+      { name: "id", schema: book_id },
+      { name: "format", schema: format },
+    ],
+  },
+  set_book_progress: {
+    description: "Sets how far into its current read a book is, in pages, percent or audiobook minutes; progress on a book not yet started starts it. Gives back the book.",
+    params: [
+      { name: "id", schema: book_id },
+      { name: "progress", schema: { type: "number", minimum: 0, description: "The page, percent (0 to 100) or minute reached." } },
+      { name: "unit", schema: { type: "string", enum: [...progress_units], description: "What progress counts." } },
+    ],
+  },
+  save_book_read: {
+    description: "Adds one time through a book, or changes the one with the id given; a read with no finish day is the one in progress. Gives back its id.",
+    params: [
+      { name: "book_id", schema: book_id },
+      {
+        name: "read",
+        schema: {
+          type: "object",
+          properties: {
+            id: text("The read's id when changing it; leave out to add one."),
+            started_on: { ...day, description: "The day it started, such as 2026-11-01, or empty." },
+            finished_on: { ...day, description: "The day it finished or was given up, or empty while reading." },
+            format,
+            dnf: { type: "boolean", description: "True when it was given up rather than finished." },
+          },
+          required: ["started_on", "finished_on", "format", "dnf"],
+        },
+      },
+    ],
+  },
+  remove_book_read: {
+    description: "Removes one read of a book.",
+    params: [{ name: "id", schema: id_of("read") }],
+  },
+  save_journal_entry: {
+    description: "Adds a dated note to a book's reading journal, or changes the one with the id given. Gives back its id.",
+    params: [
+      { name: "book_id", schema: book_id },
+      {
+        name: "entry",
+        schema: {
+          type: "object",
+          properties: {
+            id: text("The entry's id when changing it; leave out to add one."),
+            written_on: { ...day, description: "The day, such as 2026-11-10; empty means today." },
+            page: { type: ["integer", "null"], minimum: 1, description: "The page it is about, or null." },
+            text: text("The note, in Markdown."),
+          },
+          required: ["written_on", "page", "text"],
+        },
+      },
+    ],
+  },
+  remove_journal_entry: {
+    description: "Removes one entry from a book's reading journal.",
+    params: [{ name: "id", schema: id_of("journal entry") }],
+  },
+  set_book_collections: {
+    description: "Sets which collections a book is in, replacing the ones it was in.",
+    params: [
+      { name: "id", schema: book_id },
+      { name: "collection_ids", schema: { type: "array", items: { type: "string" }, description: "Book collection ids from list_books." } },
+    ],
+  },
+  save_book_collection: {
+    description: "Adds a book collection, or renames the one with the id given; a name already in use, whatever its case, merges into that one. Gives back its id.",
+    params: [{ name: "collection", schema: { type: "object", properties: { id: text("The collection's id when renaming it; leave out to add one."), name: text("Such as Book club.") }, required: ["name"] } }],
+  },
+  remove_book_collection: {
+    description: "Removes a book collection; its books stay in the library.",
+    params: [{ name: "id", schema: id_of("book collection") }],
+  },
+  search_book_people: {
+    description: "Searches BookBrainz, Open Library and, when a key is set, Hardcover for authors or series to follow, one row per name with every catalogue's id.",
+    params: [
+      { name: "query", schema: text("Words of the name, such as Sanderson.") },
+      { name: "kind", schema: kind },
+    ],
+  },
+  list_follows: {
+    description: "Lists the authors and series followed for new books, with their catalogue ids and when each was followed.",
+    params: [],
+  },
+  follow_book_people: {
+    description: "Follows an author or series for new books, looking its name up in the other catalogues too. Authors are watched on Open Library and Hardcover, series on Hardcover. Gives back the follow's id.",
+    params: [
+      { name: "kind", schema: kind },
+      { name: "ref", schema: ref },
+    ],
+  },
+  unfollow_book_people: {
+    description: "Stops following an author or series, dropping the new books found for it.",
+    params: [{ name: "id", schema: id_of("follow") }],
+  },
+  list_releases: {
+    description: "Lists the books found for the authors and series followed, by release day: title, authors, series, the day it is or was out, whether it has been seen and when an alert went out.",
+    params: [],
+  },
+  run_release_check: {
+    description:
+      "Checks every author and series followed for books out in the last 30 days or announced, when the hours set under Settings have passed since the last check, or at once when forced. " +
+      "Gives how many new books it found and which follows failed, or null when no check was due. Books found the first time a follow is checked fill the list without an alert.",
+    params: [{ name: "force", schema: { type: "boolean", description: "True to check now whatever the schedule." } }],
+  },
+  mark_releases_seen: {
+    description: "Marks found books as seen, so they no longer show as new; an empty list marks them all.",
+    params: [{ name: "ids", schema: ids }],
+  },
+  list_unnotified_releases: {
+    description: "Lists the found books no alert has gone out for yet.",
+    params: [],
+  },
+  mark_releases_notified: {
+    description: "Records that an alert went out for these found books.",
+    params: [{ name: "ids", schema: ids }],
+  },
+  get_reading_year: {
+    description: "Gives one year's reading: the goal set, books finished and given up, pages and audiobook minutes, books and pages by month, ratings, formats and the top genres.",
+    params: [{ name: "year", schema: { type: "integer", description: "Such as 2026." } }],
+  },
+  set_reading_goal: {
+    description: "Sets how many books to finish in a year, or clears the goal with null or 0.",
+    params: [
+      { name: "year", schema: { type: "integer", description: "Such as 2026." } },
+      { name: "target", schema: { type: ["integer", "null"], minimum: 0, description: "Books to finish, or null for no goal." } },
+    ],
+  },
+  import_storygraph: {
+    description: "Imports StoryGraph's library export CSV: status, reads with their days, rating, review, format, owned, moods, pace and tags as collections. Adds new books and merges ones already here by ISBN or title, never removing any.",
+    params: [{ name: "csv", schema: { ...json_file, description: "The export CSV's whole text." } }],
+  },
+  export_storygraph: {
+    description: "Gives the library as a Goodreads library export CSV, which StoryGraph's and Hardcover's importers read.",
+    params: [],
+  },
+  refresh_books: {
+    description: "Starts fetching every book's details from the catalogues again in the background, finding books known only by title on Open Library; never changes a status, rating or read. Answers at once with its progress; follow it with get_books_refresh.",
+    params: [],
+  },
+  get_books_refresh: {
+    description: "Shows the latest books refresh: running, done or failed, how far it has got, and once done how many books were updated or not found. State none means no refresh since the server started.",
+    params: [],
+  },
+} satisfies Record<string, MethodSpec>;

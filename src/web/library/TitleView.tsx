@@ -133,7 +133,7 @@ function TitlePage({ title, collections, settings }: { title: LibraryTitle; coll
       danger: true,
       run: async () => {
         await calls().remove_title(title.id);
-        window.location.hash = "#/library";
+        window.location.hash = "#/movies";
       },
     });
 
@@ -204,7 +204,7 @@ export function TitleView({ id }: { id: string }) {
   const settings = use_settings();
   return (
     <div className="title-page">
-      <Loaded resource={title} empty={<Empty title="That title is not in the library." hint={<a href="#/library">Back to the Library</a>} />}>
+      <Loaded resource={title} empty={<Empty title="That title is not in the library." hint={<a href="#/movies">Back to the Library</a>} />}>
         {(loaded) =>
           loaded && (
           <Loaded resource={library}>

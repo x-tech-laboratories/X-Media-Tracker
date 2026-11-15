@@ -22,11 +22,11 @@ import type { Added, SearchResult } from "../../shared/library/store.ts";
 type Scope = MediaType | "all";
 
 function href_of(id: string): string {
-  return `#/library/title/${encodeURIComponent(id)}`;
+  return `#/movies/title/${encodeURIComponent(id)}`;
 }
 
 export function search_href(query: string): string {
-  return `#/library/search/${encodeURIComponent(query)}`;
+  return `#/movies/search/${encodeURIComponent(query)}`;
 }
 
 function report_added(added: Added): void {
