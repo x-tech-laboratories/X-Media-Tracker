@@ -1,0 +1,59 @@
+/* Layout only; every colour, size and widget look comes from Halon's tokens and stylesheet. */
+
+/* Covers are tall, so the media tiles take a book's 2:3. */
+.books-page,
+.book-page {
+  --media-aspect: 2 / 3;
+}
+
+.book-progress,
+.book-follows,
+.book-links,
+.journal-form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.book-progress > .progress {
+  flex: 1 1 12rem;
+}
+
+.book-list,
+.journal-list {
+  display: grid;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.book-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.series-position {
+  min-width: 2.5ch;
+  font-variant-numeric: tabular-nums;
+}
+
+.journal-form {
+  display: grid;
+  gap: var(--space-3);
+  margin-bottom: var(--space-5);
+}
+
+.journal-entry {
+  display: grid;
+  gap: var(--space-2);
+}
+
+/* A read's fields stack, each with its own label. */
+.read-dialog .dialog-body {
+  display: grid;
+  gap: var(--space-4);
+}

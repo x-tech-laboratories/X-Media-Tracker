@@ -4,3 +4,8 @@
   max-width: 48rem;
   color: var(--text-secondary);
 }
+
+/* A sidebar section's rows sit in the sidebar's own column, as if the group were not there. */
+.sidebar-section {
+  display: contents;
+}

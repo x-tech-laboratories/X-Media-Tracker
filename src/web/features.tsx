@@ -6,6 +6,7 @@
 import type { ReactNode } from "react";
 import type { SettingsSection } from "@x-tech-laboratories/x-libs/web/react/layout";
 
+import { BookSearchBar, BooksView, book_settings, books_pages } from "./books/index.tsx";
 import { LibraryView, SearchBar, library_pages, library_settings } from "./library/index.tsx";
 
 // ── Features ─────────────────────────────────────────────────────────────────
@@ -37,4 +38,5 @@ export interface PageFeature {
 
 export const page_features: PageFeature[] = [
   { id: "movies", label: "Movies & Series", pages: library_pages, view: (parts) => <LibraryView parts={parts} />, settings: library_settings, top_bar: <SearchBar />, aliases: ["library"] },
+  { id: "books", label: "Books", pages: books_pages, view: (parts) => <BooksView parts={parts} />, settings: book_settings, top_bar: <BookSearchBar /> },
 ];
