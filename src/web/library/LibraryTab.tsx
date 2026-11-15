@@ -235,11 +235,11 @@ function LibraryPage({ library, settings }: { library: Library; settings: Record
           value={filters.media_type}
           on_change={(media_type) => set_filter({ media_type })}
         />
-        <Select
+        <Segmented
           label="Status"
-          options={[["all", with_count("Any status", counts.status.all)], ...statuses.map((status) => [status, with_count(status_labels[status], counts.status[status])] as [string, string])]}
+          choices={[{ value: "all", label: with_count("Any status", counts.status.all) }, ...statuses.map((status) => ({ value: status, label: with_count(status_labels[status], counts.status[status]) }))]}
           value={filters.status}
-          on_change={(status) => set_filter({ status: status as LibraryFilters["status"] })}
+          on_change={(status) => set_filter({ status })}
         />
         {genres_on && (
           <Select

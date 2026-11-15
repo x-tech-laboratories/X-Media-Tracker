@@ -56,10 +56,10 @@ describe("books library", () => {
     go("#/books/library");
 
     expect(await screen.findByText("2 of 2 books")).toBeTruthy();
-    const status = screen.getByLabelText("Status") as HTMLSelectElement;
-    expect([...status.options].map((option) => option.text)).toEqual(["Any status (2)", "Want to read (0)", "Reading (1)", "Paused (0)", "Read (1)", "Did not finish (0)"]);
+    const status = screen.getByRole("radiogroup", { name: "Status" });
+    expect(within(status).getAllByRole("radio").map((option) => option.textContent)).toEqual(["Any status (2)", "Want to read (0)", "Reading (1)", "Paused (0)", "Read (1)", "Did not finish (0)"]);
 
-    fireEvent.change(status, { target: { value: "reading" } });
+    fireEvent.click(within(status).getByRole("radio", { name: "Reading (1)" }));
     expect(await screen.findByText("1 of 2 books")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Piranesi" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: "The Final Empire" })).toBeNull();

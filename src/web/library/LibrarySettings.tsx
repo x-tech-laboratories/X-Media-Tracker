@@ -5,7 +5,7 @@
 
 import { useRef, useState, type ChangeEvent } from "react";
 import { ChipField } from "@x-tech-laboratories/x-libs/web/react/chip_field";
-import { CommitInput, Select, Switch } from "@x-tech-laboratories/x-libs/web/react/controls";
+import { CommitInput, Segmented, Select, Switch } from "@x-tech-laboratories/x-libs/web/react/controls";
 import { confirm_dialog } from "@x-tech-laboratories/x-libs/web/react/dialog";
 import { RowActions, Section, SettingRow, type SettingsSection } from "@x-tech-laboratories/x-libs/web/react/layout";
 import { Loaded } from "@x-tech-laboratories/x-libs/web/react/states";
@@ -65,11 +65,10 @@ function TitleSettings({ settings, set_setting }: FeatureSettingsProps) {
   return (
     <>
       <SettingRow label="Status for new titles" hint="A title added by hand starts with this; an import sets status from its history instead.">
-        <Select
+        <Segmented
           label="Status for new titles"
-          bare
-          options={statuses.map((status) => [status, status_labels[status]] as [string, string])}
-          value={String(settings["library.default_status"])}
+          choices={statuses.map((status) => ({ value: status, label: status_labels[status] }))}
+          value={String(settings["library.default_status"]) as (typeof statuses)[number]}
           on_change={(status) => void set_setting("library.default_status", status)}
         />
       </SettingRow>
