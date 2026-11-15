@@ -1,4 +1,4 @@
-// Every change to the things a person keeps, such as a title with its watched episodes or a collection, kept as
+// Every change to the things a person keeps, such as a title with its watched episodes, a book with its reads or a collection, kept as
 // versions through X-Libs history: any version can be restored, and a deleted item brought back. The versions sync.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
@@ -104,6 +104,46 @@ export const item_kinds: ItemKind[] = [
     watches: [{ table: "library_collections", item_columns: ["id"] }],
     name_of: (snapshot) => String(first(snapshot, "library_collections")?.name ?? "Collection"),
     summary: () => "",
+  },
+  {
+    kind: "book",
+    label: "Book",
+    item_table: "books_books",
+    levels: [
+      { table: "books_books", column: "id" },
+      { table: "books_reads", column: "book_id" },
+      { table: "books_journal", column: "book_id" },
+      { table: "books_book_collections", column: "book_id" },
+    ],
+    watches: [
+      { table: "books_books", item_columns: ["id"] },
+      { table: "books_reads", item_columns: ["book_id"] },
+      { table: "books_journal", item_columns: ["book_id"] },
+      { table: "books_book_collections", item_columns: ["book_id"] },
+    ],
+    name_of: (snapshot) => String(first(snapshot, "books_books")?.title ?? "Book"),
+    summary: (snapshot) => {
+      const book = first(snapshot, "books_books");
+      return book ? `${String(book.status).replace(/_/g, " ")}, ${count(snapshot, "books_reads", "read")}` : "";
+    },
+  },
+  {
+    kind: "book_collection",
+    label: "Book collection",
+    item_table: "books_collections",
+    levels: [{ table: "books_collections", column: "id" }],
+    watches: [{ table: "books_collections", item_columns: ["id"] }],
+    name_of: (snapshot) => String(first(snapshot, "books_collections")?.name ?? "Book collection"),
+    summary: () => "",
+  },
+  {
+    kind: "follow",
+    label: "Follow",
+    item_table: "books_follows",
+    levels: [{ table: "books_follows", column: "id" }],
+    watches: [{ table: "books_follows", item_columns: ["id"] }],
+    name_of: (snapshot) => String(first(snapshot, "books_follows")?.name ?? "Follow"),
+    summary: (snapshot) => String(first(snapshot, "books_follows")?.kind ?? ""),
   },
 ];
 

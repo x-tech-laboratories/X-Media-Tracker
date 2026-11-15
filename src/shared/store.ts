@@ -8,6 +8,7 @@ import { migrate, type SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 import { create_sync_engine } from "@x-tech-laboratories/x-libs/sync_engine";
 
 import { Background } from "./feature.ts";
+import { books_feature } from "./books/store.ts";
 import { forget_synced_changes, history_feature, install_history, record_history } from "./history/store.ts";
 import { is_read_only } from "./page_api.ts";
 import { library_feature } from "./library/store.ts";
@@ -18,7 +19,7 @@ import { trakt_feature } from "./sources/trakt/store.ts";
 
 // ── Features ─────────────────────────────────────────────────────────────────
 
-export const features = [settings_feature, library_feature, trakt_feature, stremio_feature, sources_feature, history_feature];
+export const features = [settings_feature, library_feature, books_feature, trakt_feature, stremio_feature, sources_feature, history_feature];
 
 export const sync_engine = create_sync_engine({ tables: features.flatMap((feature) => feature.tables), after_apply: forget_synced_changes });
 
@@ -51,6 +52,7 @@ export function open_store(database: SqlDatabase): void {
 const all_methods = {
   ...(Object.assign({}, ...features.map((feature) => feature.methods)) as typeof settings_feature.methods &
     typeof library_feature.methods &
+    typeof books_feature.methods &
     typeof trakt_feature.methods &
     typeof stremio_feature.methods &
     typeof sources_feature.methods &
