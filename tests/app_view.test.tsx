@@ -133,9 +133,9 @@ describe("title page", () => {
     go("#/movies/title/tmdb%3A693134");
 
     expect(await screen.findByRole("heading", { level: 1, name: "Dune: Part Two" })).toBeTruthy();
-    const status = screen.getByLabelText("Status") as HTMLSelectElement;
-    expect(status.value).toBe("watched");
-    fireEvent.change(status, { target: { value: "dropped" } });
+    const status = screen.getByRole("radiogroup", { name: "Status" });
+    expect(within(status).getByRole("radio", { name: "Watched" }).getAttribute("aria-checked")).toBe("true");
+    fireEvent.click(within(status).getByRole("radio", { name: "Dropped" }));
     await waitFor(() => expect(store.get_title("tmdb:693134")!.status).toBe("dropped"));
   });
 });
