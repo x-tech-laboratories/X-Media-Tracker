@@ -304,3 +304,46 @@ describe("refreshing", () => {
     expect(empire.author_refs[0]!.name).toBe("Brandon Sanderson");
   });
 });
+
+// ── Ids ──────────────────────────────────────────────────────────────────────
+
+describe("changing a book's ids", () => {
+  it("points an imported book at an Open Library edition's work and fills in its details, keeping its own id and rating", async () => {
+    const store = open_methods();
+    store.import_storygraph(storygraph_csv);
+    answers["openlibrary.org/books/OL7353617M.json"] = { works: [{ key: "/works/OL5738148W" }] };
+    const piranesi = store.list_books().books.find((book) => book.title === "Piranesi")!;
+
+    const changed = await store.set_book_ids(piranesi.id, { openlibrary_id: "https://openlibrary.org/books/OL7353617M/Some_edition" });
+
+    expect(changed).toMatchObject({ id: piranesi.id, openlibrary_id: "OL5738148W", bookbrainz_id: work_id, cover_url: "https://covers.openlibrary.org/b/id/14658160-L.jpg", status: "reading" });
+  });
+
+  it("keeps an id left out and clears one left empty, even when no catalogue answers", async () => {
+    const store = open_methods();
+    store.import_storygraph(storygraph_csv);
+    const empire = store.list_books().books.find((book) => book.isbn === "9780765311788")!;
+
+    expect(await store.set_book_ids(empire.id, { hardcover_id: " 427514 " })).toMatchObject({ hardcover_id: "427514", isbn: "9780765311788" });
+    expect(await store.set_book_ids(empire.id, { hardcover_id: "" })).toMatchObject({ hardcover_id: "", isbn: "9780765311788", rating: 9 });
+  });
+
+  it("refuses an id another book has, or one that is not an id", async () => {
+    const store = open_methods();
+    store.import_storygraph(storygraph_csv);
+    const piranesi = store.list_books().books.find((book) => book.title === "Piranesi")!;
+
+    await expect(store.set_book_ids(piranesi.id, { isbn: "978-0-7653-1178-8" })).rejects.toThrow("The Final Empire already has that ISBN");
+    await expect(store.set_book_ids(piranesi.id, { hardcover_id: "the-final-empire" })).rejects.toThrow("is not a Hardcover id");
+    expect(store.get_book(piranesi.id)!.isbn).toBe("");
+  });
+
+  it("adds a book from an Open Library edition", async () => {
+    const store = open_methods();
+    answers["openlibrary.org/books/OL7353617M.json"] = { works: [{ key: "/works/OL5738148W" }] };
+
+    const added = await store.add_book("openlibrary", "OL7353617M");
+
+    expect(store.get_book(added.id)).toMatchObject({ openlibrary_id: "OL5738148W" });
+  });
+});

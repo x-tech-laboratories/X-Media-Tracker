@@ -82,6 +82,21 @@ describe("book page", () => {
 
     expect(screen.getByRole("button", { name: "Follow Susanna Clarke" })).toBeTruthy();
   });
+
+  it("changes a book's catalogue ids from a dialog", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response("{}", { status: 404 })));
+    const store = fake_page();
+    store.import_storygraph(storygraph_csv);
+    render(<App />);
+    go("#/books/book/title%3Apiranesi%2Fsusanna%20clarke");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Change ids" }));
+    fireEvent.change(screen.getByLabelText("Hardcover"), { target: { value: "427514" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+
+    await waitFor(() => expect(store.get_book("title:piranesi/susanna clarke")).toMatchObject({ hardcover_id: "427514", status: "reading" }));
+    vi.unstubAllGlobals();
+  });
 });
 
 describe("goals", () => {

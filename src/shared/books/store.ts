@@ -22,6 +22,8 @@ import {
   is_book_status,
   is_progress_unit,
   parse_book_link,
+  parse_bookbrainz_id,
+  parse_openlibrary_id,
   reading_stats,
   release_day,
   sort_series,
@@ -307,10 +309,17 @@ function write_details(database: SqlDatabase, book: CatalogBook): AddedBook {
   return { id, title: book.title, existed: false };
 }
 
+// An Open Library work's id, or the work of the edition given, such as OL7353617M.
+async function openlibrary_work_of(input: string): Promise<string> {
+  const parsed = parse_openlibrary_id(input);
+  if (!parsed) throw new Error(`${input} is not an Open Library work or edition, such as OL5738148W or OL7353617M.`);
+  return parsed.kind === "work" ? parsed.id : create_openlibrary().edition_work(parsed.id);
+}
+
 async function add_from(database: SqlDatabase, source: CatalogSource | "isbn", id: string): Promise<AddedBook> {
   const start = empty_book(source === "isbn" ? "openlibrary" : source);
   if (source === "bookbrainz") start.bookbrainz_id = id;
-  else if (source === "openlibrary") start.openlibrary_id = id;
+  else if (source === "openlibrary") start.openlibrary_id = await openlibrary_work_of(id);
   else if (source === "hardcover") start.hardcover_id = id;
   else {
     start.isbn = clean_isbn(id);
@@ -528,6 +537,49 @@ function import_book(database: SqlDatabase, book: ImportedBook): "added" | "upda
   return existing ? "updated" : "added";
 }
 
+// ── Ids ──────────────────────────────────────────────────────────────────────
+
+const id_labels: Record<keyof BookIds, string> = { bookbrainz_id: "BookBrainz id", openlibrary_id: "Open Library id", hardcover_id: "Hardcover id", isbn: "ISBN" };
+
+const work_example = "797946a0-32b3-43fb-b58d-cd12343a9c07";
+
+// Each id typed or pasted as its catalogue writes it; empty clears it.
+async function clean_ids(ids: Partial<BookIds>): Promise<Partial<BookIds>> {
+  const cleaned: Partial<BookIds> = {};
+  const refuse = (key: keyof BookIds, example: string) => new Error(`${ids[key]} is not a ${id_labels[key]}, such as ${example}.`);
+  if (ids.bookbrainz_id !== undefined) {
+    cleaned.bookbrainz_id = parse_bookbrainz_id(ids.bookbrainz_id);
+    if (ids.bookbrainz_id.trim() && !cleaned.bookbrainz_id) throw refuse("bookbrainz_id", work_example);
+  }
+  if (ids.openlibrary_id !== undefined) cleaned.openlibrary_id = ids.openlibrary_id.trim() ? await openlibrary_work_of(ids.openlibrary_id) : "";
+  if (ids.hardcover_id !== undefined) {
+    cleaned.hardcover_id = ids.hardcover_id.trim();
+    if (cleaned.hardcover_id && !/^\d+$/.test(cleaned.hardcover_id)) throw refuse("hardcover_id", "427514");
+  }
+  if (ids.isbn !== undefined) {
+    cleaned.isbn = clean_isbn(ids.isbn);
+    if (ids.isbn.trim() && !cleaned.isbn) throw refuse("isbn", "9780765311788");
+  }
+  return cleaned;
+}
+
+// The book keeps its own id and everything about it; only the catalogue ids change, and then its details are fetched again.
+async function set_ids(database: SqlDatabase, id: string, ids: Partial<BookIds>): Promise<LibraryBook> {
+  require_book(database, id);
+  const cleaned = await clean_ids(ids);
+  const db = drizzle_of(database);
+  in_transaction(database, () => {
+    for (const [key, value] of Object.entries(cleaned) as [keyof BookIds, string][]) {
+      if (!value) continue;
+      const other = db.select({ id: books_books.id, title: books_books.title }).from(books_books).where(eq(books_books[key], value)).all().find((row) => row.id !== id);
+      if (other) throw new Error(`${other.title} already has that ${id_labels[key]}; remove one of the two books first.`);
+    }
+    db.update(books_books).set(cleaned).where(eq(books_books.id, id)).run();
+  });
+  await refresh_book(database, require_book(database, id)).catch(() => false);
+  return require_book(database, id);
+}
+
 // ── Refreshing ───────────────────────────────────────────────────────────────
 
 const no_refresh: BooksRefresh = { state: "none", done: 0, total: 0, started_at: "", finished_at: "", report: null, error: "" };
@@ -625,6 +677,8 @@ export const books_feature = define_feature({
       if (parsed.source === "hardcover") return write_details(database, await gather(database, await require_hardcover(database).book_by_slug(parsed.slug)));
       return add_from(database, parsed.source, parsed.id);
     },
+
+    set_book_ids: (database: SqlDatabase, id: string, ids: Partial<BookIds>): Promise<LibraryBook> => set_ids(database, id, ids),
 
     remove_book: (database: SqlDatabase, id: string): void => {
       require_book(database, id);

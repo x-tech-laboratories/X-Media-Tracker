@@ -8,7 +8,7 @@ import { Badge } from "@x-tech-laboratories/x-libs/web/react/badges";
 import { ChipField } from "@x-tech-laboratories/x-libs/web/react/chip_field";
 import { DateTimeField, NumberField, Segmented, Select, Switch } from "@x-tech-laboratories/x-libs/web/react/controls";
 import { confirm_dialog, Dialog, open_dialog } from "@x-tech-laboratories/x-libs/web/react/dialog";
-import { Facts, PageHeading, Section, Stack } from "@x-tech-laboratories/x-libs/web/react/layout";
+import { Facts, FormRow, PageHeading, Section, Stack } from "@x-tech-laboratories/x-libs/web/react/layout";
 import { Markdown } from "@x-tech-laboratories/x-libs/web/react/markdown";
 import { ProgressBar } from "@x-tech-laboratories/x-libs/web/react/progress";
 import { Rating } from "@x-tech-laboratories/x-libs/web/react/rating";
@@ -30,6 +30,7 @@ import {
   progress_units,
   type BookCollection,
   type BookFormat,
+  type BookIds,
   type BookRead,
   type CatalogRef,
   type Follow,
@@ -72,6 +73,46 @@ function Collections({ book, collections }: { book: LibraryBook; collections: Bo
     await calls().set_book_collections(book.id, ids);
   };
   return <ChipField label="Collections" values={chosen} suggestions={collections.map((collection) => collection.name)} list_on_focus add_label="Add" placeholder="Add to a collection" on_change={(next) => attempt(save(next))} />;
+}
+
+// ── Ids ──────────────────────────────────────────────────────────────────────
+
+const id_fields: [keyof BookIds, string, string][] = [
+  ["bookbrainz_id", "BookBrainz", "A work's id or link"],
+  ["openlibrary_id", "Open Library", "A work or edition, such as OL5738148W or OL7353617M, or a link"],
+  ["hardcover_id", "Hardcover", "A book's number"],
+  ["isbn", "ISBN", "ISBN-13 or ISBN-10"],
+];
+
+function IdsDialog({ book, close }: { book: LibraryBook; close: () => void }) {
+  const [ids, set_ids] = useState<BookIds>({ bookbrainz_id: book.bookbrainz_id, openlibrary_id: book.openlibrary_id, hardcover_id: book.hardcover_id, isbn: book.isbn });
+  const [busy, set_busy] = useState(false);
+  return (
+    <Dialog
+      title="Change ids"
+      subtitle={book.title}
+      on_close={close}
+      form={{
+        submit_label: busy ? "Saving…" : "Save",
+        on_submit: (event) => {
+          event.preventDefault();
+          set_busy(true);
+          attempt(
+            calls()
+              .set_book_ids(book.id, ids)
+              .then(close)
+              .finally(() => set_busy(false)),
+          );
+        },
+      }}
+    >
+      {id_fields.map(([key, label, hint]) => (
+        <FormRow key={key} label={label} id={`book-${key}`} hint={hint}>
+          <input id={`book-${key}`} autoComplete="off" spellCheck={false} value={ids[key]} onChange={(event) => set_ids({ ...ids, [key]: event.currentTarget.value })} />
+        </FormRow>
+      ))}
+    </Dialog>
+  );
 }
 
 // ── Following ────────────────────────────────────────────────────────────────
@@ -346,6 +387,9 @@ function BookPage({ book, collections, books }: { book: LibraryBook; collections
         actions={
           <>
             <HistoryButton kind="book" item_id={book.id} name={book.title} />
+            <button type="button" onClick={() => open_dialog((close) => <IdsDialog book={book} close={close} />)}>
+              Change ids
+            </button>
             <button type="button" className="danger" onClick={remove}>
               Remove
             </button>
