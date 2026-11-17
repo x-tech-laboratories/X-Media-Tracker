@@ -61,12 +61,33 @@ export const books_api = {
     description: "Adds a book from a catalogue by its id there, or by ISBN, filling in what every catalogue says of it, with the default status from Settings; one already tracked only has its details refreshed. Gives back its id.",
     params: [
       { name: "source", schema: { type: "string", enum: ["bookbrainz", "openlibrary", "hardcover", "isbn"], description: "Which catalogue the id is from, or isbn." } },
-      { name: "id", schema: text("The id there, such as OL5738148W for Open Library, a BookBrainz work's id, a Hardcover book's number, or an ISBN.") },
+      { name: "id", schema: text("The id there, such as OL5738148W for Open Library (an edition such as OL7353617M finds its work), a BookBrainz work's id, a Hardcover book's number, or an ISBN.") },
     ],
   },
   add_book_from_link: {
     description: "Adds a book from a BookBrainz work, Open Library work or Hardcover book link, or a bare ISBN. Gives back its id.",
     params: [{ name: "link", schema: text("Such as https://openlibrary.org/works/OL5738148W, https://hardcover.app/books/the-final-empire or 9780765311788.") }],
+  },
+  set_book_ids: {
+    description:
+      "Sets a tracked book's catalogue ids, so a book the catalogues did not match can be pointed at the right one; then fetches its details from them again. " +
+      "An id left out stays as it is and an empty one is cleared; an Open Library edition is turned into its work, and an id another tracked book already has is refused. " +
+      "The book keeps its own id, status, rating, reads and journal. Gives back the book.",
+    params: [
+      { name: "id", schema: book_id },
+      {
+        name: "ids",
+        schema: {
+          type: "object",
+          properties: {
+            bookbrainz_id: text("A BookBrainz work's id or link, or empty to clear it."),
+            openlibrary_id: text("An Open Library work or edition, such as OL5738148W or OL7353617M, or a link to either; empty clears it."),
+            hardcover_id: text("A Hardcover book's number, or empty to clear it."),
+            isbn: text("An ISBN-13 or ISBN-10, or empty to clear it."),
+          },
+        },
+      },
+    ],
   },
   remove_book: {
     description: "Removes a book from the library, with its reads and journal; History can bring it back.",

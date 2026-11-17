@@ -18,6 +18,8 @@ export interface OpenLibrary {
   search: (query: string) => Promise<CatalogBook[]>;
   work: (work_id: string) => Promise<CatalogBook>;
   by_isbn: (isbn: string) => Promise<CatalogBook>;
+  // The work an edition such as OL7353617M belongs to.
+  edition_work: (edition_id: string) => Promise<string>;
   search_authors: (query: string) => Promise<CatalogRef[]>;
   // The author's books first out on or after the day given, newest first.
   author_releases: (author_id: string, since: string) => Promise<CatalogRelease[]>;
@@ -124,6 +126,12 @@ export function create_openlibrary(fetcher: Fetch = fetch): OpenLibrary {
       const work_id = key_id(list_of(edition.works)[0]?.key);
       if (!work_id) throw new Error("Open Library has no work for that ISBN.");
       return { ...(await work(work_id)), isbn };
+    },
+    edition_work: async (edition_id) => {
+      const edition = await get(`/books/${encodeURIComponent(edition_id)}.json`);
+      const work_id = key_id(list_of(edition.works)[0]?.key);
+      if (!work_id) throw new Error("Open Library has no work for that edition.");
+      return work_id;
     },
     search_authors: async (query) => {
       if (!query.trim()) return [];

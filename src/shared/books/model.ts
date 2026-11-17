@@ -145,6 +145,19 @@ export function clean_isbn(value: string): string {
   return /^(\d{13}|\d{9}[\dX])$/.test(cleaned) ? cleaned : "";
 }
 
+// An Open Library work or edition as typed or pasted, such as OL5738148W, OL7353617M or a link to either.
+export function parse_openlibrary_id(input: string): { kind: "work" | "edition"; id: string } | null {
+  const found = /\b(OL\d+)([WM])\b/i.exec(input.trim());
+  if (!found) return null;
+  const letter = found[2]!.toUpperCase();
+  return { kind: letter === "W" ? "work" : "edition", id: `${found[1]!.toUpperCase()}${letter}` };
+}
+
+// A BookBrainz work's id, alone or in a link.
+export function parse_bookbrainz_id(input: string): string {
+  return /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i.exec(input)?.[0].toLowerCase() ?? "";
+}
+
 // ── Links ────────────────────────────────────────────────────────────────────
 
 export type ParsedBookLink = { source: "bookbrainz"; id: string } | { source: "openlibrary"; id: string } | { source: "hardcover"; slug: string } | { source: "isbn"; isbn: string };
