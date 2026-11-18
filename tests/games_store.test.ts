@@ -22,6 +22,13 @@ const portal_item = {
 let answers: Record<string, unknown> = {};
 let owned: unknown[] = [];
 let wished: unknown[] = [];
+let store_down = false;
+
+// Older games keep their art as portrait.png, newer ones in a folder named by a hash.
+function assets_of(appid: number) {
+  const file = appid === 400 ? { library_capsule: "portrait.png" } : { library_capsule: "abc/library_capsule.jpg", library_capsule_2x: "abc/library_capsule_2x.jpg" };
+  return { asset_url_format: `steam/apps/${appid}/\${FILENAME}?t=1`, ...file };
+}
 
 function base_answers(): Record<string, unknown> {
   return {
@@ -58,8 +65,9 @@ function answer_of(url: URL): unknown {
   if (url.pathname === "/IPlayerService/GetOwnedGames/v1/") return { response: { game_count: owned.length, games: owned } };
   if (url.pathname === "/IWishlistService/GetWishlist/v1/") return { response: { items: wished } };
   if (url.pathname === "/IStoreBrowseService/GetItems/v1/") {
+    if (store_down) return undefined;
     const ids = (JSON.parse(url.searchParams.get("input_json")!) as { ids: { appid: number }[] }).ids;
-    return { response: { store_items: ids.map(({ appid }) => ({ appid, name: `Wished ${appid}`, release: { steam_release_date: 1_800_000_000 } })) } };
+    return { response: { store_items: ids.map(({ appid }) => ({ appid, name: `Wished ${appid}`, release: { steam_release_date: 1_800_000_000 }, assets: assets_of(appid) })) } };
   }
   return answers[`${url.host}${url.pathname}`];
 }
@@ -74,6 +82,7 @@ beforeEach(() => {
   answers = base_answers();
   owned = [];
   wished = [];
+  store_down = false;
   fetch_stub.mockClear();
   vi.stubGlobal("fetch", fetch_stub);
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -118,7 +127,7 @@ describe("adding a game", () => {
       added_at: "2026-11-17",
     });
     // Steam's upright library art beats RAWG's wide screenshot.
-    expect(game.cover_url).toBe("https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/620/library_600x900.jpg");
+    expect(game.cover_url).toBe("https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/620/abc/library_capsule_2x.jpg?t=1");
   });
 
   it("leaves out a catalogue without a key and never sends a key it does not have", async () => {
@@ -239,6 +248,18 @@ describe("Steam", () => {
     methods.set_setting("games.steam_id", "NoSuchName");
     answers["api.steampowered.com/ISteamUser/ResolveVanityURL/v1/"] = { response: { success: 42, message: "No match" } };
     await expect(methods.import_steam_library()).rejects.toThrow("no profile with the custom URL NoSuchName");
+  });
+
+  it("takes each game's art from where the store says it is", async () => {
+    const methods = with_account();
+    owned = [{ appid: 400, name: "Portal", playtime_forever: 10, rtime_last_played: 0 }];
+    store_down = true;
+    await methods.import_steam_library();
+    expect(methods.get_game("steam:400")!.cover_url).toBe("https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/400/library_600x900.jpg");
+
+    store_down = false;
+    await methods.import_steam_library();
+    expect(methods.get_game("steam:400")!.cover_url).toBe("https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/400/portrait.png?t=1");
   });
 
   it("asks for an account before importing", async () => {

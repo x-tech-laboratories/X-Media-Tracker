@@ -241,6 +241,11 @@ async function gather(database: SqlDatabase, start: CatalogGame): Promise<Catalo
   return merge_games(merge_games(game, ids), start);
 }
 
+// Steam's own art replaces a cover that is only the usual guess at its address, and never box art from elsewhere.
+function steam_art(cover_url: string, game: { app_id: string; cover_url: string }): string {
+  return game.cover_url && (!cover_url || cover_url === steam_cover(game.app_id)) ? game.cover_url : cover_url;
+}
+
 // Box art, else Steam's library art for a game Steam sells, else a wide picture.
 function cover_of(game: CatalogGame): string {
   return game.cover_url || steam_cover(game.steam_app_id) || game.banner_url;
@@ -372,6 +377,7 @@ function import_owned(database: SqlDatabase, owned: OwnedGame[]): GameImportRepo
           last_played: later_day(row.last_played, game.last_played),
           status: row.status === "want_to_play" && game.playtime_minutes > 0 ? "playing" : row.status,
           owned_platforms: with_platform(row.owned_platforms, steam_platform),
+          cover_url: steam_art(row.cover_url, game),
         })
         .where(eq(games_games.id, existing))
         .run();
@@ -383,7 +389,7 @@ function import_owned(database: SqlDatabase, owned: OwnedGame[]): GameImportRepo
         id: game_key({ steam_app_id: game.app_id }),
         steam_app_id: game.app_id,
         title: game.title || `Steam app ${game.app_id}`,
-        cover_url: steam_cover(game.app_id),
+        cover_url: game.cover_url,
         status: game.playtime_minutes > 0 ? "playing" : "want_to_play",
         owned_platforms: JSON.stringify([steam_platform]),
         playtime_minutes: game.playtime_minutes,
@@ -404,8 +410,11 @@ function import_wished(database: SqlDatabase, wished: WishedGame[]): WishlistRep
   const kept = new Set<string>();
   for (const game of wished) {
     let id = find_game(database, { steam_app_id: game.app_id });
-    if (id) report.updated++;
-    else {
+    if (id) {
+      const row = db.select({ cover_url: games_games.cover_url }).from(games_games).where(eq(games_games.id, id)).get()!;
+      db.update(games_games).set({ cover_url: steam_art(row.cover_url, game) }).where(eq(games_games.id, id)).run();
+      report.updated++;
+    } else {
       id = game_key({ steam_app_id: game.app_id });
       db.insert(games_games)
         .values({
@@ -414,7 +423,7 @@ function import_wished(database: SqlDatabase, wished: WishedGame[]): WishlistRep
           title: game.title || `Steam app ${game.app_id}`,
           year: game.release_date.slice(0, 4),
           release_date: game.release_date,
-          cover_url: steam_cover(game.app_id),
+          cover_url: game.cover_url,
           status: "want_to_play",
           added_at: today(),
         })
