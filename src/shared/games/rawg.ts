@@ -3,7 +3,7 @@
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
-import { empty_game, fetch_json, list_of, names_of, text_of, user_agent, type CatalogGame, type Fetch, type Json } from "./catalog.ts";
+import { empty_game, fetch_json, list_of, names_of, number_of, text_of, user_agent, type CatalogGame, type Fetch, type Json } from "./catalog.ts";
 
 // ── Requests ─────────────────────────────────────────────────────────────────
 
@@ -47,6 +47,15 @@ export function create_rawg(key: string, fetcher: Fetch = fetch): Rawg {
       const json = await get("/games", { search: query, search_precise: "true", page_size: String(results_shown) });
       return list_of(json.results).map(game_of);
     },
-    game: async (slug) => game_of(await get(`/games/${encodeURIComponent(slug)}`)),
+    game: async (slug) => {
+      const json = await get(`/games/${encodeURIComponent(slug)}`);
+      const game = game_of(json);
+      // DLC and expansions have the game they add to as a parent.
+      if (number_of(json.parents_count) > 0) {
+        const [parent] = list_of((await get(`/games/${encodeURIComponent(slug)}/parent-games`)).results);
+        if (parent && text_of(parent.slug)) Object.assign(game, { base_game: `rawg:${text_of(parent.slug)}`, base_game_title: text_of(parent.name) });
+      }
+      return game;
+    },
   };
 }

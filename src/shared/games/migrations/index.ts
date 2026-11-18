@@ -16,5 +16,12 @@ export const migrations: DrizzleMigration[] = [
       "CREATE INDEX `games_games_by_wikidata` ON `games_games` (`wikidata_id`);",
       "CREATE INDEX `games_games_by_steam` ON `games_games` (`steam_app_id`);"
     ]
+  },
+  {
+    "name": "20261118043806_dlc",
+    "statements": [
+      "ALTER TABLE `games_games` ADD `base_game` text DEFAULT '' NOT NULL;",
+      "ALTER TABLE `games_games` ADD `base_game_title` text DEFAULT '' NOT NULL;"
+    ]
   }
 ];

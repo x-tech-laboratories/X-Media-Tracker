@@ -85,7 +85,9 @@ on the Settings page.
   counts.
 - `schema.ts`: `games_games`, keyed by the strongest id (`rawg:…`, else `mobygames:…`, `giantbomb:…`, `wikidata:…`,
   `steam:…`, `igdb:…`; a Trilium game with none is `title:<title>/<year>`), with the platforms a copy is owned on as a
-  JSON list; `games_collections` and `games_game_collections`. All of them sync.
+  JSON list and, for DLC, `base_game`: the key of the game it adds to, such as `steam:620`, or a library id, found among
+  the tracked games by any id (`find_base_game` in `model.ts`); `none` once set by hand as not DLC, so the catalogues
+  stop filling it in. `games_collections` and `games_game_collections`. All of them sync.
 - `rawg.ts`, `mobygames.ts`, `giantbomb.ts`, `wikidata.ts` and `steam.ts` are the catalogues' clients, each answering in
   `catalog.ts`'s shape. Adding or refreshing a game asks Wikidata first, by any id known, for the ids every other
   catalogue gives it, then RAWG, MobyGames and Giant Bomb (each only with its key) and Steam's store by their own ids;

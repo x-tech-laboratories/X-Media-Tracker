@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import { empty_game, join_results, merge_games, same_game, title_words } from "../src/shared/games/catalog.ts";
 import {
   clean_names,
+  dlc_of,
   filter_games,
+  find_base_game,
   game_facet_counts,
   game_key,
   game_links,
@@ -43,6 +45,8 @@ function game(fields: Partial<LibraryGame>): LibraryGame {
     playtime_minutes: 0,
     last_played: "",
     added_at: "",
+    base_game: "",
+    base_game_title: "",
     collection_ids: [],
     ...fields,
   };
@@ -125,6 +129,19 @@ describe("the Games library", () => {
     const counts = game_facet_counts(games, { ...no_game_filters, status: "playing" });
     expect(counts.status).toEqual({ all: 3, playing: 1, completed: 1, want_to_play: 1 });
     expect(counts.platform).toEqual({ all: 1, PC: 1, "Nintendo Switch": 1 });
+  });
+
+  it("keeps DLC out of the games until asked for, and finds its base game by any id", () => {
+    const base = game({ id: "rawg:portal-2", title: "Portal 2", steam_app_id: "620" });
+    const extra = game({ id: "steam:323180", title: "Portal 2 Sixense Pack", base_game: "steam:620" });
+    const unlinked = game({ id: "steam:1", title: "Not DLC", base_game: "none" });
+    const all = [base, extra, unlinked];
+    expect(filter_games(all, no_game_filters).map((each) => each.id)).toEqual(["rawg:portal-2", "steam:1"]);
+    expect(filter_games(all, { ...no_game_filters, kind: "dlc" }).map((each) => each.id)).toEqual(["steam:323180"]);
+    expect(game_facet_counts(all, no_game_filters).kind).toEqual({ all: 3, games: 2, dlc: 1 });
+    expect(find_base_game(extra, all)?.id).toBe("rawg:portal-2");
+    expect(find_base_game(unlinked, all)).toBeUndefined();
+    expect(dlc_of(base, all).map((each) => each.id)).toEqual(["steam:323180"]);
   });
 
   it("sorts with missing values last either way", () => {

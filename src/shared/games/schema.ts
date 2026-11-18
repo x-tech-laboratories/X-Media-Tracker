@@ -40,6 +40,9 @@ export const games_games = sqliteTable(
     playtime_minutes: integer().notNull().default(0),
     last_played: text().notNull().default(""),
     added_at: text().notNull().default(""),
+    // The game this is DLC of, by its key such as "steam:620" or a library id; "none" once set by hand as not DLC.
+    base_game: text().notNull().default(""),
+    base_game_title: text().notNull().default(""),
   },
   (table) => [
     index("games_games_by_rawg").on(table.rawg_id),
