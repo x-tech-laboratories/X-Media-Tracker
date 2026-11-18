@@ -43,7 +43,7 @@ const statuses: Record<string, BookStatus> = {
 const formats: Record<string, BookFormat> = { paperback: "print", hardcover: "print", print: "print", digital: "ebook", ebook: "ebook", audio: "audiobook", audiobook: "audiobook" };
 
 // "2023/01/05" or "2023-01-05" as 2023-01-05; anything else as "".
-function day_of(value: string): string {
+export function day_of(value: string): string {
   const match = /(\d{4})[/-](\d{1,2})[/-](\d{1,2})/.exec(value);
   return match ? `${match[1]}-${match[2]!.padStart(2, "0")}-${match[3]!.padStart(2, "0")}` : "";
 }
@@ -62,7 +62,7 @@ function reads_of(value: string, dnf: boolean): ImportedRead[] {
 }
 
 // Columns found by name whatever their case, since StoryGraph has renamed some over time.
-function column(record: Record<string, string>, ...names: string[]): string {
+export function column(record: Record<string, string>, ...names: string[]): string {
   for (const name of names) {
     const key = Object.keys(record).find((each) => each.toLowerCase() === name.toLowerCase());
     if (key !== undefined && record[key]!.trim()) return record[key]!.trim();
@@ -71,7 +71,7 @@ function column(record: Record<string, string>, ...names: string[]): string {
 }
 
 // Half stars out of five as 1 to 10; StoryGraph's quarter stars round to the nearest half.
-function rating_of(value: string): number | null {
+export function rating_of(value: string): number | null {
   const stars = Number.parseFloat(value);
   if (!Number.isFinite(stars) || stars <= 0) return null;
   return Math.max(1, Math.min(10, Math.round(stars * 2)));

@@ -257,8 +257,12 @@ export const books_api = {
     description: "Imports StoryGraph's library export CSV: status, reads with their days, rating, review, format, owned, moods, pace and tags as collections. Adds new books and merges ones already here by ISBN or title, never removing any.",
     params: [{ name: "csv", schema: { ...json_file, description: "The export CSV's whole text." } }],
   },
+  import_librarything: {
+    description: "Imports LibraryThing's library export, tab-separated or CSV: reads with their start and finish days, rating, review, format, owned (the Your library collection), status from the Currently reading, To read and Wishlist collections, and other collections and tags as collections. Adds new books and merges ones already here by ISBN or title, never removing any.",
+    params: [{ name: "text", schema: { ...json_file, description: "The export file's whole text." } }],
+  },
   export_storygraph: {
-    description: "Gives the library as a Goodreads library export CSV, which StoryGraph's and Hardcover's importers read.",
+    description: "Gives the library as a Goodreads library export CSV, which StoryGraph's, LibraryThing's and Hardcover's importers read.",
     params: [],
   },
   refresh_books: {

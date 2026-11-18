@@ -43,6 +43,17 @@ export function csv_records(text: string): Record<string, string>[] {
   return rows.map((cells) => Object.fromEntries(header.map((name, index) => [name.trim(), cells[index] ?? ""])));
 }
 
+// Tab-separated rows by column name, as LibraryThing writes them: no quoting, so a quote is only a quote.
+export function tsv_records(text: string): Record<string, string>[] {
+  const [header, ...rows] = text
+    .replace(/^﻿/, "")
+    .split(/\r\n?|\n/)
+    .filter((line) => line.trim() !== "")
+    .map((line) => line.split("\t"));
+  if (!header) return [];
+  return rows.map((cells) => Object.fromEntries(header.map((name, index) => [name.trim(), cells[index] ?? ""])));
+}
+
 // ── Writing ──────────────────────────────────────────────────────────────────
 
 function csv_field(value: string | number | null | undefined): string {
