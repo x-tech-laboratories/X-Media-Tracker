@@ -204,8 +204,27 @@ describe("Steam", () => {
     return methods;
   }
 
+  it("finds a profile by its custom URL name", async () => {
+    const methods = open_methods();
+    methods.set_setting("games.steam_api_key", "steam-key");
+    methods.set_setting("games.steam_id", "https://steamcommunity.com/id/OperationLeader/");
+    answers["api.steampowered.com/ISteamUser/ResolveVanityURL/v1/"] = { response: { success: 1, steamid: "76561197960287930" } };
+    owned = [{ appid: 400, name: "Portal", playtime_forever: 10, rtime_last_played: 0 }];
+    expect(await methods.import_steam_library()).toEqual({ added: 1, updated: 0 });
+    expect(requested("ResolveVanityURL")[0]).toContain("vanityurl=OperationLeader");
+    expect(requested("GetOwnedGames")[0]).toContain("steamid=76561197960287930");
+  });
+
+  it("says when no profile has that custom URL name", async () => {
+    const methods = open_methods();
+    methods.set_setting("games.steam_api_key", "steam-key");
+    methods.set_setting("games.steam_id", "NoSuchName");
+    answers["api.steampowered.com/ISteamUser/ResolveVanityURL/v1/"] = { response: { success: 42, message: "No match" } };
+    await expect(methods.import_steam_library()).rejects.toThrow("no profile with the custom URL NoSuchName");
+  });
+
   it("asks for an account before importing", async () => {
-    await expect(open_methods().import_steam_library()).rejects.toThrow("Set a Steam Web API key and Steam id");
+    await expect(open_methods().import_steam_library()).rejects.toThrow("Set a Steam Web API key and your Steam profile");
   });
 
   it("imports owned games and updates the ones already here", async () => {

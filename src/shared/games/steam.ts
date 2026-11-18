@@ -32,6 +32,8 @@ export interface Steam {
   game: (app_id: string) => Promise<CatalogGame>;
   owned: (key: string, steam_id: string) => Promise<OwnedGame[]>;
   wishlist: (key: string, steam_id: string) => Promise<WishedGame[]>;
+  // The 64-bit id of the profile with the custom URL name given.
+  profile_id: (key: string, name: string) => Promise<string>;
 }
 
 // The upright library art Steam keeps for nearly every game.
@@ -42,6 +44,14 @@ export function steam_cover(app_id: string): string {
 // A Steam id is the profile's 64-bit number, such as 76561197960287930, alone or in a profile link.
 export function parse_steam_id(input: string): string {
   return /\b7656\d{13}\b/.exec(input)?.[0] ?? "";
+}
+
+// A profile's custom URL name, such as gabelogannewell, alone or in a link such as steamcommunity.com/id/gabelogannewell.
+export function parse_steam_name(input: string): string {
+  const text = input.trim();
+  const linked = /steamcommunity\.com\/id\/([^/?#\s]+)/i.exec(text);
+  if (linked) return decodeURIComponent(linked[1]!);
+  return /^[\w-]{2,32}$/.test(text) ? text : "";
 }
 
 function platform_names(platforms: unknown): string {
@@ -117,6 +127,13 @@ export function create_steam(fetcher: Fetch = fetch): Steam {
         const release = (item.release ?? {}) as Json;
         return { app_id, title: text_of(item.name), release_date: day_of_unix(number_of(release.steam_release_date)) };
       });
+    },
+    profile_id: async (key, name) => {
+      const json = await get(api_base, "/ISteamUser/ResolveVanityURL/v1/", { key, vanityurl: name });
+      const response = (json.response ?? {}) as Json;
+      const steam_id = response.success === 1 ? parse_steam_id(text_of(response.steamid)) : "";
+      if (!steam_id) throw new Error(`Steam has no profile with the custom URL ${name}; check the name in your profile's link, or use its 64-bit id.`);
+      return steam_id;
     },
   };
 }

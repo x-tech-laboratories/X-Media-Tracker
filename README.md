@@ -74,8 +74,8 @@ Steam's library art.
 
 ## Steam
 
-Set a [Steam Web API key](https://steamcommunity.com/dev/apikey) and your profile's 64-bit Steam id (or a link to your
-profile) under **Settings → Games → Steam**; the profile's **Game details** must be public. **Import library** adds
+Set a [Steam Web API key](https://steamcommunity.com/dev/apikey) and your Steam profile under **Settings → Games →
+Steam**: its 64-bit id (shown at the top of store.steampowered.com/account), its custom URL name, or a link to it; the profile's **Game details** must be public. **Import library** adds
 every game you own, owned on PC, as Playing once played and Want to play before; a game already here takes Steam's
 playtime and last day played when they are later, and keeps its status unless it was Want to play. **Import wishlist**
 adds wished games as Want to play and keeps the **Steam wishlist** collection to exactly your wishlist. With **Import

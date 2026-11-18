@@ -31,7 +31,7 @@ import {
 import { create_rawg } from "./rawg.ts";
 import { games_collections, games_game_collections, games_games, games_tables } from "./schema.ts";
 import { games_secret_settings, games_setting_defaults } from "./settings.ts";
-import { create_steam, parse_steam_id, steam_cover, type OwnedGame, type WishedGame } from "./steam.ts";
+import { create_steam, parse_steam_id, parse_steam_name, steam_cover, type OwnedGame, type WishedGame } from "./steam.ts";
 import { read_trilium_games, read_trilium_statuses, type ImportedGame } from "./trilium.ts";
 import { create_wikidata } from "./wikidata.ts";
 
@@ -123,11 +123,18 @@ const key_settings: Partial<Record<GameSource, [GamesSetting, string]>> = {
   giantbomb: ["games.giantbomb_api_key", "Giant Bomb"],
 };
 
-function steam_account(database: SqlDatabase): { key: string; steam_id: string } {
+// The key and the profile as set: its 64-bit id, its custom URL name, or a link to either.
+function steam_settings(database: SqlDatabase): { key: string; profile: string } {
   const key = String(games_setting(database, "games.steam_api_key")).trim();
-  const steam_id = parse_steam_id(String(games_setting(database, "games.steam_id")));
-  if (!key || !steam_id) throw new Error("Set a Steam Web API key and Steam id in Settings → Games first.");
-  return { key, steam_id };
+  const profile = String(games_setting(database, "games.steam_id")).trim();
+  if (!key || !(parse_steam_id(profile) || parse_steam_name(profile))) throw new Error("Set a Steam Web API key and your Steam profile in Settings → Games first.");
+  return { key, profile };
+}
+
+// A custom URL name is turned into the profile's 64-bit id by asking Steam.
+async function steam_account(database: SqlDatabase): Promise<{ key: string; steam_id: string }> {
+  const { key, profile } = steam_settings(database);
+  return { key, steam_id: parse_steam_id(profile) || (await create_steam().profile_id(key, parse_steam_name(profile))) };
 }
 
 // How many games a refresh asks the catalogues about at once.
@@ -417,13 +424,13 @@ function import_wished(database: SqlDatabase, wished: WishedGame[]): WishlistRep
 }
 
 async function import_library(database: SqlDatabase): Promise<GameImportReport> {
-  const { key, steam_id } = steam_account(database);
+  const { key, steam_id } = await steam_account(database);
   const owned = await create_steam().owned(key, steam_id);
   return in_transaction(database, () => import_owned(database, owned));
 }
 
 async function import_wishlist(database: SqlDatabase): Promise<WishlistReport> {
-  const { key, steam_id } = steam_account(database);
+  const { key, steam_id } = await steam_account(database);
   const wished = await create_steam().wishlist(key, steam_id);
   return in_transaction(database, () => import_wished(database, wished));
 }
@@ -723,7 +730,7 @@ export const games_feature = define_feature({
       if (!force && Number.isFinite(last) && Date.now() - last < hours * hour_in_milliseconds) return null;
       if (!force) {
         try {
-          steam_account(database);
+          steam_settings(database);
         } catch {
           return null;
         }

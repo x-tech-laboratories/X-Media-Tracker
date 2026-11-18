@@ -13,6 +13,7 @@ import {
   sort_games,
   type LibraryGame,
 } from "../src/shared/games/model.ts";
+import { parse_steam_id, parse_steam_name } from "../src/shared/games/steam.ts";
 import { read_trilium_games, read_trilium_statuses } from "../src/shared/games/trilium.ts";
 
 function game(fields: Partial<LibraryGame>): LibraryGame {
@@ -62,6 +63,13 @@ describe("game ids", () => {
     expect(parse_game_link("https://www.wikidata.org/wiki/Q279446")).toEqual({ source: "wikidata", id: "Q279446" });
     expect(parse_game_link("https://store.steampowered.com/app/620/Portal_2/")).toEqual({ source: "steam", id: "620" });
     expect(parse_game_link("Portal 2")).toBeNull();
+  });
+
+  it("reads a Steam profile as its id or its custom URL name", () => {
+    expect(parse_steam_id("https://steamcommunity.com/profiles/76561197960287930/")).toBe("76561197960287930");
+    expect(parse_steam_name("https://steamcommunity.com/id/OperationLeader/")).toBe("OperationLeader");
+    expect(parse_steam_name(" OperationLeader ")).toBe("OperationLeader");
+    expect(parse_steam_name("not a name!")).toBe("");
   });
 
   it("links to every catalogue it has an id for", () => {
