@@ -16,6 +16,7 @@ export const media_api_name = "x_media_tracker";
 export const device_api_name = "x_media_tracker_device";
 export const events_api_name = "x_media_tracker_events";
 export const certificates_api_name = "x_media_tracker_certificates";
+export const steam_files_api_name = "x_media_tracker_steam_files";
 
 // ── Device calls ─────────────────────────────────────────────────────────────
 
@@ -23,6 +24,14 @@ export const certificates_api_name = "x_media_tracker_certificates";
 export type DeviceMethods = SyncDeviceMethods & BackupMethods;
 
 export const device_method_names = [...sync_device_method_names, ...backup_method_names] as const;
+
+// The Steam client's files on the desktop's own computer.
+export interface SteamFileMethods {
+  // The library categories file, or "" when Steam is not installed here.
+  read_steam_categories: () => string;
+}
+
+export const steam_file_method_names = ["read_steam_categories"] as const;
 
 // What the main process tells the page on its own: the data changed elsewhere, or sync's status moved.
 export type MediaEvents = { changed: null; sync_status: SyncStatus };
@@ -43,6 +52,8 @@ export interface PageApi {
   backup_folder?: { get: () => Promise<string>; choose: () => Promise<string> };
   // Set where the app makes its own connections and can trust a certificate the system refuses.
   certificates?: CertificateClient;
+  // Set on the desktop, which can read the Steam client's files.
+  steam_files?: Client<SteamFileMethods>;
   // Runs whenever the data changed somewhere else; returns the function that stops listening.
   on_change: (listener: () => void) => () => void;
 }

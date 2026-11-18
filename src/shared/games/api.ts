@@ -5,11 +5,16 @@
 import type { JsonSchema } from "@x-tech-laboratories/x-libs/api_spec";
 
 import { day, id_of, json_file, text } from "../api_schemas.ts";
-import { game_statuses } from "./model.ts";
+import { game_status_text, game_statuses } from "./model.ts";
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
 
 const game_id: JsonSchema = { ...id_of("game"), description: 'The game\'s id, such as "rawg:portal-2" or "steam:620", as list_games gives it.' };
+
+// Each status with the group it is in, such as "on_hold (Playing · On hold)".
+const statuses_named = game_statuses.map((status) => `${status} (${game_status_text(status)})`).join(", ");
+
+const status: JsonSchema = { type: "string", enum: [...game_statuses], description: `A status, as IGDB has them, each in a group: ${statuses_named}.` };
 
 const source: JsonSchema = { type: "string", enum: ["rawg", "mobygames", "giantbomb", "wikidata", "steam"], description: "Which catalogue the id is from." };
 
@@ -19,7 +24,7 @@ export const games_api = {
   list_games: {
     description:
       "Lists every tracked game, sorted by title, with its catalogue ids (RAWG slug, MobyGames, Giant Bomb guid, Wikidata item, Steam app, IGDB slug), " +
-      "release, genres, platforms it came out on, developers, status (want_to_play, playing, paused, played, completed or dropped), rating 1 to 10 (half stars " +
+      "release, genres, platforms it came out on, developers, status (one of " + game_statuses.join(", ") + "), rating 1 to 10 (half stars " +
       "out of five) or null, review, the platforms a copy is owned on, edition, playtime in minutes, the day last played, the collections it is in, " +
       "and for DLC base_game, the key or id of the game it adds to (\"none\" when set as not DLC), with base_game_title; " +
       "then every game collection.",
@@ -85,10 +90,10 @@ export const games_api = {
     params: [{ name: "id", schema: game_id }],
   },
   set_game_status: {
-    description: "Sets a game's status.",
+    description: "Sets a game's status: Wishlist or Backlog to want to play it; Currently playing, On hold, Endless or Replaying while playing; Finished, Completed or Abandoned once played.",
     params: [
       { name: "id", schema: game_id },
-      { name: "status", schema: { type: "string", enum: [...game_statuses], description: "The new status." } },
+      { name: "status", schema: status },
     ],
   },
   set_game_rating: {
@@ -155,24 +160,38 @@ export const games_api = {
   },
   import_steam_library: {
     description:
-      "Imports every game the Steam profile set in Settings owns: new ones are added, owned on PC, as Playing when played and Want to play when not; " +
-      "ones already here take Steam's playtime and last day played when later. Needs the profile's game details public. Gives the counts added and updated.",
+      "Imports every game the Steam profile set in Settings owns: new ones are added, owned on PC, as Currently playing when played and Backlog when not; " +
+      "ones already here take Steam's playtime and last day played when later, leave the Wishlist, and move to Currently playing once played. Needs the profile's game details public. Gives the counts added and updated.",
     params: [],
   },
   import_steam_wishlist: {
     description:
-      "Imports the Steam profile's wishlist: games not yet tracked are added as Want to play, and the Steam wishlist collection is made to hold exactly the " +
-      "wishlist. Gives the counts added, already tracked and removed from the collection.",
+      "Imports the Steam profile's wishlist: games not yet tracked are added as Wishlist, and tracked ones in the Backlog not owned anywhere move to the " +
+      "Wishlist. Gives the counts added and already tracked.",
     params: [],
   },
   run_steam_sync: {
     description: "Imports the Steam library and wishlist when the hours set in Settings have passed since the last time, or now when forced. Gives what it did, or null when it was not due.",
     params: [{ name: "force", schema: { type: "boolean", description: "True to import now whatever the schedule." } }],
   },
+  import_steam_categories: {
+    description:
+      "Reads the categories of the Steam client's library (Steam's Web API does not give them) and gives each tracked game in a category mapped with " +
+      "set_steam_category_status that category's status; a game in several mapped categories takes the one furthest along, from Wishlist to Completed. " +
+      "Remembers the categories' names for the mapping. Gives the counts of categories, games changed and games in a mapped category not tracked.",
+    params: [{ name: "categories_json", schema: { ...json_file, description: "The client's userdata/<account>/config/cloudstorage/cloud-storage-namespace-1.json: its whole text." } }],
+  },
+  set_steam_category_status: {
+    description: "Maps a Steam library category, by its name, to the status its games take when the categories are imported; an empty status unmaps it.",
+    params: [
+      { name: "category", schema: text("The category's name in Steam, such as Finished or Favorites.") },
+      { name: "status", schema: { type: "string", enum: ["", ...game_statuses], description: `A status, or empty to unmap: ${statuses_named}.` } },
+    ],
+  },
   import_trilium_games: {
     description:
       "Imports the Trilium Game Tracker add-on's library; adds new games and merges ones already here, never removing any. A status added in the add-on " +
-      "becomes the built-in status of its role and a collection of its name.",
+      "becomes the status of its name, such as Endless, or else the nearest status by its role and a collection of its name.",
     params: [
       { name: "database_json", schema: { ...json_file, description: "The add-on's Database note: its whole JSON text." } },
       { name: "config_json", schema: { ...json_file, description: "The add-on's config.json note, for the statuses added there, or empty." } },

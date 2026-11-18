@@ -6,7 +6,7 @@
 // ── Imports ──────────────────────────────────────────────────────────────────
 
 import { today } from "@x-tech-laboratories/x-libs/dates";
-import { and, asc, eq, inArray, or, synced_tables } from "@x-tech-laboratories/x-libs/drizzle";
+import { asc, eq, inArray, or, synced_tables } from "@x-tech-laboratories/x-libs/drizzle";
 import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 
 import { Background, define_feature, drizzle_of, new_id } from "../feature.ts";
@@ -20,7 +20,10 @@ import {
   clean_names,
   game_id_keys,
   game_key,
+  furthest_status,
+  game_status_of,
   is_game_status,
+  is_unplayed,
   not_dlc,
   parse_game_link,
   parse_giantbomb_id,
@@ -34,6 +37,7 @@ import {
 import { create_rawg } from "./rawg.ts";
 import { games_collections, games_game_collections, games_games, games_tables } from "./schema.ts";
 import { games_secret_settings, games_setting_defaults } from "./settings.ts";
+import { read_steam_categories, type SteamCategory } from "./steam_collections.ts";
 import { create_steam, parse_steam_id, parse_steam_name, steam_cover, type OwnedGame, type WishedGame } from "./steam.ts";
 import { read_trilium_games, read_trilium_statuses, type ImportedGame } from "./trilium.ts";
 import { create_wikidata } from "./wikidata.ts";
@@ -67,16 +71,18 @@ export interface GameImportReport {
   updated: number;
 }
 
-export interface WishlistReport extends GameImportReport {
-  // Games that left the wishlist, so left the Steam wishlist collection.
-  removed: number;
-}
-
 export interface SteamSync {
   ran_at: string;
   library: GameImportReport | null;
-  wishlist: WishlistReport | null;
+  wishlist: GameImportReport | null;
   failures: string[];
+}
+
+export interface SteamCategoryReport {
+  // Categories read, games whose status changed, and games in a mapped category that are not tracked.
+  categories: number;
+  updated: number;
+  untracked: number;
 }
 
 export interface GamesRefreshReport {
@@ -145,8 +151,6 @@ const refresh_concurrency = 4;
 
 const hour_in_milliseconds = 60 * 60 * 1000;
 
-export const steam_wishlist_collection = "Steam wishlist";
-
 const steam_platform = "PC";
 
 // ── Reading ──────────────────────────────────────────────────────────────────
@@ -167,7 +171,7 @@ export function list_games(database: SqlDatabase, ids?: string[]): LibraryGame[]
   for (const link of db.select().from(games_game_collections).all()) collections_of.set(link.game_id, [...(collections_of.get(link.game_id) ?? []), link.collection_id]);
   return rows.map((row) => ({
     ...row,
-    status: is_game_status(row.status) ? row.status : "want_to_play",
+    status: game_status_of(row.status),
     owned_platforms: parse_list(row.owned_platforms),
     collection_ids: collections_of.get(row.id) ?? [],
   }));
@@ -291,9 +295,9 @@ function write_details(database: SqlDatabase, game: CatalogGame): AddedGame {
   }
   const id = game_key(game);
   if (!id) throw new Error("That game has no RAWG, MobyGames, Giant Bomb, Wikidata or Steam id.");
-  const status = games_setting(database, "games.default_status");
+  const status = game_status_of(games_setting(database, "games.default_status"));
   db.insert(games_games)
-    .values({ id, ...fields, ...base_of(undefined, game), title: game.title || "Untitled game", status: is_game_status(status) ? status : "want_to_play", added_at: today() })
+    .values({ id, ...fields, ...base_of(undefined, game), title: game.title || "Untitled game", status, added_at: today() })
     .run();
   return { id, title: game.title, existed: false };
 }
@@ -357,12 +361,17 @@ function later_day(first: string, second: string): string {
   return first > second ? first : second;
 }
 
+function owned_status(status: GameStatus, playtime_minutes: number): GameStatus {
+  if (is_unplayed(status) && playtime_minutes > 0) return "currently_playing";
+  return status === "wishlist" ? "backlog" : status;
+}
+
 function with_platform(text: string, platform: string): string {
   return JSON.stringify(clean_names([...parse_list(text), platform]));
 }
 
-// Steam's playtime and last day played replace older ones, a game played moves on from Want to play, and every game
-// it lists is owned on PC.
+// Steam's playtime and last day played replace older ones, a game owned leaves the Wishlist, a game played moves on
+// from Want to play, and every game it lists is owned on PC.
 function import_owned(database: SqlDatabase, owned: OwnedGame[]): GameImportReport {
   const db = drizzle_of(database);
   const report: GameImportReport = { added: 0, updated: 0 };
@@ -375,7 +384,7 @@ function import_owned(database: SqlDatabase, owned: OwnedGame[]): GameImportRepo
         .set({
           playtime_minutes: Math.max(row.playtime_minutes, game.playtime_minutes),
           last_played: later_day(row.last_played, game.last_played),
-          status: row.status === "want_to_play" && game.playtime_minutes > 0 ? "playing" : row.status,
+          status: owned_status(game_status_of(row.status), game.playtime_minutes),
           owned_platforms: with_platform(row.owned_platforms, steam_platform),
           cover_url: steam_art(row.cover_url, game),
         })
@@ -390,7 +399,7 @@ function import_owned(database: SqlDatabase, owned: OwnedGame[]): GameImportRepo
         steam_app_id: game.app_id,
         title: game.title || `Steam app ${game.app_id}`,
         cover_url: game.cover_url,
-        status: game.playtime_minutes > 0 ? "playing" : "want_to_play",
+        status: owned_status("backlog", game.playtime_minutes),
         owned_platforms: JSON.stringify([steam_platform]),
         playtime_minutes: game.playtime_minutes,
         last_played: game.last_played,
@@ -402,43 +411,36 @@ function import_owned(database: SqlDatabase, owned: OwnedGame[]): GameImportRepo
   return report;
 }
 
-// Wished games not yet tracked come in as Want to play; the Steam wishlist collection then holds exactly the wishlist.
-function import_wished(database: SqlDatabase, wished: WishedGame[]): WishlistReport {
+// Wished games not yet tracked come in as Wishlist, and a tracked one in the Backlog not owned anywhere moves there.
+function import_wished(database: SqlDatabase, wished: WishedGame[]): GameImportReport {
   const db = drizzle_of(database);
-  const report: WishlistReport = { added: 0, updated: 0, removed: 0 };
-  const collection_id = collection_named(database, steam_wishlist_collection);
-  const kept = new Set<string>();
+  const report: GameImportReport = { added: 0, updated: 0 };
   for (const game of wished) {
-    let id = find_game(database, { steam_app_id: game.app_id });
+    const id = find_game(database, { steam_app_id: game.app_id });
     if (id) {
-      const row = db.select({ cover_url: games_games.cover_url }).from(games_games).where(eq(games_games.id, id)).get()!;
-      db.update(games_games).set({ cover_url: steam_art(row.cover_url, game) }).where(eq(games_games.id, id)).run();
+      const row = db.select().from(games_games).where(eq(games_games.id, id)).get()!;
+      const status = game_status_of(row.status);
+      const unowned = parse_list(row.owned_platforms).length === 0;
+      db.update(games_games)
+        .set({ cover_url: steam_art(row.cover_url, game), status: status === "backlog" && unowned ? "wishlist" : status })
+        .where(eq(games_games.id, id))
+        .run();
       report.updated++;
     } else {
-      id = game_key({ steam_app_id: game.app_id });
       db.insert(games_games)
         .values({
-          id,
+          id: game_key({ steam_app_id: game.app_id }),
           steam_app_id: game.app_id,
           title: game.title || `Steam app ${game.app_id}`,
           year: game.release_date.slice(0, 4),
           release_date: game.release_date,
           cover_url: game.cover_url,
-          status: "want_to_play",
+          status: "wishlist",
           added_at: today(),
         })
         .run();
       report.added++;
     }
-    add_to_collection(database, id, collection_id);
-    kept.add(id);
-  }
-  for (const { game_id } of db.select({ game_id: games_game_collections.game_id }).from(games_game_collections).where(eq(games_game_collections.collection_id, collection_id)).all()) {
-    if (kept.has(game_id)) continue;
-    db.delete(games_game_collections)
-      .where(and(eq(games_game_collections.game_id, game_id), eq(games_game_collections.collection_id, collection_id)))
-      .run();
-    report.removed++;
   }
   return report;
 }
@@ -449,7 +451,7 @@ async function import_library(database: SqlDatabase): Promise<GameImportReport> 
   return in_transaction(database, () => import_owned(database, owned));
 }
 
-async function import_wishlist(database: SqlDatabase): Promise<WishlistReport> {
+async function import_wishlist(database: SqlDatabase): Promise<GameImportReport> {
   const { key, steam_id } = await steam_account(database);
   const wished = await create_steam().wishlist(key, steam_id);
   return in_transaction(database, () => import_wished(database, wished));
@@ -469,12 +471,46 @@ async function sync_steam(database: SqlDatabase): Promise<SteamSync> {
   }
   const said = [
     sync.library && `library ${sync.library.added} added, ${sync.library.updated} updated`,
-    sync.wishlist && `wishlist ${sync.wishlist.added} added, ${sync.wishlist.removed} left`,
+    sync.wishlist && `wishlist ${sync.wishlist.added} added`,
     ...sync.failures,
   ].filter(Boolean);
   set_games_setting(database, "games.last_steam_sync", sync.ran_at);
   set_games_setting(database, "games.last_steam_result", said.join("; "));
   return sync;
+}
+
+// ── Steam categories ─────────────────────────────────────────────────────────
+
+// The mapping as set, by each category's name in lower case; a status no longer known is left out.
+function category_statuses(database: SqlDatabase): Map<string, GameStatus> {
+  const mapping = games_setting(database, "games.steam_category_statuses") ?? {};
+  return new Map(Object.entries(mapping).flatMap(([name, status]) => (is_game_status(status) ? [[name.toLowerCase(), status] as const] : [])));
+}
+
+// A tracked game in a mapped category takes that category's status; in several, the furthest along wins.
+function import_categories(database: SqlDatabase, categories: SteamCategory[]): SteamCategoryReport {
+  const db = drizzle_of(database);
+  set_games_setting(database, "games.steam_categories", categories.map((category) => category.name));
+  const statuses = category_statuses(database);
+  const wanted = new Map<string, GameStatus>();
+  for (const category of categories) {
+    const status = statuses.get(category.name.toLowerCase());
+    if (!status) continue;
+    for (const app_id of category.app_ids) wanted.set(app_id, furthest_status(wanted.get(app_id) ?? status, status));
+  }
+  const report: SteamCategoryReport = { categories: categories.length, updated: 0, untracked: 0 };
+  for (const [app_id, status] of wanted) {
+    const id = find_game(database, { steam_app_id: app_id });
+    if (!id) {
+      report.untracked++;
+      continue;
+    }
+    const row = db.select({ status: games_games.status }).from(games_games).where(eq(games_games.id, id)).get()!;
+    if (row.status === status) continue;
+    db.update(games_games).set({ status }).where(eq(games_games.id, id)).run();
+    report.updated++;
+  }
+  return report;
 }
 
 // ── Trilium ──────────────────────────────────────────────────────────────────
@@ -491,7 +527,7 @@ function import_trilium_game(database: SqlDatabase, game: ImportedGame): "added"
       .set({
         steam_app_id: row.steam_app_id || game.steam_app_id,
         igdb_id: row.igdb_id || game.igdb_id,
-        status: row.status === "want_to_play" ? game.status : row.status,
+        status: is_unplayed(game_status_of(row.status)) ? game.status : game_status_of(row.status),
         rating: row.rating ?? game.rating,
         playtime_minutes: Math.max(row.playtime_minutes, game.playtime_minutes),
         last_played: later_day(row.last_played, game.last_played),
@@ -536,7 +572,7 @@ function import_igdb_game(database: SqlDatabase, game: IgdbGame): "added" | "upd
     const row = db.select().from(games_games).where(eq(games_games.id, existing)).get()!;
     db.update(games_games)
       .set({
-        status: row.status === "want_to_play" ? game.status : row.status,
+        status: is_unplayed(game_status_of(row.status)) ? game.status : game_status_of(row.status),
         rating: row.rating ?? game.rating,
         review: row.review || game.review,
         owned_platforms: JSON.stringify(clean_names([...parse_list(row.owned_platforms), ...game.platforms])),
@@ -779,7 +815,7 @@ export const games_feature = define_feature({
 
     import_steam_library: (database: SqlDatabase): Promise<GameImportReport> => import_library(database),
 
-    import_steam_wishlist: (database: SqlDatabase): Promise<WishlistReport> => import_wishlist(database),
+    import_steam_wishlist: (database: SqlDatabase): Promise<GameImportReport> => import_wishlist(database),
 
     // Imports the Steam library and wishlist when the hours set have passed, or now when forced; gives what it did, or
     // null when it was not due or no Steam account is set.
@@ -796,6 +832,22 @@ export const games_feature = define_feature({
         }
       }
       return sync_steam(database);
+    },
+
+    // The Steam client's categories file; games in a category mapped in Settings take its status.
+    import_steam_categories: (database: SqlDatabase, categories_json: string): SteamCategoryReport => {
+      const categories = read_steam_categories(categories_json);
+      if (categories.length === 0) throw new Error("No categories found; pick cloud-storage-namespace-1.json from Steam's userdata/<account>/config/cloudstorage folder.");
+      return in_transaction(database, () => import_categories(database, categories));
+    },
+
+    // Maps a Steam category, by its name, to a status, or unmaps it with an empty status.
+    set_steam_category_status: (database: SqlDatabase, category: string, status: GameStatus | ""): void => {
+      const name = category.trim();
+      if (!name) throw new Error("A category needs a name.");
+      if (status && !is_game_status(status)) throw new Error(`Unknown status: ${String(status)}.`);
+      const mapping = Object.fromEntries(Object.entries(games_setting(database, "games.steam_category_statuses") ?? {}).filter(([each]) => each.toLowerCase() !== name.toLowerCase()));
+      set_games_setting(database, "games.steam_category_statuses", status ? { ...mapping, [name]: status } : mapping);
     },
 
     // The Trilium Game Tracker's Database note, and optionally its config note for the statuses added there; adds and

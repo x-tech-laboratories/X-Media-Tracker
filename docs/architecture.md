@@ -81,13 +81,14 @@ on the Settings page.
 `src/shared/games/`:
 
 - `model.ts` holds the rules that need no database, and is the games file the page imports for more than types:
-  statuses, which ids name one game, pasted links, platforms, playtime, sorting and the Games library's filters with
+  IGDB's statuses in their three groups, with older ones read as their nearest, which ids name one game, pasted links, platforms, playtime, sorting and the Games library's filters with
   counts.
 - `schema.ts`: `games_games`, keyed by the strongest id (`rawg:…`, else `mobygames:…`, `giantbomb:…`, `wikidata:…`,
   `steam:…`, `igdb:…`; a Trilium game with none is `title:<title>/<year>`), with the platforms a copy is owned on as a
   JSON list and, for DLC, `base_game`: the key of the game it adds to, such as `steam:620`, or a library id, found among
   the tracked games by any id (`find_base_game` in `model.ts`); `none` once set by hand as not DLC, so the catalogues
-  stop filling it in. `games_collections` and `games_game_collections`. All of them sync.
+  stop filling it in. Its `status` column still defaults to an older status, read as Backlog, since changing a default
+  rebuilds the table and would drop its collection links. `games_collections` and `games_game_collections`. All of them sync.
 - `rawg.ts`, `mobygames.ts`, `giantbomb.ts`, `wikidata.ts` and `steam.ts` are the catalogues' clients, each answering in
   `catalog.ts`'s shape. Adding or refreshing a game asks Wikidata first, by any id known, for the ids every other
   catalogue gives it, then RAWG, MobyGames and Giant Bomb (each only with its key) and Steam's store by their own ids;
@@ -97,6 +98,9 @@ on the Settings page.
 - `steam.ts` also reads a profile's owned games, with playtime, and its wishlist; `schedule.ts` runs `run_steam_sync`
   hourly on the server and the desktop, and the last import syncs, so they do not both run it. Steam is not a source
   plugin, since those import into Movies & Series.
+- `steam_collections.ts` reads the Steam client's library categories file; `import_steam_categories` gives games in a
+  category mapped in `games.steam_category_statuses` its status. The desktop finds the file in Steam's folder
+  (`src/main/steam_categories.ts`), offers it to the page through its own bridge and imports it on the Steam schedule.
 - `trilium.ts` reads the Trilium Game Tracker add-on's Database note and the statuses from its config note.
 - `igdb_export.ts` reads IGDB's data export page, by its tables' headers and without a DOM: lists as statuses or
   collections, ratings and reviews, each game by its title alone.

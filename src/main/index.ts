@@ -20,12 +20,14 @@ import { create_sync_client, sync_device_methods } from "@x-tech-laboratories/x-
 import { file_sync_storage } from "@x-tech-laboratories/x-libs/sync_file_storage";
 
 import { media_backup_naming, read_schedule } from "../shared/backups.ts";
-import { certificate_bridge, device_bridge, media_bridge, media_events } from "../shared/bridge.ts";
+import { certificate_bridge, device_bridge, media_bridge, media_events, steam_files_bridge } from "../shared/bridge.ts";
 import { keep_checking_releases } from "../shared/books/schedule.ts";
 import { keep_syncing_steam } from "../shared/games/schedule.ts";
+import { games_setting } from "../shared/games/store.ts";
 import { keep_importing } from "../shared/sources/schedule.ts";
 import { stremio_scheme } from "../shared/sources/stremio/links.ts";
 import { bind_methods, needs_upgrade, open_store, sync_engine } from "../shared/store.ts";
+import { read_local_steam_categories } from "./steam_categories.ts";
 
 // ── Profile ──────────────────────────────────────────────────────────────────
 
@@ -76,6 +78,11 @@ const backing_up = keep_backing_up(kept, read_backup_schedule);
 let stop_importing = (): void => undefined;
 let stop_checking_releases = (): void => undefined;
 let stop_syncing_steam = (): void => undefined;
+
+// The Steam client's categories of the profile set in Settings, read from this computer.
+function read_steam_categories(): string {
+  return read_local_steam_categories(String(games_setting(database, "games.steam_id")).trim());
+}
 
 function announce_change(): void {
   media_events.emit(BrowserWindow.getAllWindows(), "changed", null);
@@ -140,6 +147,7 @@ if (hold_single_instance(app, show_existing_window)) {
     media_bridge.handle(ipcMain, bind_methods(() => database, announce_change), { trusted, envelopes: true });
     certificate_bridge.handle(ipcMain, certificates.methods, { trusted, envelopes: true });
     trust_in_session(session.defaultSession, certificates.is_trusted);
+    steam_files_bridge.handle(ipcMain, { read_steam_categories }, { trusted, envelopes: true });
     device_bridge.handle(
       ipcMain,
       {
@@ -165,7 +173,7 @@ if (hold_single_instance(app, show_existing_window)) {
     sync.start();
     stop_importing = keep_importing(() => bind_methods(() => database, () => undefined), announce_change);
     stop_checking_releases = keep_checking_releases(() => bind_methods(() => database, () => undefined), announce_change);
-    stop_syncing_steam = keep_syncing_steam(() => bind_methods(() => database, () => undefined), announce_change);
+    stop_syncing_steam = keep_syncing_steam(() => bind_methods(() => database, () => undefined), announce_change, read_steam_categories);
   });
 
   app.on("window-all-closed", () => {

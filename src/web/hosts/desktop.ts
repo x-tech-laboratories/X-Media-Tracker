@@ -6,7 +6,17 @@ import type { Client } from "@x-tech-laboratories/x-libs/electron/bridge";
 import type { CertificateClient } from "@x-tech-laboratories/x-libs/certificate_protocol";
 import type { EventsClient } from "@x-tech-laboratories/x-libs/electron/events";
 
-import { certificates_api_name, device_api_name, events_api_name, media_api_name, type DeviceMethods, type MediaEvents, type PageApi } from "../../shared/page_api.ts";
+import {
+  certificates_api_name,
+  device_api_name,
+  events_api_name,
+  media_api_name,
+  steam_files_api_name,
+  type DeviceMethods,
+  type MediaEvents,
+  type PageApi,
+  type SteamFileMethods,
+} from "../../shared/page_api.ts";
 import type { MediaMethods } from "../../shared/store.ts";
 
 // ── Api ──────────────────────────────────────────────────────────────────────
@@ -27,6 +37,7 @@ export function desktop_api(): PageApi {
     device,
     backups: device,
     certificates: desktop[certificates_api_name] as CertificateClient,
+    steam_files: desktop[steam_files_api_name] as Client<SteamFileMethods>,
     on_change: (listener) => events.on("changed", listener),
   };
 }

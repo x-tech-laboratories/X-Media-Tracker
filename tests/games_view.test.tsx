@@ -58,10 +58,24 @@ describe("games library", () => {
     go("#/games/library");
 
     expect(await screen.findByText("3 of 3 games")).toBeTruthy();
-    const status = screen.getByRole("radiogroup", { name: "Status" });
-    expect(within(status).getAllByRole("radio").map((option) => option.textContent)).toEqual(["Any status (3)", "Want to play (1)", "Playing (1)", "Paused (0)", "Played (0)", "Completed (1)", "Dropped (0)"]);
+    const status = screen.getByRole("combobox", { name: "Status" });
+    expect(within(status).getAllByRole("option").map((option) => (option.querySelector(".tree-option-name") ?? option).textContent!.replace(/\u00a0/g, ""))).toEqual([
+      "Any status (3)",
+      "Want to play (1)",
+      "Wishlist (0)",
+      "Backlog (1)",
+      "Playing (1)",
+      "Currently playing (1)",
+      "On hold (0)",
+      "Endless (0)",
+      "Replaying (0)",
+      "Played (1)",
+      "Finished (1)",
+      "Completed (0)",
+      "Abandoned (0)",
+    ]);
 
-    fireEvent.click(within(status).getByRole("radio", { name: "Playing (1)" }));
+    fireEvent.change(status, { target: { value: "playing" } });
     expect(await screen.findByText("1 of 3 games")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Terraria" })).toBeTruthy();
     expect(screen.queryByRole("link", { name: "Portal 2" })).toBeNull();
@@ -84,8 +98,9 @@ describe("game page", () => {
 
     expect(await screen.findByRole("heading", { level: 1, name: "Terraria" })).toBeTruthy();
     expect((screen.getByRole("textbox", { name: "Playtime" }) as HTMLInputElement).value).toBe("0.8");
-    const status = screen.getByRole("radiogroup", { name: "Status" });
-    fireEvent.click(within(status).getByRole("radio", { name: "Completed" }));
+    fireEvent.click(within(screen.getByRole("radiogroup", { name: "Status group" })).getByRole("radio", { name: "Played" }));
+    await waitFor(() => expect(store.get_game("steam:105600")).toMatchObject({ status: "finished" }));
+    fireEvent.click(await within(screen.getByRole("radiogroup", { name: "Status" })).findByRole("radio", { name: "Completed" }));
     await waitFor(() => expect(store.get_game("steam:105600")).toMatchObject({ status: "completed" }));
   });
 
