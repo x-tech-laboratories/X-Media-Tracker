@@ -124,7 +124,7 @@ function SteamSettings(props: FeatureSettingsProps) {
   return (
     <>
       <SecretRow {...props} label="Steam Web API key" setting="games.steam_api_key" placeholder="Paste your key" hint="Reads the games a profile owns and their playtime. Get one at steamcommunity.com/dev/apikey." />
-      <TextRow {...props} label="Steam id" setting="games.steam_id" placeholder="Such as 76561197960287930" hint="The profile's 64-bit id, or a link to the profile with it. Its Game details must be public." />
+      <TextRow {...props} label="Steam profile" setting="games.steam_id" placeholder="Such as 76561197960287930 or gabelogannewell" hint="The profile's 64-bit id, its custom URL name, or a link to it. Its Game details must be public." />
       <SettingRow label="Import from Steam every" hint={`0 imports only when asked. The server and the desktop app import on this schedule.${last ? ` Last: ${last.slice(0, 16).replace("T", " ")}${result ? ` — ${result}` : ""}.` : ""}`}>
         <NumberField
           label="Import from Steam every"
