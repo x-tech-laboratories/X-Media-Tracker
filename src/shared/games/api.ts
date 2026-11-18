@@ -19,7 +19,7 @@ export const games_api = {
   list_games: {
     description:
       "Lists every tracked game, sorted by title, with its catalogue ids (RAWG slug, MobyGames, Giant Bomb guid, Wikidata item, Steam app, IGDB slug), " +
-      "release, genres, platforms it came out on, developers, status (want_to_play, playing, paused, completed or dropped), rating 1 to 10 (half stars " +
+      "release, genres, platforms it came out on, developers, status (want_to_play, playing, paused, played, completed or dropped), rating 1 to 10 (half stars " +
       "out of five) or null, review, the platforms a copy is owned on, edition, playtime in minutes, the day last played and the collections it is in; " +
       "then every game collection.",
     params: [],

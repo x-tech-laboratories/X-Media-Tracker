@@ -59,7 +59,7 @@ describe("games library", () => {
 
     expect(await screen.findByText("3 of 3 games")).toBeTruthy();
     const status = screen.getByRole("radiogroup", { name: "Status" });
-    expect(within(status).getAllByRole("radio").map((option) => option.textContent)).toEqual(["Any status (3)", "Want to play (1)", "Playing (1)", "Paused (0)", "Completed (1)", "Dropped (0)"]);
+    expect(within(status).getAllByRole("radio").map((option) => option.textContent)).toEqual(["Any status (3)", "Want to play (1)", "Playing (1)", "Paused (0)", "Played (0)", "Completed (1)", "Dropped (0)"]);
 
     fireEvent.click(within(status).getByRole("radio", { name: "Playing (1)" }));
     expect(await screen.findByText("1 of 3 games")).toBeTruthy();
