@@ -89,6 +89,25 @@ describe("game page", () => {
     await waitFor(() => expect(store.get_game("steam:105600")).toMatchObject({ status: "completed" }));
   });
 
+  it("lists a game's DLC, which the library leaves out until asked for, and links DLC back to its game", async () => {
+    const store = fake_page();
+    store.import_trilium_games(trilium_database, "");
+    store.set_game_base("steam:70", "steam:620");
+    render(<App />);
+    go("#/games/library");
+    expect(await screen.findByText("2 of 3 games")).toBeTruthy();
+    fireEvent.click(within(screen.getByRole("radiogroup", { name: "Kind" })).getByRole("radio", { name: "DLC (1)" }));
+    expect(await screen.findByText("1 of 3 games")).toBeTruthy();
+    cleanup();
+
+    render(<App />);
+    go("#/games/game/steam%3A620");
+    expect(await screen.findByRole("heading", { name: "DLC" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Half-Life" })).toBeTruthy();
+    go("#/games/game/steam%3A70");
+    expect(await screen.findByRole("link", { name: "Portal 2" })).toBeTruthy();
+  });
+
   it("says when a game is not in the library", async () => {
     fake_page();
     render(<App />);

@@ -1,5 +1,5 @@
 // One game's page: its cover, status, rating, the platforms a copy is owned on, edition, playtime, last day played and
-// collections, what the catalogues say of it with links to each, and the review.
+// collections, the game it is DLC of or its own DLC, what the catalogues say of it with links to each, and the review.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -8,14 +8,27 @@ import { ChipField } from "@x-tech-laboratories/x-libs/web/react/chip_field";
 import { CommitInput, DateTimeField, NumberField, Segmented } from "@x-tech-laboratories/x-libs/web/react/controls";
 import { confirm_dialog, Dialog, open_dialog } from "@x-tech-laboratories/x-libs/web/react/dialog";
 import { Facts, FormRow, PageHeading, Section, Stack } from "@x-tech-laboratories/x-libs/web/react/layout";
+import { MediaGrid, MediaTile } from "@x-tech-laboratories/x-libs/web/react/media";
 import { Rating } from "@x-tech-laboratories/x-libs/web/react/rating";
 import { RichText } from "@x-tech-laboratories/x-libs/web/react/rich_text";
+import { ComboField } from "@x-tech-laboratories/x-libs/web/react/suggestions";
 import { Empty, Loaded } from "@x-tech-laboratories/x-libs/web/react/states";
 
 import { calls, use_data } from "../api.ts";
 import { HistoryButton } from "../history/HistoryView.tsx";
-import { common_platforms, game_links, game_status_labels, game_statuses, type GameCollection, type GameIds, type LibraryGame } from "../../shared/games/model.ts";
-import { attempt, set_game_status } from "./actions.tsx";
+import {
+  common_platforms,
+  dlc_of,
+  find_base_game,
+  game_links,
+  game_status_labels,
+  game_statuses,
+  is_dlc,
+  type GameCollection,
+  type GameIds,
+  type LibraryGame,
+} from "../../shared/games/model.ts";
+import { attempt, game_href, set_game_status } from "./actions.tsx";
 
 // ── Owning ───────────────────────────────────────────────────────────────────
 
@@ -100,6 +113,69 @@ function IdsDialog({ game, close }: { game: LibraryGame; close: () => void }) {
   );
 }
 
+// ── DLC ──────────────────────────────────────────────────────────────────────
+
+// Each game named by its title, with its year where two share one.
+function game_names(games: LibraryGame[]): Map<string, LibraryGame> {
+  const names = new Map<string, LibraryGame>();
+  for (const game of games) {
+    const twin = games.some((other) => other !== game && other.title.toLowerCase() === game.title.toLowerCase());
+    names.set(twin && game.year ? `${game.title} (${game.year})` : game.title, game);
+  }
+  return names;
+}
+
+function BaseGameDialog({ game, games, close }: { game: LibraryGame; games: LibraryGame[]; close: () => void }) {
+  const names = game_names(games.filter((each) => each.id !== game.id && !is_dlc(each)));
+  const current = find_base_game(game, games);
+  const [name, set_name] = useState(current ? ([...names].find(([, each]) => each.id === current.id)?.[0] ?? "") : "");
+  const chosen = names.get(name.trim());
+  return (
+    <Dialog
+      title="DLC of"
+      subtitle={game.title}
+      on_close={close}
+      form={{
+        submit_label: name.trim() && !chosen ? "Pick a game" : "Save",
+        on_submit: (event) => {
+          event.preventDefault();
+          if (name.trim() && !chosen) return;
+          attempt(calls().set_game_base(game.id, chosen?.id ?? "").then(close));
+        },
+      }}
+    >
+      <FormRow label="Base game" id="game-base" hint="The game in your library this adds to; leave empty if it is not DLC.">
+        <ComboField id="game-base" label="Base game" value={name} options={[...names.keys()]} list_on_focus limit={20} placeholder="Type a title" on_change={set_name} />
+      </FormRow>
+    </Dialog>
+  );
+}
+
+// The game this is DLC of: a link when it is tracked, else the name a catalogue gave.
+function BaseGame({ game, games }: { game: LibraryGame; games: LibraryGame[] }) {
+  const base = find_base_game(game, games);
+  return (
+    <span className="game-base">
+      {base ? <a href={game_href(base.id)}>{base.title}</a> : is_dlc(game) ? game.base_game_title || game.base_game : "Not DLC"}
+      <button type="button" className="link" onClick={() => open_dialog((close) => <BaseGameDialog game={game} games={games} close={close} />)}>
+        Change
+      </button>
+    </span>
+  );
+}
+
+function DlcList({ dlc }: { dlc: LibraryGame[] }) {
+  return (
+    <Section title="DLC">
+      <MediaGrid>
+        {dlc.map((each) => (
+          <MediaTile key={each.id} title={each.title} href={game_href(each.id)} image={each.cover_url} lines={[each.year, game_status_labels[each.status]].filter(Boolean)} />
+        ))}
+      </MediaGrid>
+    </Section>
+  );
+}
+
 // ── Review ───────────────────────────────────────────────────────────────────
 
 // Saved once the field is left, so each keystroke is not a change in History.
@@ -114,7 +190,7 @@ function Review({ game }: { game: LibraryGame }) {
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
-function GamePage({ game, collections, known_platforms }: { game: LibraryGame; collections: GameCollection[]; known_platforms: string[] }) {
+function GamePage({ game, games, collections, known_platforms }: { game: LibraryGame; games: LibraryGame[]; collections: GameCollection[]; known_platforms: string[] }) {
   const remove = () =>
     confirm_dialog({
       title: `Remove ${game.title}?`,
@@ -128,6 +204,7 @@ function GamePage({ game, collections, known_platforms }: { game: LibraryGame; c
     });
 
   const links = game_links(game);
+  const dlc = dlc_of(game, games);
   return (
     <Stack>
       <PageHeading
@@ -175,6 +252,7 @@ function GamePage({ game, collections, known_platforms }: { game: LibraryGame; c
               ],
               ["Owned on", <Platforms game={game} known={known_platforms} />],
               ["Collections", <Collections game={game} collections={collections} />],
+              ["DLC of", <BaseGame game={game} games={games} />],
             ]}
           />
           <Facts
@@ -201,6 +279,7 @@ function GamePage({ game, collections, known_platforms }: { game: LibraryGame; c
           {game.overview && <p className="title-overview">{game.overview}</p>}
         </div>
       </div>
+      {dlc.length > 0 && <DlcList dlc={dlc} />}
       <Review key={game.id} game={game} />
     </Stack>
   );
@@ -215,7 +294,7 @@ export function GameView({ id }: { id: string }) {
         {(loaded) =>
           loaded && (
             <Loaded resource={library}>
-              {(all) => <GamePage game={loaded} collections={all.collections} known_platforms={[...new Set(all.games.flatMap((each) => each.owned_platforms))]} />}
+              {(all) => <GamePage game={loaded} games={all.games} collections={all.collections} known_platforms={[...new Set(all.games.flatMap((each) => each.owned_platforms))]} />}
             </Loaded>
           )
         }

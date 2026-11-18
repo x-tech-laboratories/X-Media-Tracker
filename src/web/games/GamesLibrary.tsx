@@ -20,6 +20,7 @@ import {
   filter_games,
   format_playtime,
   game_facet_counts,
+  game_kind_labels,
   game_sort_keys,
   game_sort_labels,
   game_status_labels,
@@ -36,10 +37,13 @@ import { game_href, game_status_menu_items, stars_text } from "./actions.tsx";
 
 // ── Remembered view ──────────────────────────────────────────────────────────
 
+// Filters remembered before DLC had a filter of their own still count, showing games.
 function is_filters(value: unknown): value is Omit<GameFilters, "search"> {
   const filters = value as Partial<GameFilters> | null;
   return !!filters && typeof filters.status === "string" && typeof filters.platform === "string" && typeof filters.collection === "string";
 }
+
+const game_kinds: GameFilters["kind"][] = ["games", "dlc", "all"];
 
 const { search: _search, ...remembered_defaults } = no_game_filters;
 
@@ -120,7 +124,7 @@ function LibraryPage({ library }: { library: Games }) {
   // A remembered platform or collection that is gone stops applying.
   const platform = remembered.platform === "all" || remembered.platform === "none" || platforms.includes(remembered.platform) ? remembered.platform : "all";
   const collection = remembered.collection === "all" || remembered.collection === "none" || library.collections.some((each) => each.id === remembered.collection) ? remembered.collection : "all";
-  const filters: GameFilters = { ...remembered, search: "", platform, collection };
+  const filters: GameFilters = { ...remembered_defaults, ...remembered, search: "", platform, collection };
   const set_filter = (change: Partial<GameFilters>) => set_remembered({ ...remembered, ...change });
   const counts = game_facet_counts(library.games, filters);
   const shown = sort_games(filter_games(library.games, filters), sort_key, descending);
@@ -138,6 +142,12 @@ function LibraryPage({ library }: { library: Games }) {
       />
       {refreshing && <ProgressBar value={refresh.total ? refresh.done : null} max={refresh.total} label="Refreshing from the catalogues" detail={`${refresh.done} of ${refresh.total} games`} />}
       <Toolbar>
+        <Segmented
+          label="Kind"
+          choices={game_kinds.map((kind) => ({ value: kind, label: with_count(game_kind_labels[kind], counts.kind[kind]) }))}
+          value={filters.kind}
+          on_change={(kind) => set_filter({ kind })}
+        />
         <Segmented
           label="Status"
           choices={[{ value: "all", label: with_count("Any status", counts.status.all) }, ...game_statuses.map((status) => ({ value: status, label: with_count(game_status_labels[status], counts.status[status]) }))]}

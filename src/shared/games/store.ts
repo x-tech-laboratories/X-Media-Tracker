@@ -21,6 +21,7 @@ import {
   game_id_keys,
   game_key,
   is_game_status,
+  not_dlc,
   parse_game_link,
   parse_giantbomb_id,
   parse_wikidata_id,
@@ -265,6 +266,11 @@ function metadata_of(game: CatalogGame) {
   };
 }
 
+// The game a catalogue says this is DLC of, unless one is already set, by hand or before.
+function base_of(row: { base_game: string } | undefined, game: CatalogGame) {
+  return !row?.base_game && game.base_game ? { base_game: game.base_game, base_game_title: game.base_game_title } : {};
+}
+
 // What the catalogues say replaces what was there; a value they no longer give is kept.
 function keep_known(row: Record<string, unknown>, fields: Record<string, unknown>): Record<string, unknown> {
   return Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, value === "" ? row[key] : value]));
@@ -277,14 +283,17 @@ function write_details(database: SqlDatabase, game: CatalogGame): AddedGame {
   const existing = find_game(database, game);
   if (existing) {
     const row = db.select().from(games_games).where(eq(games_games.id, existing)).get()!;
-    db.update(games_games).set(keep_known(row, fields)).where(eq(games_games.id, existing)).run();
+    db.update(games_games)
+      .set({ ...keep_known(row, fields), ...base_of(row, game) })
+      .where(eq(games_games.id, existing))
+      .run();
     return { id: existing, title: game.title, existed: true };
   }
   const id = game_key(game);
   if (!id) throw new Error("That game has no RAWG, MobyGames, Giant Bomb, Wikidata or Steam id.");
   const status = games_setting(database, "games.default_status");
   db.insert(games_games)
-    .values({ id, ...fields, title: game.title || "Untitled game", status: is_game_status(status) ? status : "want_to_play", added_at: today() })
+    .values({ id, ...fields, ...base_of(undefined, game), title: game.title || "Untitled game", status: is_game_status(status) ? status : "want_to_play", added_at: today() })
     .run();
   return { id, title: game.title, existed: false };
 }
@@ -624,7 +633,10 @@ async function refresh_game(database: SqlDatabase, game: LibraryGame): Promise<b
     const value = fields[key];
     if (value && value !== row[key] && db.select({ id: games_games.id }).from(games_games).where(eq(games_games[key], String(value))).all().some((other) => other.id !== game.id)) fields[key] = row[key];
   }
-  db.update(games_games).set(fields).where(eq(games_games.id, game.id)).run();
+  db.update(games_games)
+    .set({ ...fields, ...base_of(row, details) })
+    .where(eq(games_games.id, game.id))
+    .run();
   return true;
 }
 
@@ -687,6 +699,14 @@ export const games_feature = define_feature({
     },
 
     set_game_ids: (database: SqlDatabase, id: string, ids: Partial<GameIds>): Promise<LibraryGame> => set_ids(database, id, ids),
+
+    set_game_base: (database: SqlDatabase, id: string, base_id: string): void => {
+      require_game(database, id);
+      if (!base_id) return update_game(database, id, { base_game: not_dlc, base_game_title: "" });
+      if (base_id === id) throw new Error("A game cannot be DLC of itself.");
+      const base = require_game(database, base_id);
+      update_game(database, id, { base_game: base.id, base_game_title: base.title });
+    },
 
     remove_game: (database: SqlDatabase, id: string): void => {
       require_game(database, id);

@@ -46,6 +46,9 @@ export interface Game extends GameIds {
   // The day last played, such as 2026-07-20, or "".
   last_played: string;
   added_at: string;
+  // The game this is DLC of, by its key such as "steam:620" or a library id, with its title; "" when not known to be.
+  base_game: string;
+  base_game_title: string;
 }
 
 // A game as the Games library lists it: with its collections.
@@ -85,6 +88,33 @@ export function parse_wikidata_id(input: string): string {
 // A Giant Bomb game's guid, such as 3030-2980, alone or in a link.
 export function parse_giantbomb_id(input: string): string {
   return /\b3030-\d+\b/.exec(input)?.[0] ?? "";
+}
+
+// ── DLC ──────────────────────────────────────────────────────────────────────
+
+// A base game set by hand to none, so the catalogues no longer fill one in.
+export const not_dlc = "none";
+
+const key_fields: Record<string, keyof GameIds> = { rawg: "rawg_id", mobygames: "mobygames_id", giantbomb: "giantbomb_id", wikidata: "wikidata_id", steam: "steam_app_id", igdb: "igdb_id" };
+
+export function is_dlc(game: Pick<Game, "base_game">): boolean {
+  return !!game.base_game && game.base_game !== not_dlc;
+}
+
+// The tracked game a DLC belongs to: the one with its id, else the one with the catalogue id its key names.
+export function find_base_game<Item extends Game>(game: Pick<Game, "base_game">, games: Item[]): Item | undefined {
+  if (!is_dlc(game)) return undefined;
+  const exact = games.find((each) => each.id === game.base_game);
+  if (exact) return exact;
+  const split = game.base_game.indexOf(":");
+  const field = key_fields[game.base_game.slice(0, split)];
+  const value = game.base_game.slice(split + 1);
+  return field && value ? games.find((each) => each[field] === value) : undefined;
+}
+
+// The tracked DLC of a game, A-Z.
+export function dlc_of<Item extends Game>(base: Game, games: Item[]): Item[] {
+  return games.filter((each) => each.id !== base.id && find_base_game(each, [base])).sort((first, second) => first.title.localeCompare(second.title));
 }
 
 // ── Links ────────────────────────────────────────────────────────────────────
@@ -182,12 +212,16 @@ export function sort_games<Item extends LibraryGame>(games: Item[], key: GameSor
 // "all" lets everything through; a platform or collection of "none" is games with none.
 export interface GameFilters {
   search: string;
+  kind: "games" | "dlc" | "all";
   status: "all" | GameStatus;
   platform: string;
   collection: string;
 }
 
-export const no_game_filters: GameFilters = { search: "", status: "all", platform: "all", collection: "all" };
+export const game_kind_labels: Record<GameFilters["kind"], string> = { games: "Games", dlc: "DLC", all: "Both" };
+
+// DLC stays out of the library until asked for, as it shows on its game's page.
+export const no_game_filters: GameFilters = { search: "", kind: "games", status: "all", platform: "all", collection: "all" };
 
 type GameFacet = keyof GameFilters;
 
@@ -198,6 +232,7 @@ function matches_search(game: LibraryGame, search: string): boolean {
 
 function passes(game: LibraryGame, filters: GameFilters, skip: GameFacet | null): boolean {
   if (skip !== "search" && filters.search && !matches_search(game, filters.search)) return false;
+  if (skip !== "kind" && filters.kind !== "all" && is_dlc(game) !== (filters.kind === "dlc")) return false;
   if (skip !== "status" && filters.status !== "all" && game.status !== filters.status) return false;
   if (skip !== "platform" && filters.platform !== "all") {
     if (filters.platform === "none" ? game.owned_platforms.length > 0 : !game.owned_platforms.includes(filters.platform)) return false;
@@ -216,9 +251,13 @@ export type GameFacetCounts = Record<Exclude<GameFacet, "search">, Record<string
 
 // Each choice's count of the games it would show: narrowed by every other filter but never by its own.
 export function game_facet_counts(games: LibraryGame[], filters: GameFilters): GameFacetCounts {
-  const counts: GameFacetCounts = { status: {}, platform: {}, collection: {} };
+  const counts: GameFacetCounts = { kind: {}, status: {}, platform: {}, collection: {} };
   const bump = (into: Record<string, number>, key: string) => void (into[key] = (into[key] ?? 0) + 1);
   for (const game of games) {
+    if (passes(game, filters, "kind")) {
+      bump(counts.kind, "all");
+      bump(counts.kind, is_dlc(game) ? "dlc" : "games");
+    }
     if (passes(game, filters, "status")) {
       bump(counts.status, "all");
       bump(counts.status, game.status);

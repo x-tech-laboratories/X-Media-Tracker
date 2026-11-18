@@ -49,6 +49,7 @@ function base_answers(): Record<string, unknown> {
     },
     "api.rawg.io/api/games": { results: [{ slug: "portal-2", name: "Portal 2", released: "2011-04-18", background_image: "https://rawg/shot.jpg" }] },
     "store.steampowered.com/api/appdetails": {
+      "323180": { success: true, data: { type: "dlc", name: "Portal 2 Sixense Pack", fullgame: { appid: "620", name: "Portal 2" } } },
       "620": { success: true, data: { name: "Portal 2", short_description: "The &quot;Perpetual Testing Initiative&quot;", release_date: { date: "18 Apr, 2011" }, genres: [{ description: "Action" }] } },
     },
     "store.steampowered.com/api/storesearch/": { items: [{ type: "app", id: 620, name: "Portal 2", platforms: { windows: true } }] },
@@ -158,6 +159,23 @@ describe("adding a game", () => {
 });
 
 // ── Keeping ──────────────────────────────────────────────────────────────────
+
+describe("DLC", () => {
+  it("takes the base game Steam names, and keeps one set by hand", async () => {
+    const methods = open_methods();
+    await methods.add_game("rawg", "portal-2");
+    await methods.add_game("steam", "323180");
+    expect(methods.get_game("steam:323180")).toMatchObject({ base_game: "steam:620", base_game_title: "Portal 2" });
+
+    methods.set_game_base("steam:323180", "");
+    await methods.add_game("steam", "323180");
+    expect(methods.get_game("steam:323180")).toMatchObject({ base_game: "none", base_game_title: "" });
+
+    methods.set_game_base("steam:323180", "rawg:portal-2");
+    expect(methods.get_game("steam:323180")).toMatchObject({ base_game: "rawg:portal-2", base_game_title: "Portal 2" });
+    expect(() => methods.set_game_base("rawg:portal-2", "rawg:portal-2")).toThrow("itself");
+  });
+});
 
 describe("keeping a game", () => {
   it("sets status, rating, platforms, edition and playtime", async () => {
