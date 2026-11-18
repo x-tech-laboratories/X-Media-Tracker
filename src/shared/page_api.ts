@@ -17,6 +17,8 @@ export const device_api_name = "x_media_tracker_device";
 export const events_api_name = "x_media_tracker_events";
 export const certificates_api_name = "x_media_tracker_certificates";
 export const steam_files_api_name = "x_media_tracker_steam_files";
+// The desktop page's scheme for the covers kept on the device, as x-media-cover://<name>.
+export const cover_scheme = "x-media-cover";
 
 // ── Device calls ─────────────────────────────────────────────────────────────
 
@@ -54,6 +56,8 @@ export interface PageApi {
   certificates?: CertificateClient;
   // Set on the desktop, which can read the Steam client's files.
   steam_files?: Client<SteamFileMethods>;
+  // Where the page shows a kept cover from, by its file's name, or "" while this device does not have it yet.
+  cover_src: (name: string) => Promise<string>;
   // Runs whenever the data changed somewhere else; returns the function that stops listening.
   on_change: (listener: () => void) => () => void;
 }

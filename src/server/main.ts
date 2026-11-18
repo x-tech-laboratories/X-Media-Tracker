@@ -8,6 +8,7 @@ import { DatabaseSync } from "node:sqlite";
 
 import { keep_backing_up } from "@x-tech-laboratories/x-libs/backups";
 import { read_server_config } from "@x-tech-laboratories/x-libs/server/config";
+import { folder_file_store } from "@x-tech-laboratories/x-libs/node_file_store";
 import { load_accounts } from "@x-tech-laboratories/x-libs/server/passwords";
 import { sqlite_backups, take_staged_restore } from "@x-tech-laboratories/x-libs/server/sqlite_backups";
 
@@ -77,6 +78,8 @@ const app = await build_app({
   database,
   declared: load_accounts("X_MEDIA_TRACKER_PASSWORD_HASH_FILE"),
   web_folder: server_config.web_folder,
+  // Beside the database, so the server's data folder holds them.
+  covers: folder_file_store(join(dirname(database_path), "covers")),
   backups: {
     list_backups: kept.list,
     create_backup: () => kept.create(),

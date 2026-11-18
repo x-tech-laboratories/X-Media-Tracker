@@ -19,6 +19,7 @@ import { has_episode, image_url, next_unwatched, parse_episodes, status_labels, 
 import type { TmdbFullDetails, TmdbSeason } from "../../shared/library/tmdb.ts";
 import { use_page_plugins } from "../sources/plugins.tsx";
 import { set_status } from "./status.tsx";
+import { HeadPoster } from "../covers.tsx";
 
 // ── Episodes ─────────────────────────────────────────────────────────────────
 
@@ -153,7 +154,7 @@ function TitlePage({ title, collections, settings }: { title: LibraryTitle; coll
         }
       />
       <div className="title-head">
-        {title.poster_path && <img className="title-poster" src={image_url(title.poster_path, "w500")} alt="" />}
+        <HeadPoster file={title.cover_file} address={image_url(title.poster_path, "w500")} />
         <div className="title-facts">
           <Facts
             rows={[

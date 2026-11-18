@@ -15,5 +15,12 @@ export const migrations: DrizzleMigration[] = [
       "CREATE INDEX `library_titles_by_tmdb` ON `library_titles` (`tmdb_id`);",
       "CREATE INDEX `library_titles_by_imdb` ON `library_titles` (`imdb_id`);"
     ]
+  },
+  {
+    "name": "20261118135652_cover_files",
+    "statements": [
+      "ALTER TABLE `library_titles` ADD `cover_file` text DEFAULT '' NOT NULL;",
+      "ALTER TABLE `library_titles` ADD `cover_file_from` text DEFAULT '' NOT NULL;"
+    ]
   }
 ];

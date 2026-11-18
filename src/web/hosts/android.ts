@@ -13,12 +13,15 @@ import { indexed_db_files, open_wasm_database } from "@x-tech-laboratories/x-lib
 import { local_sync_storage } from "@x-tech-laboratories/x-libs/web/sync_storage";
 
 import { media_backup_naming, read_schedule } from "../../shared/backups.ts";
+import { keep_fetching_covers, referenced_covers } from "../../shared/covers.ts";
 import type { DeviceMethods, PageApi } from "../../shared/page_api.ts";
 import { bind_methods, needs_upgrade, open_store, sync_engine, type MediaMethods } from "../../shared/store.ts";
 
 // ── Files ────────────────────────────────────────────────────────────────────
 
 const files = indexed_db_files("x-media-tracker");
+// The covers kept on the phone, apart from the database, which is saved whole after every change.
+const covers = indexed_db_files("x-media-tracker-covers");
 const database_file = "media.db";
 const sync_config_key = "x-media-tracker-sync";
 // The schedule belongs to this phone, so it is kept in its own storage rather than in the synced settings.
@@ -69,14 +72,24 @@ export async function android_api(): Promise<PageApi> {
 
   // The server and token stay in the app's private storage, never in the synced data.
   const storage = local_sync_storage({ key: sync_config_key, back_up_before_download: back_up_if_folder });
-  const sync = create_sync_client({ engine: sync_engine, database: () => database.connection, storage, data_name: "media library", device_name: "X-Media-Tracker on Android", on_remote_change: announce });
+  const sync = create_sync_client({
+    engine: sync_engine,
+    database: () => database.connection,
+    storage,
+    files: { store: covers, referenced: referenced_covers },
+    data_name: "media library",
+    device_name: "X-Media-Tracker on Android",
+    on_remote_change: announce,
+  });
 
   // A phone may close the app at any moment once it is in the background, so the database is saved straight away.
   void App.addListener("pause", () => void database.save_now());
   void App.addListener("resume", () => void sync.sync_now());
   sync.start();
+  // A write may have changed a cover's address, so the covers are looked at again soon after.
+  const fetching_covers = keep_fetching_covers({ database: () => database.connection, store: covers, on_change: announce });
 
-  const methods: MediaMethods = bind_methods(() => database.connection, () => undefined);
+  const methods: MediaMethods = bind_methods(() => database.connection, fetching_covers.soon);
   const device: DeviceMethods = {
     ...sync_device_methods(sync),
     list_backups: kept.list,
@@ -94,6 +107,8 @@ export async function android_api(): Promise<PageApi> {
     },
   };
   const device_client = as_client(device);
+  // Each kept cover is read from IndexedDB once and shown from a blob address after.
+  const cover_sources = new Map<string, Promise<string>>();
   return {
     host: "android",
     calls: as_client(methods),
@@ -108,6 +123,16 @@ export async function android_api(): Promise<PageApi> {
         await backing_up.check();
         return name;
       },
+    },
+    cover_src: (name) => {
+      let source = cover_sources.get(name);
+      if (!source) {
+        source = covers.read(name).then((bytes) => (bytes ? URL.createObjectURL(new Blob([bytes as Uint8Array<ArrayBuffer>])) : ""));
+        cover_sources.set(name, source);
+        // A cover not here yet is asked for again later, once sync or a download has brought it.
+        void source.then((url) => url === "" && cover_sources.delete(name));
+      }
+      return source;
     },
     on_change: (listener) => {
       listeners.add(listener);

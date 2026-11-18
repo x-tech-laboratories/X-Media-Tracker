@@ -38,6 +38,7 @@ import {
 } from "../../shared/games/model.ts";
 import type { Games, GamesRefreshReport } from "../../shared/games/store.ts";
 import { game_href, game_status_menu_items, stars_text } from "./actions.tsx";
+import { use_cover } from "../covers.tsx";
 
 // ── Remembered view ──────────────────────────────────────────────────────────
 
@@ -76,11 +77,12 @@ function GameActions({ game }: { game: LibraryGame }) {
 }
 
 function GameTile({ game }: { game: LibraryGame }) {
+  const image = use_cover(game.cover_file, game.cover_url);
   return (
     <MediaTile
       title={game.title}
       href={game_href(game.id)}
-      image={game.cover_url}
+      image={image}
       corner={stars_text(game.rating) || undefined}
       lines={[[game.year, format_playtime(game.playtime_minutes)].filter(Boolean).join(" · "), game_status_labels[game.status]]}
       dimmed={game.status === "abandoned"}

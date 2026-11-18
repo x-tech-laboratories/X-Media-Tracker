@@ -134,3 +134,16 @@ The server and every device run the same store. X-Libs `sync_engine` stamps ever
 triggers, value by value; the newest write of each value wins. A device sends its changes within seconds and takes
 everyone else's in the same round trip, follows the server's event stream to hear of changes at once, and keeps working
 offline. On first connecting, the user chooses whether the server's copy or the device's wins; the other is backed up.
+
+## Covers
+
+`src/shared/covers.ts` keeps every game's and book's cover and every title's poster on every device. `games_games`,
+`books_books` and `library_titles` each have `cover_file`, the name of a file synced through X-Libs `sync_files` (the
+sha256 of its bytes), and `cover_file_from`, the address it was taken from, or `custom` for one set by hand, which is
+never replaced. `keep_fetching_covers` runs on the server, the desktop and the phone. Every minute, and soon after a
+write, it downloads the image of each row whose address differs from `cover_file_from`; a title's address is its poster
+at `library.saved_poster_size`. The sync client is given `referenced_covers`, so after each exchange it sends the
+server the files it lacks and fetches the ones the device lacks. The page shows a kept cover through `use_cover`
+(`src/web/covers.tsx`), with `PageApi.cover_src` naming where each host serves it from: the server's
+`api/sync/files/<name>`, the desktop's `x-media-cover://<name>` scheme, or a blob address on the phone. It falls back to
+the address until the file is there.

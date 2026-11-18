@@ -229,6 +229,15 @@ password, and choose whether this device starts from the server's library or the
 that loses is backed up first. After that, changes go both ways within seconds, and a device that is offline catches up
 once it is back. A title's id is its strongest id, so a title added on two devices stays one.
 
+### Covers
+
+Every device keeps every cover and poster whole, so the library shows them offline. Whichever device or server first
+sees a new or changed cover address downloads the image, and sync carries it to the others. A refresh that finds a new
+address takes the image again. Posters are kept at TMDB's w780 width unless **Settings → Movies & Series → Kept poster
+size** says otherwise; changing it downloads every poster again. Covers are not in the backups, since they can be taken
+again. The server keeps them in a `covers` folder beside its database, the desktop app in its profile folder, and the
+phone in its own storage.
+
 ## Backups
 
 Every copy of the library backs itself up: daily by default, keeping the last 14, and always before a restore, before

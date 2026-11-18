@@ -27,6 +27,9 @@ export const games_games = sqliteTable(
     release_date: text().notNull().default(""),
     overview: text().notNull().default(""),
     cover_url: text().notNull().default(""),
+    // The full image kept on every device, by its synced file's name, and the address it was taken from ("custom" when set by hand).
+    cover_file: text().notNull().default(""),
+    cover_file_from: text().notNull().default(""),
     genres: text().notNull().default(""),
     platforms: text().notNull().default(""),
     developers: text().notNull().default(""),

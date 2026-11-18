@@ -37,6 +37,7 @@ import {
 } from "../../shared/library/model.ts";
 import type { Library, RefreshReport } from "../../shared/library/store.ts";
 import { status_menu_items } from "./status.tsx";
+import { use_cover } from "../covers.tsx";
 
 // ── Remembered view ──────────────────────────────────────────────────────────
 
@@ -72,11 +73,12 @@ function TitleActions({ title }: { title: LibraryTitle }) {
 }
 
 function TitleTile({ title, poster_size }: { title: LibraryTitle; poster_size: string }) {
+  const image = use_cover(title.cover_file, image_url(title.poster_path, poster_size));
   return (
     <MediaTile
       title={title.name}
       href={href_of(title)}
-      image={image_url(title.poster_path, poster_size)}
+      image={image}
       corner={progress_text(title) || undefined}
       lines={[[title.year, title.media_type === "show" ? "TV" : "Movie"].filter(Boolean).join(" · "), status_labels[title.status]]}
       dimmed={title.status === "dropped"}

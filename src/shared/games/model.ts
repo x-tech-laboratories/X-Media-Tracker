@@ -91,6 +91,9 @@ export interface Game extends GameIds {
   release_date: string;
   overview: string;
   cover_url: string;
+  // The full image kept on every device, by its synced file's name, and the address it was taken from ("custom" when set by hand).
+  cover_file: string;
+  cover_file_from: string;
   // Each as one line, such as "Action, Puzzle".
   genres: string;
   platforms: string;

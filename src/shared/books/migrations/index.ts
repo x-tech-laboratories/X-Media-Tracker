@@ -23,5 +23,12 @@ export const migrations: DrizzleMigration[] = [
       "CREATE INDEX `books_reads_by_book` ON `books_reads` (`book_id`);",
       "CREATE INDEX `books_releases_by_follow` ON `books_releases` (`follow_id`);"
     ]
+  },
+  {
+    "name": "20261118135651_cover_files",
+    "statements": [
+      "ALTER TABLE `books_books` ADD `cover_file` text DEFAULT '' NOT NULL;",
+      "ALTER TABLE `books_books` ADD `cover_file_from` text DEFAULT '' NOT NULL;"
+    ]
   }
 ];

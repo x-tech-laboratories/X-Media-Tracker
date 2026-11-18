@@ -28,6 +28,7 @@ import {
   type LibraryGame,
 } from "../../shared/games/model.ts";
 import { attempt, game_href, set_game_status } from "./actions.tsx";
+import { HeadPoster, use_cover } from "../covers.tsx";
 import { StatusPicker } from "./StatusPicker.tsx";
 
 // ── Owning ───────────────────────────────────────────────────────────────────
@@ -164,12 +165,17 @@ function BaseGame({ game, games }: { game: LibraryGame; games: LibraryGame[] }) 
   );
 }
 
+function DlcTile({ game }: { game: LibraryGame }) {
+  const image = use_cover(game.cover_file, game.cover_url);
+  return <MediaTile title={game.title} href={game_href(game.id)} image={image} lines={[game.year, game_status_labels[game.status]].filter(Boolean)} />;
+}
+
 function DlcList({ dlc }: { dlc: LibraryGame[] }) {
   return (
     <Section title="DLC">
       <MediaGrid>
         {dlc.map((each) => (
-          <MediaTile key={each.id} title={each.title} href={game_href(each.id)} image={each.cover_url} lines={[each.year, game_status_labels[each.status]].filter(Boolean)} />
+          <DlcTile key={each.id} game={each} />
         ))}
       </MediaGrid>
     </Section>
@@ -223,7 +229,7 @@ function GamePage({ game, games, collections, known_platforms }: { game: Library
         }
       />
       <div className="title-head">
-        {game.cover_url && <img className="title-poster" src={game.cover_url} alt="" />}
+        <HeadPoster file={game.cover_file} address={game.cover_url} />
         <div className="title-facts">
           {/* What is yours to set, one control a row, so the wide ones never crowd each other. */}
           <Facts

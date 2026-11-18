@@ -35,5 +35,12 @@ export const migrations: DrizzleMigration[] = [
       "UPDATE `games_games` SET `status` = 'abandoned' WHERE `status` = 'dropped';",
       "DELETE FROM `games_collections` WHERE lower(`name`) = 'steam wishlist';"
     ]
+  },
+  {
+    "name": "20261118144824_cover_files",
+    "statements": [
+      "ALTER TABLE `games_games` ADD `cover_file` text DEFAULT '' NOT NULL;",
+      "ALTER TABLE `games_games` ADD `cover_file_from` text DEFAULT '' NOT NULL;"
+    ]
   }
 ];

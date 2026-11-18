@@ -8,6 +8,7 @@ import type { EventsClient } from "@x-tech-laboratories/x-libs/electron/events";
 
 import {
   certificates_api_name,
+  cover_scheme,
   device_api_name,
   events_api_name,
   media_api_name,
@@ -38,6 +39,7 @@ export function desktop_api(): PageApi {
     backups: device,
     certificates: desktop[certificates_api_name] as CertificateClient,
     steam_files: desktop[steam_files_api_name] as Client<SteamFileMethods>,
+    cover_src: async (name) => `${cover_scheme}://${name}`,
     on_change: (listener) => events.on("changed", listener),
   };
 }

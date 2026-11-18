@@ -16,6 +16,7 @@ import type { MediaMethods } from "../../shared/store.ts";
 const call_path = "api/call/";
 const backup_path = "api/backup/";
 const events_path = "api/events";
+const covers_path = "api/sync/files/";
 const client_id_header = "x-client-id";
 
 // Given by the server when the page connects, so the page is not told about its own changes.
@@ -78,6 +79,7 @@ export function web_api(): PageApi {
     calls: server_calls(),
     backups: server_backups(),
     device: null,
+    cover_src: async (name) => covers_path + name,
     on_change: (listener) => {
       listeners.add(listener);
       return () => listeners.delete(listener);

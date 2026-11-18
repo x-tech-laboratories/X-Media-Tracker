@@ -32,7 +32,7 @@ const off = { state: "off", server_url: "", user: "", last_synced_at: "", pendin
 describe("settings", () => {
   it("shows the library's settings with their defaults and saves a change", async () => {
     const calls = fake_calls({ "library.poster_size": "w500" });
-    set_page_api({ host: "web", calls, device: null, on_change: () => () => undefined });
+    set_page_api({ host: "web", calls, device: null, cover_src: async () => "", on_change: () => () => undefined });
     render(<SettingsView />);
 
     expect(((await screen.findByLabelText("Poster size")) as HTMLSelectElement).value).toBe("w500");
@@ -53,7 +53,7 @@ describe("settings", () => {
       disconnect_sync: vi.fn(),
       sync_now: vi.fn(),
     } as unknown as Client<DeviceMethods>;
-    set_page_api({ host: "desktop", calls: fake_calls({}), device, on_change: () => () => undefined });
+    set_page_api({ host: "desktop", calls: fake_calls({}), device, cover_src: async () => "", on_change: () => () => undefined });
     render(<><SettingsView /><Dialogs /></>);
 
     fireEvent.change(await screen.findByLabelText("Server address"), { target: { value: "https://media.example.org" } });
@@ -74,7 +74,7 @@ describe("settings", () => {
       get_backup_schedule: vi.fn(async () => ({ automatic: true, to_keep: 14 })),
       set_backup_schedule: vi.fn(),
     };
-    set_page_api({ host: "web", calls: fake_calls({}), device: null, backups, on_change: () => () => undefined });
+    set_page_api({ host: "web", calls: fake_calls({}), device: null, backups, cover_src: async () => "", on_change: () => () => undefined });
     render(<><SettingsView /><Dialogs /></>);
 
     expect((await screen.findAllByText("Server")).length).toBeGreaterThan(0);
@@ -96,7 +96,7 @@ describe("settings", () => {
     };
     const backup_folder = { get: vi.fn(async () => ""), choose: vi.fn(async () => "Documents") };
     const device = { get_sync_status: vi.fn(async () => off) } as unknown as Client<DeviceMethods>;
-    set_page_api({ host: "android", calls: fake_calls({}), device, backups, backup_folder, on_change: () => () => undefined });
+    set_page_api({ host: "android", calls: fake_calls({}), device, backups, backup_folder, cover_src: async () => "", on_change: () => () => undefined });
     render(<><SettingsView /><Dialogs /></>);
 
     expect(await screen.findByRole("button", { name: "Back up" })).toHaveProperty("disabled", true);

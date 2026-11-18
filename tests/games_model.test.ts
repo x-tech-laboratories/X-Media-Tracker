@@ -30,6 +30,8 @@ function game(fields: Partial<LibraryGame>): LibraryGame {
     wikidata_id: "",
     steam_app_id: "",
     igdb_id: "",
+    cover_file: "",
+    cover_file_from: "",
     title: "",
     year: "",
     release_date: "",

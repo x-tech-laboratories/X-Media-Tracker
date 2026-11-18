@@ -7,6 +7,8 @@ export const library_setting_defaults = {
   "library.default_status": "planned",
   // TMDB's image width for posters, such as w342.
   "library.poster_size": "w342",
+  // TMDB's image width for the posters kept on every device; a change takes every poster again.
+  "library.saved_poster_size": "w780",
   // Whether the Library filters by TMDB's genres and the details page shows them.
   "library.genres_enabled": true,
   // Genres left out of the Library's genre filter.

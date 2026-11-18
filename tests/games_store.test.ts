@@ -1,7 +1,9 @@
 import { DatabaseSync } from "node:sqlite";
 
+import { migrate } from "@x-tech-laboratories/x-libs/sql";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { games_feature } from "../src/shared/games/store.ts";
 import { bind_methods, open_store, secret_settings } from "../src/shared/store.ts";
 
 // ── Catalogue stand-ins ──────────────────────────────────────────────────────
@@ -191,8 +193,9 @@ describe("IGDB's statuses", () => {
     set_status.run("paused", "rawg:portal-2");
     set_status.run("want_to_play", "steam:400");
     expect(methods.get_game("rawg:portal-2")!.status).toBe("on_hold");
+    // Runs the statuses step again on its own, as on a database from before it.
     database.exec("UPDATE schema_versions SET version = 2 WHERE owner = 'games'");
-    open_store(database);
+    migrate(database, games_feature.migrations.slice(0, 3), { owner: "games" });
     const stored = (id: string) => (database.prepare("SELECT status FROM games_games WHERE id = ?").get(id) as { status: string }).status;
     expect([stored("rawg:portal-2"), stored("steam:400")]).toEqual(["on_hold", "wishlist"]);
     expect(methods.list_games().collections.map((each) => each.name)).toEqual(["Favourites"]);

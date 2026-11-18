@@ -24,6 +24,9 @@ export interface Title extends TitleIds {
   overview: string;
   // TMDB's image path, such as "/abc.jpg"; the page picks the size.
   poster_path: string;
+  // The full image kept on every device, by its synced file's name, and the address it was taken from ("custom" when set by hand).
+  cover_file: string;
+  cover_file_from: string;
   // TMDB's genres as one line, such as "Drama, Sci-Fi & Fantasy".
   genres: string;
   // Minutes.
@@ -183,6 +186,9 @@ export function parse_media_link(input: string): ParsedLink | null {
 export const image_base = "https://image.tmdb.org/t/p/";
 
 export const poster_sizes = ["w185", "w342", "w500"] as const;
+
+// The widths a poster kept on every device may be taken at; original is the file TMDB was given, often over 1 MB.
+export const saved_poster_sizes = ["w342", "w500", "w780", "original"] as const;
 
 export function image_url(path: string, size: string): string {
   return path ? `${image_base}${size}${path}` : "";
