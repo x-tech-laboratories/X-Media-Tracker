@@ -61,7 +61,7 @@ on the Settings page.
   statuses and formats, which ids name one book, pasted links and ISBNs, progress, series order, sorting, the Books
   library's filters with counts, release days and a year's reading stats.
 - `schema.ts`: `books_books`, keyed by the strongest id (`bookbrainz:…`, else `openlibrary:…`, else `hardcover:…`, else
-  `isbn:…`; a StoryGraph book with none is `title:<title>/<author>`); `books_reads`, one row per time through a book;
+  `isbn:…`; a StoryGraph or LibraryThing book with none is `title:<title>/<author>`); `books_reads`, one row per time through a book;
   `books_journal`; `books_collections` and `books_book_collections`; `books_follows`, the authors and series followed;
   `books_releases`, the books found for them; and `books_goals`, one per year. All of them sync.
 - `bookbrainz.ts`, `openlibrary.ts` and `hardcover.ts` are the catalogues' clients, each answering in `catalog.ts`'s
@@ -69,8 +69,9 @@ on the Settings page.
   Library work), then Hardcover when a key is set, each filling what the one before lacks; search asks them all at once
   and joins the same book into one result. Hardcover is reached only with the user's key from settings, which never
   appears in an error or a log.
-- `storygraph.ts` reads StoryGraph's export CSV and writes the Goodreads library CSV StoryGraph imports; `csv.ts` reads
-  and writes CSV.
+- `storygraph.ts` reads StoryGraph's export CSV and writes the Goodreads library CSV StoryGraph and LibraryThing
+  import; `librarything.ts` reads LibraryThing's tab-separated or CSV export into the same shape; `csv.ts` reads and
+  writes CSV and reads LibraryThing's unquoted TSV.
 - `schedule.ts` runs `run_release_check` hourly on the server and the desktop; the check's last run syncs, so they do
   not both run it. A follow's first check stores what it finds as already alerted. The server's
   `src/server/book_alerts.ts` then sends one alert per book still unalerted through X-Libs' `server/notify` channels,
@@ -81,13 +82,14 @@ on the Settings page.
 `src/shared/games/`:
 
 - `model.ts` holds the rules that need no database, and is the games file the page imports for more than types:
-  statuses, which ids name one game, pasted links, platforms, playtime, sorting and the Games library's filters with
+  IGDB's statuses in their three groups, with older ones read as their nearest, which ids name one game, pasted links, platforms, playtime, sorting and the Games library's filters with
   counts.
 - `schema.ts`: `games_games`, keyed by the strongest id (`rawg:…`, else `mobygames:…`, `giantbomb:…`, `wikidata:…`,
   `steam:…`, `igdb:…`; a Trilium game with none is `title:<title>/<year>`), with the platforms a copy is owned on as a
   JSON list and, for DLC, `base_game`: the key of the game it adds to, such as `steam:620`, or a library id, found among
   the tracked games by any id (`find_base_game` in `model.ts`); `none` once set by hand as not DLC, so the catalogues
-  stop filling it in. `games_collections` and `games_game_collections`. All of them sync.
+  stop filling it in. Its `status` column still defaults to an older status, read as Backlog, since changing a default
+  rebuilds the table and would drop its collection links. `games_collections` and `games_game_collections`. All of them sync.
 - `rawg.ts`, `mobygames.ts`, `giantbomb.ts`, `wikidata.ts` and `steam.ts` are the catalogues' clients, each answering in
   `catalog.ts`'s shape. Adding or refreshing a game asks Wikidata first, by any id known, for the ids every other
   catalogue gives it, then RAWG, MobyGames and Giant Bomb (each only with its key) and Steam's store by their own ids;
@@ -97,6 +99,9 @@ on the Settings page.
 - `steam.ts` also reads a profile's owned games, with playtime, and its wishlist; `schedule.ts` runs `run_steam_sync`
   hourly on the server and the desktop, and the last import syncs, so they do not both run it. Steam is not a source
   plugin, since those import into Movies & Series.
+- `steam_collections.ts` reads the Steam client's library categories file; `import_steam_categories` gives games in a
+  category mapped in `games.steam_category_statuses` its status. The desktop finds the file in Steam's folder
+  (`src/main/steam_categories.ts`), offers it to the page through its own bridge and imports it on the Steam schedule.
 - `trilium.ts` reads the Trilium Game Tracker add-on's Database note and the statuses from its config note.
 - `igdb_export.ts` reads IGDB's data export page, by its tables' headers and without a DOM: lists as statuses or
   collections, ratings and reviews, each game by its title alone.

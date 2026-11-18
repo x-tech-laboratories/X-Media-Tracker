@@ -1,7 +1,9 @@
 import { DatabaseSync } from "node:sqlite";
 
+import { migrate } from "@x-tech-laboratories/x-libs/sql";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { games_feature } from "../src/shared/games/store.ts";
 import { bind_methods, open_store, secret_settings } from "../src/shared/store.ts";
 
 // ── Catalogue stand-ins ──────────────────────────────────────────────────────
@@ -123,7 +125,7 @@ describe("adding a game", () => {
       overview: "Think with portals.",
       genres: "Puzzle",
       developers: "Valve Software",
-      status: "want_to_play",
+      status: "backlog",
       added_at: "2026-11-17",
     });
     // Steam's upright library art beats RAWG's wide screenshot.
@@ -174,6 +176,30 @@ describe("DLC", () => {
     methods.set_game_base("steam:323180", "rawg:portal-2");
     expect(methods.get_game("steam:323180")).toMatchObject({ base_game: "rawg:portal-2", base_game_title: "Portal 2" });
     expect(() => methods.set_game_base("rawg:portal-2", "rawg:portal-2")).toThrow("itself");
+  });
+});
+
+describe("IGDB's statuses", () => {
+  it("move older statuses to their nearest, Steam's wishlist to Wishlist, and drop the Steam wishlist collection", async () => {
+    const database = new DatabaseSync(":memory:");
+    open_store(database);
+    const methods = bind_methods(() => database, () => undefined);
+    await methods.add_game("steam", "620");
+    database.exec("INSERT INTO games_games (id, steam_app_id, title) VALUES ('steam:400', '400', 'Portal')");
+    const wishlist = methods.save_game_collection({ name: "Steam wishlist" });
+    const favourites = methods.save_game_collection({ name: "Favourites" });
+    methods.set_game_collections("steam:400", [wishlist, favourites]);
+    const set_status = database.prepare("UPDATE games_games SET status = ? WHERE id = ?");
+    set_status.run("paused", "rawg:portal-2");
+    set_status.run("want_to_play", "steam:400");
+    expect(methods.get_game("rawg:portal-2")!.status).toBe("on_hold");
+    // Runs the statuses step again on its own, as on a database from before it.
+    database.exec("UPDATE schema_versions SET version = 2 WHERE owner = 'games'");
+    migrate(database, games_feature.migrations.slice(0, 3), { owner: "games" });
+    const stored = (id: string) => (database.prepare("SELECT status FROM games_games WHERE id = ?").get(id) as { status: string }).status;
+    expect([stored("rawg:portal-2"), stored("steam:400")]).toEqual(["on_hold", "wishlist"]);
+    expect(methods.list_games().collections.map((each) => each.name)).toEqual(["Favourites"]);
+    expect(methods.get_game("steam:400")!.collection_ids).toEqual([favourites]);
   });
 });
 
@@ -274,8 +300,8 @@ describe("Steam", () => {
       { appid: 400, name: "Portal", playtime_forever: 0, rtime_last_played: 0 },
     ];
     expect(await methods.import_steam_library()).toEqual({ added: 1, updated: 1 });
-    expect(methods.get_game("rawg:portal-2")).toMatchObject({ status: "playing", playtime_minutes: 305, owned_platforms: ["PC"] });
-    expect(methods.get_game("steam:400")).toMatchObject({ title: "Portal", status: "want_to_play", playtime_minutes: 0, owned_platforms: ["PC"] });
+    expect(methods.get_game("rawg:portal-2")).toMatchObject({ status: "currently_playing", playtime_minutes: 305, owned_platforms: ["PC"] });
+    expect(methods.get_game("steam:400")).toMatchObject({ title: "Portal", status: "backlog", playtime_minutes: 0, owned_platforms: ["PC"] });
     expect(requested("GetOwnedGames")[0]).toContain("steamid=76561197960287930");
   });
 
@@ -296,17 +322,19 @@ describe("Steam", () => {
     await expect(methods.import_steam_library()).rejects.toThrow("Game details to Public");
   });
 
-  it("keeps the wishlist collection to exactly the wishlist", async () => {
+  it("puts wished games on the Wishlist until they are owned", async () => {
     const methods = with_account();
     await methods.add_game("steam", "620");
-    const favourites = methods.save_game_collection({ name: "Favourites" });
-    wished = [{ appid: 620 }, { appid: 70 }];
-    expect(await methods.import_steam_wishlist()).toEqual({ added: 1, updated: 1, removed: 0 });
-    methods.set_game_collections("rawg:portal-2", [...methods.get_game("rawg:portal-2")!.collection_ids, favourites]);
-    expect(methods.get_game("steam:70")).toMatchObject({ title: "Wished 70", status: "want_to_play", year: "2027" });
-    wished = [{ appid: 70 }];
-    expect(await methods.import_steam_wishlist()).toEqual({ added: 0, updated: 1, removed: 1 });
-    expect(methods.get_game("rawg:portal-2")!.collection_ids).toEqual([favourites]);
+    owned = [{ appid: 400, name: "Portal", playtime_forever: 0, rtime_last_played: 0 }];
+    await methods.import_steam_library();
+    wished = [{ appid: 620 }, { appid: 400 }, { appid: 70 }];
+    expect(await methods.import_steam_wishlist()).toEqual({ added: 1, updated: 2 });
+    expect(methods.get_game("steam:70")).toMatchObject({ title: "Wished 70", status: "wishlist", year: "2027" });
+    expect(methods.get_game("rawg:portal-2")).toMatchObject({ status: "wishlist" });
+    expect(methods.get_game("steam:400")).toMatchObject({ status: "backlog" });
+    owned = [{ appid: 70, name: "Wished 70", playtime_forever: 0, rtime_last_played: 0 }];
+    await methods.import_steam_library();
+    expect(methods.get_game("steam:70")).toMatchObject({ status: "backlog", owned_platforms: ["PC"] });
   });
 
   it("imports on its schedule only when one is set and due", async () => {
@@ -315,9 +343,28 @@ describe("Steam", () => {
     expect(await methods.run_steam_sync(false)).toBeNull();
     methods.set_setting("games.steam_sync_hours", 6);
     const ran = await methods.run_steam_sync(false);
-    expect(ran).toMatchObject({ library: { added: 1, updated: 0 }, wishlist: { added: 0, updated: 0, removed: 0 }, failures: [] });
+    expect(ran).toMatchObject({ library: { added: 1, updated: 0 }, wishlist: { added: 0, updated: 0 }, failures: [] });
     expect(await methods.run_steam_sync(false)).toBeNull();
-    expect(methods.get_settings()["games.last_steam_result"]).toBe("library 1 added, 0 updated; wishlist 0 added, 0 left");
+    expect(methods.get_settings()["games.last_steam_result"]).toBe("library 1 added, 0 updated; wishlist 0 added");
+  });
+
+  it("gives games in a mapped category its status, the furthest along winning", async () => {
+    const methods = with_account();
+    owned = [400, 620, 570].map((appid) => ({ appid, name: `Game ${appid}`, playtime_forever: 0, rtime_last_played: 0 }));
+    await methods.import_steam_library();
+    const category = (name: string, added: number[]) => [`user-collections.${name}`, { key: `user-collections.${name}`, value: JSON.stringify({ id: name, name, added, removed: [] }) }];
+    const file = JSON.stringify([category("Finished", [400, 620, 999]), category("On hold", [620, 570]), category("Unmapped", [570])]);
+    methods.set_steam_category_status("Finished", "finished");
+    methods.set_steam_category_status("on hold", "on_hold");
+    methods.set_steam_category_status("Unmapped", "abandoned");
+    methods.set_steam_category_status("unmapped", "");
+    expect(methods.get_settings()["games.steam_category_statuses"]).toEqual({ Finished: "finished", "on hold": "on_hold" });
+    expect(methods.import_steam_categories(file)).toEqual({ categories: 3, updated: 3, untracked: 1 });
+    expect([400, 620, 570].map((appid) => methods.get_game(`steam:${appid}`)!.status)).toEqual(["finished", "finished", "on_hold"]);
+    expect(methods.get_settings()["games.steam_categories"]).toEqual(["Finished", "On hold", "Unmapped"]);
+    expect(methods.import_steam_categories(file)).toMatchObject({ updated: 0 });
+    expect(() => methods.import_steam_categories("[]")).toThrow("No categories found");
+    expect(() => methods.set_steam_category_status("Finished", "beaten" as never)).toThrow("Unknown status");
   });
 
   it("keeps every catalogue's key and the Steam key out of what other programs read", () => {
@@ -343,10 +390,10 @@ describe("the Trilium Game Tracker import", () => {
     expect(methods.import_trilium_games(database, config)).toEqual({ added: 1, updated: 1 });
     const library = methods.list_games();
     const names = new Map(library.collections.map((collection) => [collection.id, collection.name]));
-    expect(methods.get_game("rawg:portal-2")).toMatchObject({ status: "completed", rating: 7, playtime_minutes: 305, last_played: "2025-06-04" });
+    expect(methods.get_game("rawg:portal-2")).toMatchObject({ status: "finished", rating: 7, playtime_minutes: 305, last_played: "2025-06-04" });
     expect(methods.get_game("rawg:portal-2")!.collection_ids.map((id) => names.get(id))).toEqual(["Puzzles"]);
-    expect(methods.get_game("steam:105600")).toMatchObject({ title: "Terraria", status: "playing", owned_platforms: ["PC"] });
-    expect(methods.get_game("steam:105600")!.collection_ids.map((id) => names.get(id))).toEqual(["Endless"]);
+    expect(methods.get_game("steam:105600")).toMatchObject({ title: "Terraria", status: "endless", owned_platforms: ["PC"] });
+    expect(methods.get_game("steam:105600")!.collection_ids).toEqual([]);
   });
 
   it("refuses a file with no games", () => {
@@ -365,9 +412,9 @@ describe("the IGDB export import", () => {
     const methods = open_methods();
     methods.import_trilium_games(JSON.stringify({ games: { "steam:400": { steamAppId: "400", title: "Portal", status: "backlog" }, "steam:105600": { steamAppId: "105600", title: "Terraria", status: "playing" } } }), "");
     expect(methods.import_igdb_export(page)).toEqual({ added: 1, updated: 2 });
-    expect(methods.get_game("steam:400")).toMatchObject({ status: "played" });
-    expect(methods.get_game("steam:105600")).toMatchObject({ status: "playing" });
-    expect(methods.get_game("title:half life 2")).toMatchObject({ title: "Half-Life 2", status: "want_to_play", added_at: "2026-11-17" });
+    expect(methods.get_game("steam:400")).toMatchObject({ status: "finished" });
+    expect(methods.get_game("steam:105600")).toMatchObject({ status: "currently_playing" });
+    expect(methods.get_game("title:half life 2")).toMatchObject({ title: "Half-Life 2", status: "backlog", added_at: "2026-11-17" });
     expect(methods.import_igdb_export(page)).toEqual({ added: 0, updated: 3 });
   });
 

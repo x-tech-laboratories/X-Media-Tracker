@@ -34,6 +34,7 @@ export const games_games = sqliteTable(
     platforms: text().notNull().default(""),
     developers: text().notNull().default(""),
     publishers: text().notNull().default(""),
+    // An older status, read as Backlog; changing the default would rebuild the table and drop its collection links.
     status: text().notNull().default("want_to_play"),
     rating: real(),
     review: text().notNull().default(""),

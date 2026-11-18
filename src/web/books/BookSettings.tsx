@@ -1,5 +1,5 @@
 // The books' settings: the Hardcover key, how new books start, collections, how often new books are looked for and where
-// the server sends alerts for them, and StoryGraph's import and export.
+// the server sends alerts for them, and StoryGraph's and LibraryThing's import and export.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -49,7 +49,7 @@ function NewBookSettings({ settings, set_setting }: FeatureSettingsProps) {
           on_change={(status) => attempt(set_setting("books.default_status", status))}
         />
       </SettingRow>
-      <SettingRow label="Imports replace ratings" hint="Off keeps a rating already set; on lets a StoryGraph import's rating replace it.">
+      <SettingRow label="Imports replace ratings" hint="Off keeps a rating already set; on lets a StoryGraph or LibraryThing import's rating replace it.">
         <Switch label="Imports replace ratings" checked={settings["books.import_overwrite_ratings"] === true} on_change={(on) => set_setting("books.import_overwrite_ratings", on)} />
       </SettingRow>
     </>
@@ -198,6 +198,39 @@ function StoryGraphSettings() {
   );
 }
 
+// ── LibraryThing ─────────────────────────────────────────────────────────────
+
+function LibraryThingSettings() {
+  const file = useRef<HTMLInputElement>(null);
+
+  async function import_file(event: ChangeEvent<HTMLInputElement>): Promise<void> {
+    const text = await read_picked(event);
+    if (text === null) return;
+    try {
+      const report = await calls().import_librarything(text);
+      toast(`Imported ${report.added} new book(s) and merged ${report.updated} already here. Refresh in Books fills in covers and details.`, { tone: "good" });
+    } catch (error) {
+      toast(`Could not import: ${(error as Error).message}`, { tone: "bad" });
+    }
+  }
+
+  return (
+    <>
+      <SettingRow label="Import from LibraryThing" hint="LibraryThing's export from its Import/Export page, tab-separated (.tsv) or CSV: read days, ratings, reviews, owned, status from its Currently reading, To read and Wishlist collections, and its other collections and tags as collections. New books are added and ones already here are merged.">
+        <input ref={file} type="file" accept="text/tab-separated-values,text/csv,.tsv,.csv,.txt" hidden aria-label="LibraryThing export file" onChange={(event) => void import_file(event)} />
+        <button type="button" onClick={() => file.current?.click()}>
+          Import LibraryThing…
+        </button>
+      </SettingRow>
+      <SettingRow label="Export for LibraryThing" hint="The library as a Goodreads library export, which LibraryThing's Goodreads import reads.">
+        <button type="button" onClick={() => attempt(calls().export_storygraph().then((csv) => save_text("x-media-tracker-books.csv", csv)))}>
+          Export CSV
+        </button>
+      </SettingRow>
+    </>
+  );
+}
+
 // ── Sections ─────────────────────────────────────────────────────────────────
 
 export function book_settings(props: FeatureSettingsProps): SettingsSection[] {
@@ -207,5 +240,6 @@ export function book_settings(props: FeatureSettingsProps): SettingsSection[] {
     { id: "book-collections", heading: "Book collections", hint: "Your own shelves, such as Book club or Favourites; a book can be in several.", content: <CollectionSettings /> },
     { id: "book-alerts", heading: "New books and alerts", content: <AlertSettings {...props} /> },
     { id: "storygraph", heading: "StoryGraph", hint: "StoryGraph has no API, so books travel through its export files.", content: <StoryGraphSettings /> },
+    { id: "librarything", heading: "LibraryThing", hint: "LibraryThing's library travels through its export files.", content: <LibraryThingSettings /> },
   ];
 }

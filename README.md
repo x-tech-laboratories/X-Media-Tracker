@@ -47,6 +47,7 @@ TMDB supplies search, posters, episode lists and details, and needs a free API k
 - **Goals & stats:** a yearly goal in books, and how far along it is against an even pace; books and pages by month,
   ratings, formats and top genres.
 - **StoryGraph:** import its export, and export the library for StoryGraph to import.
+- **LibraryThing:** import its export, and export the library for LibraryThing's Goodreads import.
 
 BookBrainz and Open Library need no key: search, covers, descriptions, series and new books by the authors you follow
 come from them. A [Hardcover](https://hardcover.app) key, set under **Settings → Books → Catalogues**, adds Hardcover's
@@ -55,10 +56,12 @@ search, series in order and new books in the series you follow. Make the key wit
 
 ### Games
 
-- **Library:** every game as its box art or a table row, narrowed to games, DLC or both, by status (Want to play,
-  Playing, Paused, Played, Completed, Dropped), the platform you own it on and collection, each choice showing how many
-  games it would leave, and sorted by title, last played, release, rating, playtime or when added.
-- **A game's page:** status, rating, playtime and the day last played, edition, the platforms you own it on,
+- **Statuses:** IGDB's, in three groups: Want to play (Wishlist, Backlog), Playing (Currently playing, On hold,
+  Endless, Replaying) and Played (Finished, Completed, Abandoned).
+- **Library:** every game as its box art or a table row, narrowed to games, DLC or both, by a status or a whole group,
+  the platform you own it on and collection, each choice showing how many games it would leave, and sorted by title,
+  last played, release, rating, playtime or when added.
+- **A game's page:** status, picked by group and then within it, rating, playtime and the day last played, edition, the platforms you own it on,
   collections and the review, with what the catalogues say of it and a link to each.
 - **DLC:** a DLC or expansion names the game it adds to, linked from its page, and a game's page lists its DLC. Steam
   and RAWG say which game a DLC belongs to when it is added or refreshed; **Change** beside **DLC of** sets it by
@@ -66,7 +69,8 @@ search, series in order and new books in the series you follow. Make the key wit
 - **Search:** the bar at the top, in Games, searches your games, RAWG, MobyGames, Giant Bomb, Steam's store and
   Wikidata at once, the same game from several catalogues shown once; a pasted RAWG, MobyGames, Giant Bomb, Wikidata
   or Steam store link is added at once.
-- **Steam:** your library, with playtime and the day last played, and your wishlist, imported by hand or on a schedule.
+- **Steam:** your library, with playtime and the day last played, and your wishlist, imported by hand or on a schedule,
+  and your library's categories, each mapped to a status.
 
 Wikidata and Steam's store need no key. Wikidata matters most: its items name a game's RAWG, MobyGames, Giant Bomb,
 Steam and IGDB ids, so a game known to one catalogue, such as a game from your Steam library, is found in the others.
@@ -79,12 +83,18 @@ Steam's library art.
 
 Set a [Steam Web API key](https://steamcommunity.com/dev/apikey) and your Steam profile under **Settings → Games →
 Steam**: its 64-bit id (shown at the top of store.steampowered.com/account), its custom URL name, or a link to it; the profile's **Game details** must be public. **Import library** adds
-every game you own, owned on PC, as Playing once played and Want to play before; a game already here takes Steam's
-playtime and last day played when they are later, and keeps its status unless it was Want to play. **Import wishlist**
-adds wished games as Want to play and keeps the **Steam wishlist** collection to exactly your wishlist. With **Import
-from Steam every** set to some hours, the server and the desktop app import both on that schedule; the last import
-syncs, so they do not both run it. New games from Steam have their names and box art at once; **Refresh** in Games fills
-in the rest from the catalogues.
+every game you own, owned on PC, as Currently playing once played and Backlog before; a game already here takes Steam's
+playtime and last day played when they are later, leaves the Wishlist for the Backlog, and keeps its status unless it
+was still wanted and has now been played. **Import wishlist** adds wished games as Wishlist, and moves a game in the
+Backlog you own nowhere to the Wishlist. With **Import from Steam every** set to some hours, the server and the desktop
+app import both on that schedule; the last import syncs, so they do not both run it. New games from Steam have their
+names and box art at once; **Refresh** in Games fills in the rest from the catalogues.
+
+Steam's Web API does not give your library's categories, so **Settings → Games → Steam categories** reads them from
+the Steam client's own file, `userdata/<account>/config/cloudstorage/cloud-storage-namespace-1.json` in Steam's folder:
+the desktop app with **Read from this computer**, and every hour on its own, or any device with **Pick file…**. Each
+category read is listed with a status to give its games, or **Leave as is**; every tracked game in a mapped category
+then takes that status, the one furthest along when it is in several. Nothing is written back to Steam.
 
 ## Coming from StoryGraph
 
@@ -97,6 +107,18 @@ and keeps its rating unless **Imports replace ratings** is on. Books from StoryG
 
 **Export CSV** writes the library as a Goodreads library export, which StoryGraph's Goodreads import reads, as does
 Hardcover's.
+
+## Coming from LibraryThing
+
+LibraryThing has no API for a library, so books travel through files too. Export your library from LibraryThing's
+**Import/Export** page as tab-separated text or CSV, and pick it under **Settings → Books → LibraryThing → Import
+LibraryThing**. Each book keeps its start and finish days, rating, review and format (from Media); it is Reading when
+started but not finished or in **Currently reading**, Read when finished or in **Read but unowned**, else Want to read,
+and owned when in **Your library**. Its other collections and its tags become collections. Books already here merge as
+they do from StoryGraph.
+
+LibraryThing's **Export CSV** writes the same Goodreads library export as StoryGraph's, which LibraryThing's Goodreads
+import reads.
 
 ## Alerts for new books
 
@@ -159,8 +181,8 @@ title until **Refresh** in Games finds them on Wikidata.
 
 For the Trilium Game Tracker add-on, save its `Database` note's text as a `.json` file and pick it under **Settings →
 Games → Trilium Game Tracker → Import Trilium**. To keep the statuses you added in the add-on, such as Endless, pick its
-`config.json` note first with **Pick config**; each becomes the built-in status of its role and a collection of its
-name. Only the config's statuses are read; its Steam key stays on the page. Games keep their Steam id, status, rating,
+`config.json` note first with **Pick config**; each becomes the status of its name, such as Endless, or else the
+nearest status by its role and a collection of its name. Only the config's statuses are read; its Steam key stays on the page. Games keep their Steam id, status, rating,
 playtime, days and collections; a game already here gains its playtime, days and collections and keeps its own status
 and rating.
 
@@ -293,6 +315,8 @@ X-Media-Tracker is built on these services and the people who keep them:
   progress, re-reads, reading journal, goals and stats inspired the Books section's.
 - [The StoryGraph](https://thestorygraph.com/): its library export is imported, and the export for it is written in the
   Goodreads format its importer reads.
+- [LibraryThing](https://www.librarything.com/): its library export is imported, and the export for it is written in
+  the Goodreads format its importer reads.
 - [BookNotification](https://www.booknotification.com/): its alerts for new books by the authors and series you follow
   inspired Upcoming and its alerts.
 - [RAWG](https://rawg.io/): game details, through its API.

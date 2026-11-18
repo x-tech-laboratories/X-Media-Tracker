@@ -199,7 +199,7 @@ function LibraryPage({ library }: { library: Books }) {
         />
       </Toolbar>
       {library.books.length === 0 ? (
-        <Empty title="No books yet." hint="Search for a book in the bar at the top, paste a link or an ISBN, or import a StoryGraph export under Settings → Books." />
+        <Empty title="No books yet." hint="Search for a book in the bar at the top, paste a link or an ISBN, or import a StoryGraph or LibraryThing export under Settings → Books." />
       ) : shown.length === 0 ? (
         <Empty title="No books match these filters." />
       ) : (

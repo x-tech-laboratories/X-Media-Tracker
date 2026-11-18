@@ -25,7 +25,19 @@ export const migrations: DrizzleMigration[] = [
     ]
   },
   {
-    "name": "20261118135651_cover_files",
+    "name": "20261118140650_igdb_statuses",
+    "statements": [
+      "-- IGDB's statuses: games on the Steam wishlist become Wishlist, the rest move to their nearest status, and the Steam wishlist collection gives way to the Wishlist status.\nUPDATE `games_games` SET `status` = 'wishlist' WHERE `status` = 'want_to_play' AND `id` IN (SELECT `game_id` FROM `games_game_collections` WHERE `collection_id` IN (SELECT `id` FROM `games_collections` WHERE lower(`name`) = 'steam wishlist'));",
+      "UPDATE `games_games` SET `status` = 'backlog' WHERE `status` = 'want_to_play';",
+      "UPDATE `games_games` SET `status` = 'currently_playing' WHERE `status` = 'playing';",
+      "UPDATE `games_games` SET `status` = 'on_hold' WHERE `status` = 'paused';",
+      "UPDATE `games_games` SET `status` = 'finished' WHERE `status` = 'played';",
+      "UPDATE `games_games` SET `status` = 'abandoned' WHERE `status` = 'dropped';",
+      "DELETE FROM `games_collections` WHERE lower(`name`) = 'steam wishlist';"
+    ]
+  },
+  {
+    "name": "20261118144824_cover_files",
     "statements": [
       "ALTER TABLE `games_games` ADD `cover_file` text DEFAULT '' NOT NULL;",
       "ALTER TABLE `games_games` ADD `cover_file_from` text DEFAULT '' NOT NULL;"

@@ -4,11 +4,73 @@
 
 // ── Games ────────────────────────────────────────────────────────────────────
 
-export const game_statuses = ["want_to_play", "playing", "paused", "played", "completed", "dropped"] as const;
+// IGDB's statuses: three groups, each split into the statuses a game takes, in order from not yet played to done.
+export const game_status_groups = ["want_to_play", "playing", "played"] as const;
+
+export type GameStatusGroup = (typeof game_status_groups)[number];
+
+export const game_status_group_labels: Record<GameStatusGroup, string> = { want_to_play: "Want to play", playing: "Playing", played: "Played" };
+
+export const game_statuses = ["wishlist", "backlog", "currently_playing", "on_hold", "endless", "replaying", "finished", "completed", "abandoned"] as const;
 
 export type GameStatus = (typeof game_statuses)[number];
 
-export const game_status_labels: Record<GameStatus, string> = { want_to_play: "Want to play", playing: "Playing", paused: "Paused", played: "Played", completed: "Completed", dropped: "Dropped" };
+export const game_status_labels: Record<GameStatus, string> = {
+  wishlist: "Wishlist",
+  backlog: "Backlog",
+  currently_playing: "Currently playing",
+  on_hold: "On hold",
+  endless: "Endless",
+  replaying: "Replaying",
+  finished: "Finished",
+  completed: "Completed",
+  abandoned: "Abandoned",
+};
+
+export const game_status_group_of: Record<GameStatus, GameStatusGroup> = {
+  wishlist: "want_to_play",
+  backlog: "want_to_play",
+  currently_playing: "playing",
+  on_hold: "playing",
+  endless: "playing",
+  replaying: "playing",
+  finished: "played",
+  completed: "played",
+  abandoned: "played",
+};
+
+// The status a game takes when only its group is chosen.
+export const game_group_status: Record<GameStatusGroup, GameStatus> = { want_to_play: "backlog", playing: "currently_playing", played: "finished" };
+
+export function statuses_in_group(group: GameStatusGroup): GameStatus[] {
+  return game_statuses.filter((status) => game_status_group_of[status] === group);
+}
+
+// A status and its group, such as "Playing · On hold".
+export function game_status_text(status: GameStatus): string {
+  return `${game_status_group_labels[game_status_group_of[status]]} · ${game_status_labels[status]}`;
+}
+
+// Statuses before IGDB's, as an older device may still sync them.
+const older_statuses: Record<string, GameStatus> = { want_to_play: "backlog", playing: "currently_playing", paused: "on_hold", played: "finished", dropped: "abandoned" };
+
+// A stored status as one of today's, or Backlog when it is none.
+export function game_status_of(value: unknown): GameStatus {
+  if (is_game_status(value)) return value;
+  return (typeof value === "string" && older_statuses[value]) || "backlog";
+}
+
+// From wanting a game to having played it, so of two statuses for one game the later says more.
+export const game_status_rank: readonly GameStatus[] = ["backlog", "wishlist", "on_hold", "currently_playing", "endless", "replaying", "abandoned", "finished", "completed"];
+
+export function furthest_status(first: GameStatus, second: GameStatus): GameStatus {
+  return game_status_rank.indexOf(second) > game_status_rank.indexOf(first) ? second : first;
+}
+
+// Whether a game counts as not yet played, so an import that finds it played may move it on.
+export function is_unplayed(status: GameStatus): boolean {
+  return game_status_group_of[status] === "want_to_play";
+}
 
 export interface GameIds {
   rawg_id: string;
@@ -216,7 +278,8 @@ export function sort_games<Item extends LibraryGame>(games: Item[], key: GameSor
 export interface GameFilters {
   search: string;
   kind: "games" | "dlc" | "all";
-  status: "all" | GameStatus;
+  // A status, a group of them, or "all".
+  status: "all" | GameStatus | GameStatusGroup;
   platform: string;
   collection: string;
 }
@@ -236,7 +299,7 @@ function matches_search(game: LibraryGame, search: string): boolean {
 function passes(game: LibraryGame, filters: GameFilters, skip: GameFacet | null): boolean {
   if (skip !== "search" && filters.search && !matches_search(game, filters.search)) return false;
   if (skip !== "kind" && filters.kind !== "all" && is_dlc(game) !== (filters.kind === "dlc")) return false;
-  if (skip !== "status" && filters.status !== "all" && game.status !== filters.status) return false;
+  if (skip !== "status" && filters.status !== "all" && game.status !== filters.status && game_status_group_of[game.status] !== filters.status) return false;
   if (skip !== "platform" && filters.platform !== "all") {
     if (filters.platform === "none" ? game.owned_platforms.length > 0 : !game.owned_platforms.includes(filters.platform)) return false;
   }
@@ -263,6 +326,7 @@ export function game_facet_counts(games: LibraryGame[], filters: GameFilters): G
     }
     if (passes(game, filters, "status")) {
       bump(counts.status, "all");
+      bump(counts.status, game_status_group_of[game.status]);
       bump(counts.status, game.status);
     }
     if (passes(game, filters, "platform")) {

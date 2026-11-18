@@ -5,7 +5,7 @@
 
 import { MediaGrid, MediaTile } from "@x-tech-laboratories/x-libs/web/react/media";
 import { MenuButton } from "@x-tech-laboratories/x-libs/web/react/menu_button";
-import { Segmented, Select } from "@x-tech-laboratories/x-libs/web/react/controls";
+import { Segmented, Select, TreeSelect } from "@x-tech-laboratories/x-libs/web/react/controls";
 import { PageHeading, Stack, Toolbar } from "@x-tech-laboratories/x-libs/web/react/layout";
 import { ProgressBar } from "@x-tech-laboratories/x-libs/web/react/progress";
 import { Empty, Loaded } from "@x-tech-laboratories/x-libs/web/react/states";
@@ -23,7 +23,11 @@ import {
   game_kind_labels,
   game_sort_keys,
   game_sort_labels,
+  game_status_group_labels,
+  game_status_group_of,
+  game_status_groups,
   game_status_labels,
+  game_status_text,
   game_statuses,
   no_game_filters,
   owned_platforms_of,
@@ -42,6 +46,18 @@ import { use_cover } from "../covers.tsx";
 function is_filters(value: unknown): value is Omit<GameFilters, "search"> {
   const filters = value as Partial<GameFilters> | null;
   return !!filters && typeof filters.status === "string" && typeof filters.platform === "string" && typeof filters.collection === "string";
+}
+
+const status_filters: string[] = ["all", ...game_status_groups, ...game_statuses];
+
+// Each group, with its statuses under it, for the status filter.
+const status_tree = [
+  ...game_status_groups.map((group, position) => ({ id: group, parent_id: null, position })),
+  ...game_statuses.map((status, position) => ({ id: status, parent_id: game_status_group_of[status], position })),
+];
+
+function status_name(id: string): string {
+  return id in game_status_group_labels ? game_status_group_labels[id as keyof typeof game_status_group_labels] : game_status_labels[id as keyof typeof game_status_labels];
 }
 
 const game_kinds: GameFilters["kind"][] = ["games", "dlc", "all"];
@@ -69,7 +85,7 @@ function GameTile({ game }: { game: LibraryGame }) {
       image={image}
       corner={stars_text(game.rating) || undefined}
       lines={[[game.year, format_playtime(game.playtime_minutes)].filter(Boolean).join(" · "), game_status_labels[game.status]]}
-      dimmed={game.status === "dropped"}
+      dimmed={game.status === "abandoned"}
       actions={<GameActions game={game} />}
     />
   );
@@ -78,7 +94,7 @@ function GameTile({ game }: { game: LibraryGame }) {
 const table_columns: TableColumn<LibraryGame>[] = [
   { label: "Title", cell: (game) => <a href={game_href(game.id)}>{game.title}</a> },
   { label: "Year", cell: (game) => game.year || "—" },
-  { label: "Status", cell: (game) => game_status_labels[game.status] },
+  { label: "Status", cell: (game) => game_status_text(game.status) },
   { label: "Rating", cell: (game) => stars_text(game.rating) || "—" },
   { label: "Owned on", cell: (game) => game.owned_platforms.join(", ") || "—" },
   { label: "Playtime", cell: (game) => format_playtime(game.playtime_minutes) || "—" },
@@ -126,7 +142,9 @@ function LibraryPage({ library }: { library: Games }) {
   // A remembered platform or collection that is gone stops applying.
   const platform = remembered.platform === "all" || remembered.platform === "none" || platforms.includes(remembered.platform) ? remembered.platform : "all";
   const collection = remembered.collection === "all" || remembered.collection === "none" || library.collections.some((each) => each.id === remembered.collection) ? remembered.collection : "all";
-  const filters: GameFilters = { ...remembered_defaults, ...remembered, search: "", platform, collection };
+  // A remembered status from before IGDB's statuses stops applying too.
+  const status = status_filters.includes(remembered.status) ? remembered.status : "all";
+  const filters: GameFilters = { ...remembered_defaults, ...remembered, search: "", status, platform, collection };
   const set_filter = (change: Partial<GameFilters>) => set_remembered({ ...remembered, ...change });
   const counts = game_facet_counts(library.games, filters);
   const shown = sort_games(filter_games(library.games, filters), sort_key, descending);
@@ -150,11 +168,13 @@ function LibraryPage({ library }: { library: Games }) {
           value={filters.kind}
           on_change={(kind) => set_filter({ kind })}
         />
-        <Segmented
+        <TreeSelect
           label="Status"
-          choices={[{ value: "all", label: with_count("Any status", counts.status.all) }, ...game_statuses.map((status) => ({ value: status, label: with_count(game_status_labels[status], counts.status[status]) }))]}
-          value={filters.status}
-          on_change={(status) => set_filter({ status })}
+          items={status_tree}
+          name_of={(item) => with_count(status_name(item.id), counts.status[item.id])}
+          blank_label={with_count("Any status", counts.status.all)}
+          value={filters.status === "all" ? "" : filters.status}
+          on_change={(chosen) => set_filter({ status: (chosen || "all") as GameFilters["status"] })}
         />
         <Select
           label="Owned on"

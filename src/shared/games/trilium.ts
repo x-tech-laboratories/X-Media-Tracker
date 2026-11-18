@@ -1,10 +1,10 @@
 // The Trilium Game Tracker add-on's library: its Database note, one JSON object of games keyed by their strongest id
 // such as "steam:620", and its config note's statuses, read into the store's shapes. A status the user added in the
-// add-on, such as "Endless", becomes the nearest built-in status by its role, and a collection of its name.
+// add-on becomes the status of its name, such as Endless, or else the nearest status by its role and a collection of its name.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
-import { clean_names, release_day, type GameStatus } from "./model.ts";
+import { clean_names, game_status_labels, game_statuses, release_day, type GameStatus } from "./model.ts";
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
 
@@ -51,9 +51,14 @@ function parse(raw: string): unknown {
 // ── Statuses ─────────────────────────────────────────────────────────────────
 
 // The add-on's own statuses, and the roles a status the user added can take.
-const built_in: Record<string, GameStatus> = { backlog: "want_to_play", playing: "playing", paused: "paused", beaten: "completed", completed: "completed", dropped: "dropped" };
+const built_in: Record<string, GameStatus> = { backlog: "backlog", playing: "currently_playing", paused: "on_hold", beaten: "finished", completed: "completed", dropped: "abandoned" };
 
-const roles: Record<string, GameStatus> = { backlog: "want_to_play", playing: "playing", paused: "paused", done: "completed", dropped: "dropped" };
+const roles: Record<string, GameStatus> = { backlog: "backlog", playing: "currently_playing", paused: "on_hold", done: "finished", dropped: "abandoned" };
+
+// A status the user added with the name of one of ours, such as Endless, is that status.
+function status_named(name: string): GameStatus | undefined {
+  return game_statuses.find((status) => game_status_labels[status].toLowerCase() === name.toLowerCase());
+}
 
 export interface StatusMeaning {
   status: GameStatus;
@@ -68,7 +73,8 @@ export function read_trilium_statuses(raw: string): Record<string, StatusMeaning
   for (const [id, entry] of Object.entries(entries)) {
     if (built_in[id]) continue;
     const fields = as_object(entry) ?? {};
-    meanings[id] = { status: roles[text(fields.role)] ?? "want_to_play", collection: text(fields.name) };
+    const named = status_named(text(fields.name));
+    meanings[id] = named ? { status: named, collection: "" } : { status: roles[text(fields.role)] ?? "backlog", collection: text(fields.name) };
   }
   return meanings;
 }
@@ -84,7 +90,7 @@ export function read_trilium_games(raw: string, statuses: Record<string, StatusM
     const title = text(game?.title);
     if (!game || !title) continue;
     const steam_app_id = text(game.steamAppId) || (key.startsWith("steam:") ? key.slice("steam:".length) : "");
-    const meaning = statuses[text(game.status)] ?? { status: "want_to_play" as const, collection: "" };
+    const meaning = statuses[text(game.status)] ?? { status: "backlog" as const, collection: "" };
     const rating = Number(game.rating);
     const collections = (Array.isArray(game.collections) ? game.collections : []).map(text);
     found.push({

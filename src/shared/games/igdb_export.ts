@@ -4,7 +4,7 @@
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
-import { clean_names, type GameStatus } from "./model.ts";
+import { clean_names, furthest_status, type GameStatus } from "./model.ts";
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
 
@@ -62,27 +62,26 @@ function read_sections(html: string): Section[] {
 
 // ── Meanings ─────────────────────────────────────────────────────────────────
 
-// Later wins when a game is in several places: having played it says more than wanting to.
-const status_rank: GameStatus[] = ["want_to_play", "paused", "playing", "dropped", "played", "completed"];
-
-const list_statuses: Record<string, GameStatus> = { "want to play": "want_to_play", playing: "playing", played: "played" };
+const list_statuses: Record<string, GameStatus> = { "want to play": "backlog", playing: "currently_playing", played: "finished" };
 
 // An entry's own status, as IGDB's list entries name them.
 const entry_statuses: Record<string, GameStatus> = {
-  backlog: "want_to_play",
-  "want to play": "want_to_play",
-  wishlist: "want_to_play",
-  "currently playing": "playing",
-  playing: "playing",
-  paused: "paused",
-  "on hold": "paused",
-  shelved: "paused",
+  wishlist: "wishlist",
+  backlog: "backlog",
+  "want to play": "backlog",
+  "currently playing": "currently_playing",
+  playing: "currently_playing",
+  "on hold": "on_hold",
+  paused: "on_hold",
+  shelved: "on_hold",
+  endless: "endless",
+  replaying: "replaying",
+  finished: "finished",
+  beaten: "finished",
+  played: "finished",
   completed: "completed",
-  finished: "completed",
-  beaten: "completed",
-  played: "played",
-  abandoned: "dropped",
-  dropped: "dropped",
+  abandoned: "abandoned",
+  dropped: "abandoned",
 };
 
 // IGDB rates out of 10 or, in older exports, out of 100; either becomes 1 to 10.
@@ -101,12 +100,11 @@ export function read_igdb_export(html: string): IgdbGame[] {
   const game_named = (title: string): IgdbGame => {
     const key = title.toLowerCase();
     let game = games.get(key);
-    if (!game) games.set(key, (game = { title, status: "want_to_play", rating: null, review: "", platforms: [], collections: [] }));
+    if (!game) games.set(key, (game = { title, status: "backlog", rating: null, review: "", platforms: [], collections: [] }));
     return game;
   };
-  const raise = (game: IgdbGame, status: GameStatus) => {
-    if (status_rank.indexOf(status) > status_rank.indexOf(game.status)) game.status = status;
-  };
+  // Having played a game says more than wanting to, so the furthest status of a game in several places wins.
+  const raise = (game: IgdbGame, status: GameStatus) => void (game.status = furthest_status(game.status, status));
 
   for (const section of read_sections(html)) {
     const name = section.heading.toLowerCase();
@@ -117,7 +115,7 @@ export function read_igdb_export(html: string): IgdbGame[] {
         const game = game_named(title);
         const from_list = list_statuses[name];
         if (!from_list) game.collections = clean_names([...game.collections, section.heading]);
-        raise(game, entry_statuses[(row.status ?? "").toLowerCase()] ?? from_list ?? "want_to_play");
+        raise(game, entry_statuses[(row.status ?? "").toLowerCase()] ?? from_list ?? "backlog");
         if (row.platform) game.platforms = clean_names([...game.platforms, row.platform]);
       } else if ("rating" in row) {
         game_named(title).rating = rating_of(row.rating ?? "");
