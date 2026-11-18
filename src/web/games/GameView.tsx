@@ -5,7 +5,7 @@
 
 import { useState } from "react";
 import { ChipField } from "@x-tech-laboratories/x-libs/web/react/chip_field";
-import { CommitInput, DateTimeField, NumberField, Segmented } from "@x-tech-laboratories/x-libs/web/react/controls";
+import { CommitInput, DateTimeField, NumberField } from "@x-tech-laboratories/x-libs/web/react/controls";
 import { confirm_dialog, Dialog, open_dialog } from "@x-tech-laboratories/x-libs/web/react/dialog";
 import { Facts, FormRow, PageHeading, Section, Stack } from "@x-tech-laboratories/x-libs/web/react/layout";
 import { MediaGrid, MediaTile } from "@x-tech-laboratories/x-libs/web/react/media";
@@ -22,13 +22,13 @@ import {
   find_base_game,
   game_links,
   game_status_labels,
-  game_statuses,
   is_dlc,
   type GameCollection,
   type GameIds,
   type LibraryGame,
 } from "../../shared/games/model.ts";
 import { attempt, game_href, set_game_status } from "./actions.tsx";
+import { StatusPicker } from "./StatusPicker.tsx";
 
 // ── Owning ───────────────────────────────────────────────────────────────────
 
@@ -229,10 +229,7 @@ function GamePage({ game, games, collections, known_platforms }: { game: Library
           <Facts
             layout="rows"
             rows={[
-              [
-                "Status",
-                <Segmented label="Status" choices={game_statuses.map((status) => ({ value: status, label: game_status_labels[status] }))} value={game.status} on_change={(status) => set_game_status(game, status)} />,
-              ],
+              ["Status", <StatusPicker status={game.status} on_change={(status) => set_game_status(game, status)} />],
               ["Rating", <Rating label="Rating" max={10} value={game.rating} on_change={(rating) => attempt(calls().set_game_rating(game.id, rating))} />],
               [
                 "Playtime",

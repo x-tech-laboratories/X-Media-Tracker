@@ -9,6 +9,7 @@ import {
   game_facet_counts,
   game_key,
   game_links,
+  game_status_of,
   no_game_filters,
   parse_game_link,
   release_day,
@@ -17,6 +18,7 @@ import {
 } from "../src/shared/games/model.ts";
 import { read_igdb_export } from "../src/shared/games/igdb_export.ts";
 import { parse_steam_id, parse_steam_name } from "../src/shared/games/steam.ts";
+import { read_steam_categories, steam_account_folder } from "../src/shared/games/steam_collections.ts";
 import { read_trilium_games, read_trilium_statuses } from "../src/shared/games/trilium.ts";
 
 function game(fields: Partial<LibraryGame>): LibraryGame {
@@ -37,7 +39,7 @@ function game(fields: Partial<LibraryGame>): LibraryGame {
     platforms: "",
     developers: "",
     publishers: "",
-    status: "want_to_play",
+    status: "backlog",
     rating: null,
     review: "",
     owned_platforms: [],
@@ -113,12 +115,15 @@ describe("joining catalogue answers", () => {
 
 describe("the Games library", () => {
   const games = [
-    game({ id: "a", title: "Hades", status: "playing", owned_platforms: ["PC", "Nintendo Switch"], collection_ids: ["c1"], playtime_minutes: 600, rating: 9 }),
+    game({ id: "a", title: "Hades", status: "currently_playing", owned_platforms: ["PC", "Nintendo Switch"], collection_ids: ["c1"], playtime_minutes: 600, rating: 9 }),
     game({ id: "b", title: "Celeste", status: "completed", owned_platforms: ["PC"], playtime_minutes: 300 }),
-    game({ id: "c", title: "Outer Wilds", status: "want_to_play" }),
+    game({ id: "c", title: "Outer Wilds", status: "wishlist" }),
   ];
 
   it("filters by status, platform and collection", () => {
+    expect(filter_games(games, { ...no_game_filters, status: "completed" }).map((each) => each.id)).toEqual(["b"]);
+    expect(filter_games(games, { ...no_game_filters, status: "played" }).map((each) => each.id)).toEqual(["b"]);
+    expect(filter_games(games, { ...no_game_filters, status: "want_to_play" }).map((each) => each.id)).toEqual(["c"]);
     expect(filter_games(games, { ...no_game_filters, platform: "PC" }).map((each) => each.id)).toEqual(["a", "b"]);
     expect(filter_games(games, { ...no_game_filters, platform: "none" }).map((each) => each.id)).toEqual(["c"]);
     expect(filter_games(games, { ...no_game_filters, collection: "c1" }).map((each) => each.id)).toEqual(["a"]);
@@ -127,7 +132,7 @@ describe("the Games library", () => {
 
   it("counts each choice narrowed by every other filter but its own", () => {
     const counts = game_facet_counts(games, { ...no_game_filters, status: "playing" });
-    expect(counts.status).toEqual({ all: 3, playing: 1, completed: 1, want_to_play: 1 });
+    expect(counts.status).toEqual({ all: 3, playing: 1, currently_playing: 1, played: 1, completed: 1, want_to_play: 1, wishlist: 1 });
     expect(counts.platform).toEqual({ all: 1, PC: 1, "Nintendo Switch": 1 });
   });
 
@@ -185,12 +190,12 @@ describe("the Trilium Game Tracker", () => {
     },
   });
 
-  it("reads each game, a status of the user's own as its role and a collection of its name", () => {
+  it("reads each game, a status of the user's own as the status of its name, else its role and a collection of its name", () => {
     const games = read_trilium_games(database, read_trilium_statuses(config));
     expect(games.map((each) => [each.title, each.status, each.collections])).toEqual([
-      ["Portal 2", "completed", ["Puzzles"]],
-      ["Terraria", "playing", ["Endless"]],
-      ["A Let's Play", "completed", ["Watched Let's Play"]],
+      ["Portal 2", "finished", ["Puzzles"]],
+      ["Terraria", "endless", []],
+      ["A Let's Play", "finished", ["Watched Let's Play"]],
     ]);
     expect(games[0]).toMatchObject({ steam_app_id: "620", rating: 9, playtime_minutes: 305, last_played: "2025-06-04", added_at: "2026-07-28" });
   });
@@ -198,7 +203,7 @@ describe("the Trilium Game Tracker", () => {
   it("reads a blank or broken file as no games", () => {
     expect(read_trilium_games("")).toEqual([]);
     expect(read_trilium_games("{not json")).toEqual([]);
-    expect(read_trilium_statuses("{").backlog).toEqual({ status: "want_to_play", collection: "" });
+    expect(read_trilium_statuses("{").backlog).toEqual({ status: "backlog", collection: "" });
   });
 });
 
@@ -221,15 +226,53 @@ describe("IGDB's data export", () => {
   it("reads lists as statuses, own lists as collections, and ratings and reviews", () => {
     const games = read_igdb_export(page);
     expect(games.map((each) => [each.title, each.status])).toEqual([
-      ["Portal 2", "played"],
-      ["Hollow Knight: Silksong", "want_to_play"],
-      ["Deus Ex", "dropped"],
-      ["Tom & Jerry", "want_to_play"],
+      ["Portal 2", "finished"],
+      ["Hollow Knight: Silksong", "backlog"],
+      ["Deus Ex", "abandoned"],
+      ["Tom & Jerry", "backlog"],
     ]);
     expect(games[0]).toMatchObject({ rating: 9, review: "Brilliant\n\nThink with portals.", platforms: ["PC"], collections: ["Couch co-op"] });
   });
 
   it("reads a page that is not an export as no games", () => {
     expect(read_igdb_export("<html><h1>Hello</h1></html>")).toEqual([]);
+  });
+});
+
+describe("IGDB's statuses", () => {
+  it("reads a status from before them as the nearest one, and anything else as Backlog", () => {
+    expect([game_status_of("want_to_play"), game_status_of("playing"), game_status_of("paused"), game_status_of("played"), game_status_of("dropped")]).toEqual([
+      "backlog",
+      "currently_playing",
+      "on_hold",
+      "finished",
+      "abandoned",
+    ]);
+    expect(game_status_of("endless")).toBe("endless");
+    expect(game_status_of("beaten")).toBe("backlog");
+  });
+});
+
+describe("Steam's library categories", () => {
+  const entry = (key: string, value: object | null, deleted = false) => [key, { key, timestamp: 1, version: "1", ...(deleted ? { is_deleted: true } : { value: JSON.stringify(value) }) }];
+  const file = JSON.stringify([
+    entry("user-collections.uc-a", { id: "uc-a", name: "Finished", added: [620, 400, 620], removed: [] }),
+    entry("user-collections.favorite", { id: "favorite", name: "Favorites", added: [570], removed: [] }),
+    entry("user-collections.uc-b", null, true),
+    entry("user-collections.uc-c", { id: "uc-c", name: "Linux native", filterSpec: { nFormatVersion: 2 } }),
+    entry("showcases", { anything: true }),
+  ]);
+
+  it("reads each category's name and games, leaving out deleted and filtered ones", () => {
+    expect(read_steam_categories(file)).toEqual([
+      { name: "Favorites", app_ids: ["570"] },
+      { name: "Finished", app_ids: ["620", "400"] },
+    ]);
+    expect(read_steam_categories("{broken")).toEqual([]);
+  });
+
+  it("finds a profile's userdata folder by its 64-bit id", () => {
+    expect(steam_account_folder("https://steamcommunity.com/profiles/76561197960287930")).toBe("22202");
+    expect(steam_account_folder("gabelogannewell")).toBe("");
   });
 });

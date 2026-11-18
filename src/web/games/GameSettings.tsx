@@ -1,21 +1,23 @@
 // The games' settings: the catalogues' keys, how new games start, collections, the Steam profile whose library and
-// wishlist come in and how often, and the Trilium Game Tracker's and IGDB's imports.
+// wishlist come in and how often, the status each Steam category gives, and the Trilium Game Tracker's and IGDB's imports.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
 import { useRef, useState, type ChangeEvent } from "react";
-import { CommitInput, NumberField, Segmented } from "@x-tech-laboratories/x-libs/web/react/controls";
+import { CommitInput, NumberField } from "@x-tech-laboratories/x-libs/web/react/controls";
 import { confirm_dialog } from "@x-tech-laboratories/x-libs/web/react/dialog";
 import { SettingRow, type SettingsSection } from "@x-tech-laboratories/x-libs/web/react/layout";
 import { Loaded } from "@x-tech-laboratories/x-libs/web/react/states";
 import { toast } from "@x-tech-laboratories/x-libs/web/react/toasts";
 
-import { calls, use_data } from "../api.ts";
+import { calls, page, use_data } from "../api.ts";
 import { read_picked } from "../files.ts";
 import type { FeatureSettingsProps } from "../features.tsx";
 import { SecretRow, TextRow } from "../settings/rows.tsx";
-import { game_status_labels, game_statuses, type GameCollection } from "../../shared/games/model.ts";
+import { game_status_of, is_game_status, type GameCollection, type GameStatus } from "../../shared/games/model.ts";
+import type { SteamCategoryReport } from "../../shared/games/store.ts";
 import { attempt } from "./actions.tsx";
+import { StatusSelect } from "./StatusPicker.tsx";
 
 // ── Catalogues ───────────────────────────────────────────────────────────────
 
@@ -38,12 +40,7 @@ function CatalogueSettings(props: FeatureSettingsProps) {
 function NewGameSettings({ settings, set_setting }: FeatureSettingsProps) {
   return (
     <SettingRow label="Status for new games" hint="A game added by hand starts with this; an import takes its status from what it imports.">
-      <Segmented
-        label="Status for new games"
-        choices={game_statuses.map((status) => ({ value: status, label: game_status_labels[status] }))}
-        value={String(settings["games.default_status"]) as (typeof game_statuses)[number]}
-        on_change={(status) => attempt(set_setting("games.default_status", status))}
-      />
+      <StatusSelect label="Status for new games" value={game_status_of(settings["games.default_status"])} on_change={(status) => attempt(set_setting("games.default_status", status))} />
     </SettingRow>
   );
 }
@@ -115,7 +112,7 @@ function SteamSettings(props: FeatureSettingsProps) {
             .then((report) => toast(`Imported ${report.added} new game(s) and updated ${report.updated} from Steam. Refresh in Games fills in details for new ones.`, { tone: "good" }))
         : calls()
             .import_steam_wishlist()
-            .then((report) => toast(`Wishlist: ${report.added} new, ${report.updated} already tracked, ${report.removed} no longer wished.`, { tone: "good" }));
+            .then((report) => toast(`Wishlist: ${report.added} new, ${report.updated} already tracked.`, { tone: "good" }));
     attempt(work.finally(() => set_busy(null)));
   };
 
@@ -135,7 +132,7 @@ function SteamSettings(props: FeatureSettingsProps) {
           on_change={(hours) => attempt(set_setting("games.steam_sync_hours", Math.max(0, Math.round(hours ?? 0))))}
         />
       </SettingRow>
-      <SettingRow label="Import now" hint="The library adds owned games as Playing or Want to play and updates playtime; the wishlist adds wished games as Want to play in the Steam wishlist collection.">
+      <SettingRow label="Import now" hint="The library adds owned games as Currently playing or Backlog and updates playtime; the wishlist adds wished games as Wishlist.">
         <span className="game-links">
           <button type="button" disabled={busy !== null} onClick={() => run("library")}>
             {busy === "library" ? "Importing…" : "Import library"}
@@ -145,6 +142,67 @@ function SteamSettings(props: FeatureSettingsProps) {
           </button>
         </span>
       </SettingRow>
+    </>
+  );
+}
+
+// ── Steam categories ─────────────────────────────────────────────────────────
+
+function report_categories(report: SteamCategoryReport): void {
+  const untracked = report.untracked ? `; ${report.untracked} in a mapped category are not tracked yet, so import the library first` : "";
+  toast(`Read ${report.categories} Steam categories and changed the status of ${report.updated} game(s)${untracked}.`, { tone: "good" });
+}
+
+// Each category last read from Steam, and any mapped since, with the status its games take.
+function SteamCategorySettings({ settings }: FeatureSettingsProps) {
+  const file = useRef<HTMLInputElement>(null);
+  const { steam_files } = page();
+  const mapping = (settings["games.steam_category_statuses"] ?? {}) as Record<string, string>;
+  const seen = (settings["games.steam_categories"] ?? []) as string[];
+  const names = [...new Set([...seen, ...Object.keys(mapping)])].sort((first, second) => first.localeCompare(second));
+  const status_of = (name: string): GameStatus | "" => {
+    const status = Object.entries(mapping).find(([each]) => each.toLowerCase() === name.toLowerCase())?.[1];
+    return is_game_status(status) ? status : "";
+  };
+
+  const import_text = (text: string) => attempt(calls().import_steam_categories(text).then(report_categories));
+
+  async function pick(event: ChangeEvent<HTMLInputElement>): Promise<void> {
+    const text = await read_picked(event);
+    if (text !== null) import_text(text);
+  }
+
+  const read_here = () =>
+    attempt(
+      steam_files!.read_steam_categories().then((text) => {
+        if (text) import_text(text);
+        else toast("Steam's files are not on this computer; pick the categories file instead.", { tone: "bad" });
+      }),
+    );
+
+  return (
+    <>
+      <SettingRow
+        label="Read categories"
+        hint={`Steam keeps your library's categories only on the computers it runs on, in userdata/<account>/config/cloudstorage/cloud-storage-namespace-1.json.${steam_files ? " This app also reads them from this computer every hour." : ""}`}
+      >
+        <span className="game-links">
+          {steam_files && (
+            <button type="button" onClick={read_here}>
+              Read from this computer
+            </button>
+          )}
+          <input ref={file} type="file" accept="application/json,.json" hidden aria-label="Steam categories file" onChange={(event) => void pick(event)} />
+          <button type="button" onClick={() => file.current?.click()}>
+            Pick file…
+          </button>
+        </span>
+      </SettingRow>
+      {names.map((name) => (
+        <SettingRow key={name} label={name}>
+          <StatusSelect label={`Status for ${name}`} blank_label="Leave as is" value={status_of(name)} on_change={(status) => attempt(calls().set_steam_category_status(name, status))} />
+        </SettingRow>
+      ))}
     </>
   );
 }
@@ -245,6 +303,12 @@ export function game_settings(props: FeatureSettingsProps): SettingsSection[] {
     { id: "new-games", heading: "New games", content: <NewGameSettings {...props} /> },
     { id: "game-collections", heading: "Game collections", hint: "Your own shelves, such as Couch co-op or Backlog 2027; a game can be in several.", content: <CollectionSettings /> },
     { id: "steam", heading: "Steam", content: <SteamSettings {...props} /> },
+    {
+      id: "steam-categories",
+      heading: "Steam categories",
+      hint: "Give each category of your Steam library a status; its tracked games take that status whenever the categories are read, the furthest along winning for a game in several.",
+      content: <SteamCategorySettings {...props} />,
+    },
     { id: "trilium-games", heading: "Trilium Game Tracker", content: <TriliumSettings /> },
     { id: "igdb", heading: "IGDB", hint: "IGDB's API needs a Twitch developer account, so your IGDB lists come in through its data export.", content: <IgdbSettings /> },
   ];
