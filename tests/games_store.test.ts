@@ -326,7 +326,7 @@ describe("the IGDB export import", () => {
     const methods = open_methods();
     methods.import_trilium_games(JSON.stringify({ games: { "steam:400": { steamAppId: "400", title: "Portal", status: "backlog" }, "steam:105600": { steamAppId: "105600", title: "Terraria", status: "playing" } } }), "");
     expect(methods.import_igdb_export(page)).toEqual({ added: 1, updated: 2 });
-    expect(methods.get_game("steam:400")).toMatchObject({ status: "completed" });
+    expect(methods.get_game("steam:400")).toMatchObject({ status: "played" });
     expect(methods.get_game("steam:105600")).toMatchObject({ status: "playing" });
     expect(methods.get_game("title:half life 2")).toMatchObject({ title: "Half-Life 2", status: "want_to_play", added_at: "2026-11-17" });
     expect(methods.import_igdb_export(page)).toEqual({ added: 0, updated: 3 });
