@@ -1,0 +1,297 @@
+import { DatabaseSync } from "node:sqlite";
+
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+
+import { bind_methods, open_store, secret_settings } from "../src/shared/store.ts";
+
+// ── Catalogue stand-ins ──────────────────────────────────────────────────────
+
+const portal_item = {
+  labels: { mul: { value: "Portal 2" } },
+  descriptions: { en: { value: "2011 puzzle game" } },
+  claims: {
+    P9968: [{ rank: "normal", mainsnak: { datavalue: { value: "portal-2" } } }],
+    P11688: [{ rank: "normal", mainsnak: { datavalue: { value: "51233" } } }],
+    P1733: [{ rank: "normal", mainsnak: { datavalue: { value: "620" } } }],
+    P577: [{ rank: "normal", mainsnak: { datavalue: { value: { time: "+2011-04-18T00:00:00Z", precision: 11 } } } }],
+    P400: [{ rank: "normal", mainsnak: { datavalue: { value: { id: "Q1406" } } } }],
+  },
+};
+
+// Answers by host and path, and for Wikidata by what it was asked.
+let answers: Record<string, unknown> = {};
+let owned: unknown[] = [];
+let wished: unknown[] = [];
+
+function base_answers(): Record<string, unknown> {
+  return {
+    "wikidata:search:haswbstatement:\"P1733=620\"": { query: { search: [{ title: "Q279446" }] } },
+    "wikidata:search:haswbstatement:\"P9968=portal-2\"": { query: { search: [{ title: "Q279446" }] } },
+    "wikidata:search:haswbstatement:P31=Q7889 portal": { query: { search: [{ title: "Q279446" }] } },
+    "wikidata:entities:Q279446": { entities: { Q279446: portal_item } },
+    "wikidata:entities:Q1406": { entities: { Q1406: { labels: { en: { value: "Microsoft Windows" } } } } },
+    "api.rawg.io/api/games/portal-2": {
+      slug: "portal-2",
+      name: "Portal 2",
+      released: "2011-04-18",
+      description_raw: "Think with portals.",
+      background_image: "https://rawg/shot.jpg",
+      genres: [{ name: "Puzzle" }],
+      platforms: [{ platform: { name: "PC" } }],
+      developers: [{ name: "Valve Software" }],
+    },
+    "api.rawg.io/api/games": { results: [{ slug: "portal-2", name: "Portal 2", released: "2011-04-18", background_image: "https://rawg/shot.jpg" }] },
+    "store.steampowered.com/api/appdetails": {
+      "620": { success: true, data: { name: "Portal 2", short_description: "The &quot;Perpetual Testing Initiative&quot;", release_date: { date: "18 Apr, 2011" }, genres: [{ description: "Action" }] } },
+    },
+    "store.steampowered.com/api/storesearch/": { items: [{ type: "app", id: 620, name: "Portal 2", platforms: { windows: true } }] },
+  };
+}
+
+function answer_of(url: URL): unknown {
+  if (url.host === "www.wikidata.org") {
+    const action = url.searchParams.get("action");
+    if (action === "query") return answers[`wikidata:search:${url.searchParams.get("srsearch")}`] ?? { query: { search: [] } };
+    if (action === "wbgetentities") return answers[`wikidata:entities:${url.searchParams.get("ids")}`] ?? { entities: {} };
+  }
+  if (url.pathname === "/IPlayerService/GetOwnedGames/v1/") return { response: { game_count: owned.length, games: owned } };
+  if (url.pathname === "/IWishlistService/GetWishlist/v1/") return { response: { items: wished } };
+  if (url.pathname === "/IStoreBrowseService/GetItems/v1/") {
+    const ids = (JSON.parse(url.searchParams.get("input_json")!) as { ids: { appid: number }[] }).ids;
+    return { response: { store_items: ids.map(({ appid }) => ({ appid, name: `Wished ${appid}`, release: { steam_release_date: 1_800_000_000 } })) } };
+  }
+  return answers[`${url.host}${url.pathname}`];
+}
+
+const fetch_stub = vi.fn(async (address: string) => {
+  const answer = answer_of(new URL(address));
+  if (answer) return new Response(JSON.stringify(answer), { status: 200 });
+  return new Response("{}", { status: 404 });
+});
+
+beforeEach(() => {
+  answers = base_answers();
+  owned = [];
+  wished = [];
+  fetch_stub.mockClear();
+  vi.stubGlobal("fetch", fetch_stub);
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date(2026, 10, 17, 12, 0));
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+  vi.useRealTimers();
+});
+
+function open_methods() {
+  const database = new DatabaseSync(":memory:");
+  open_store(database);
+  return bind_methods(() => database, () => undefined);
+}
+
+function requested(part: string): string[] {
+  return fetch_stub.mock.calls.map(([address]) => String(address)).filter((address) => address.includes(part));
+}
+
+// ── Adding ───────────────────────────────────────────────────────────────────
+
+describe("adding a game", () => {
+  it("links the catalogues through Wikidata and takes each one's best", async () => {
+    const methods = open_methods();
+    methods.set_setting("games.rawg_api_key", "rawg-key");
+    const added = await methods.add_game("steam", "620");
+    expect(added).toEqual({ id: "rawg:portal-2", title: "Portal 2", existed: false });
+    const game = methods.get_game("rawg:portal-2")!;
+    expect(game).toMatchObject({
+      rawg_id: "portal-2",
+      mobygames_id: "51233",
+      wikidata_id: "Q279446",
+      steam_app_id: "620",
+      title: "Portal 2",
+      release_date: "2011-04-18",
+      overview: "Think with portals.",
+      genres: "Puzzle",
+      developers: "Valve Software",
+      status: "want_to_play",
+      added_at: "2026-11-17",
+    });
+    // Steam's upright library art beats RAWG's wide screenshot.
+    expect(game.cover_url).toBe("https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/620/library_600x900.jpg");
+  });
+
+  it("leaves out a catalogue without a key and never sends a key it does not have", async () => {
+    const methods = open_methods();
+    await methods.add_game("steam", "620");
+    expect(requested("api.rawg.io")).toEqual([]);
+    expect(methods.get_game("rawg:portal-2")!.overview).toBe('The "Perpetual Testing Initiative"');
+  });
+
+  it("finds a game already tracked by any shared id", async () => {
+    const methods = open_methods();
+    await methods.add_game("steam", "620");
+    expect(await methods.add_game_from_link("https://www.wikidata.org/wiki/Q279446")).toEqual({ id: "rawg:portal-2", title: "Portal 2", existed: true });
+    expect(methods.list_games().games).toHaveLength(1);
+  });
+
+  it("refuses what is not a link it knows", () => {
+    const methods = open_methods();
+    expect(() => methods.add_game_from_link("https://example.org/portal")).toThrow("Not a RAWG");
+  });
+
+  it("names the catalogues searched without a key", async () => {
+    const methods = open_methods();
+    await methods.add_game("steam", "620");
+    const search = await methods.search_games("portal");
+    expect(search.failures).toEqual(["RAWG: no key set", "MobyGames: no key set", "Giant Bomb: no key set"]);
+    expect(search.results.map((result) => [result.title, result.wikidata_id, result.steam_app_id, result.tracked_id])).toEqual([["Portal 2", "Q279446", "620", "rawg:portal-2"]]);
+  });
+});
+
+// ── Keeping ──────────────────────────────────────────────────────────────────
+
+describe("keeping a game", () => {
+  it("sets status, rating, platforms, edition and playtime", async () => {
+    const methods = open_methods();
+    await methods.add_game("steam", "620");
+    methods.set_game_status("rawg:portal-2", "completed");
+    methods.set_game_rating("rawg:portal-2", 8.6);
+    methods.set_game_platforms("rawg:portal-2", ["PC", " pc ", "Nintendo Switch"]);
+    methods.set_game_edition("rawg:portal-2", " Complete ");
+    methods.set_game_playtime("rawg:portal-2", 125.4);
+    methods.set_game_last_played("rawg:portal-2", "2026-11-01");
+    expect(methods.get_game("rawg:portal-2")).toMatchObject({ status: "completed", rating: 9, owned_platforms: ["PC", "Nintendo Switch"], edition: "Complete", playtime_minutes: 125, last_played: "2026-11-01" });
+    expect(() => methods.set_game_rating("rawg:portal-2", 11)).toThrow("1 to 10");
+    expect(() => methods.set_game_last_played("rawg:portal-2", "Nov 1")).toThrow("a day such as");
+    expect(() => methods.set_game_status("rawg:portal-2", "beaten" as never)).toThrow("Unknown status");
+  });
+
+  it("merges collections renamed to a name in use", async () => {
+    const methods = open_methods();
+    await methods.add_game("steam", "620");
+    const puzzles = methods.save_game_collection({ name: "Puzzles" });
+    const co_op = methods.save_game_collection({ name: "Co-op" });
+    methods.set_game_collections("rawg:portal-2", [co_op]);
+    expect(methods.save_game_collection({ id: co_op, name: "puzzles" })).toBe(puzzles);
+    expect(methods.get_game("rawg:portal-2")!.collection_ids).toEqual([puzzles]);
+  });
+
+  it("refuses an id another game already has", async () => {
+    const methods = open_methods();
+    await methods.add_game("steam", "620");
+    methods.import_trilium_games(JSON.stringify({ games: { a: { title: "Portal" } } }), "");
+    await expect(methods.set_game_ids("title:portal", { steam_app_id: "https://store.steampowered.com/app/620/" })).rejects.toThrow("Portal 2 already has that Steam app id");
+    await expect(methods.set_game_ids("title:portal", { wikidata_id: "nonsense" })).rejects.toThrow("is not a Wikidata item");
+  });
+
+  it("keeps a removed game in History", async () => {
+    const methods = open_methods();
+    await methods.add_game("steam", "620");
+    methods.remove_game("rawg:portal-2");
+    expect(methods.get_game("rawg:portal-2")).toBeNull();
+    const removed = methods.list_recent_changes(10).find((change) => change.kind === "game");
+    expect(removed).toMatchObject({ item_id: "rawg:portal-2", item_name: "Portal 2" });
+  });
+});
+
+// ── Steam ────────────────────────────────────────────────────────────────────
+
+describe("Steam", () => {
+  function with_account() {
+    const methods = open_methods();
+    methods.set_setting("games.steam_api_key", "steam-key");
+    methods.set_setting("games.steam_id", "https://steamcommunity.com/profiles/76561197960287930/");
+    return methods;
+  }
+
+  it("asks for an account before importing", async () => {
+    await expect(open_methods().import_steam_library()).rejects.toThrow("Set a Steam Web API key and Steam id");
+  });
+
+  it("imports owned games and updates the ones already here", async () => {
+    const methods = with_account();
+    await methods.add_game("steam", "620");
+    owned = [
+      { appid: 620, name: "Portal 2", playtime_forever: 305, rtime_last_played: 1_750_000_000 },
+      { appid: 400, name: "Portal", playtime_forever: 0, rtime_last_played: 0 },
+    ];
+    expect(await methods.import_steam_library()).toEqual({ added: 1, updated: 1 });
+    expect(methods.get_game("rawg:portal-2")).toMatchObject({ status: "playing", playtime_minutes: 305, owned_platforms: ["PC"] });
+    expect(methods.get_game("steam:400")).toMatchObject({ title: "Portal", status: "want_to_play", playtime_minutes: 0, owned_platforms: ["PC"] });
+    expect(requested("GetOwnedGames")[0]).toContain("steamid=76561197960287930");
+  });
+
+  it("never lowers playtime or undoes a status", async () => {
+    const methods = with_account();
+    await methods.add_game("steam", "620");
+    methods.set_game_status("rawg:portal-2", "completed");
+    methods.set_game_playtime("rawg:portal-2", 900);
+    owned = [{ appid: 620, name: "Portal 2", playtime_forever: 305, rtime_last_played: 0 }];
+    await methods.import_steam_library();
+    expect(methods.get_game("rawg:portal-2")).toMatchObject({ status: "completed", playtime_minutes: 900 });
+  });
+
+  it("says when the profile's games are private", async () => {
+    const methods = with_account();
+    answers = base_answers();
+    fetch_stub.mockImplementationOnce(async () => new Response(JSON.stringify({ response: {} }), { status: 200 }));
+    await expect(methods.import_steam_library()).rejects.toThrow("Game details to Public");
+  });
+
+  it("keeps the wishlist collection to exactly the wishlist", async () => {
+    const methods = with_account();
+    await methods.add_game("steam", "620");
+    const favourites = methods.save_game_collection({ name: "Favourites" });
+    wished = [{ appid: 620 }, { appid: 70 }];
+    expect(await methods.import_steam_wishlist()).toEqual({ added: 1, updated: 1, removed: 0 });
+    methods.set_game_collections("rawg:portal-2", [...methods.get_game("rawg:portal-2")!.collection_ids, favourites]);
+    expect(methods.get_game("steam:70")).toMatchObject({ title: "Wished 70", status: "want_to_play", year: "2027" });
+    wished = [{ appid: 70 }];
+    expect(await methods.import_steam_wishlist()).toEqual({ added: 0, updated: 1, removed: 1 });
+    expect(methods.get_game("rawg:portal-2")!.collection_ids).toEqual([favourites]);
+  });
+
+  it("imports on its schedule only when one is set and due", async () => {
+    const methods = with_account();
+    owned = [{ appid: 400, name: "Portal", playtime_forever: 10, rtime_last_played: 0 }];
+    expect(await methods.run_steam_sync(false)).toBeNull();
+    methods.set_setting("games.steam_sync_hours", 6);
+    const ran = await methods.run_steam_sync(false);
+    expect(ran).toMatchObject({ library: { added: 1, updated: 0 }, wishlist: { added: 0, updated: 0, removed: 0 }, failures: [] });
+    expect(await methods.run_steam_sync(false)).toBeNull();
+    expect(methods.get_settings()["games.last_steam_result"]).toBe("library 1 added, 0 updated; wishlist 0 added, 0 left");
+  });
+
+  it("keeps every catalogue's key and the Steam key out of what other programs read", () => {
+    expect(secret_settings).toEqual(expect.arrayContaining(["games.rawg_api_key", "games.mobygames_api_key", "games.giantbomb_api_key", "games.steam_api_key"]));
+  });
+});
+
+// ── Trilium ──────────────────────────────────────────────────────────────────
+
+describe("the Trilium Game Tracker import", () => {
+  const config = JSON.stringify({ statuses: { entries: { "item-2": { name: "Endless", role: "playing" } } } });
+
+  it("adds new games and merges ones already here", async () => {
+    const methods = open_methods();
+    await methods.add_game("steam", "620");
+    methods.set_game_rating("rawg:portal-2", 7);
+    const database = JSON.stringify({
+      games: {
+        "steam:620": { steamAppId: "620", title: "Portal 2", status: "beaten", rating: 10, playtime: 305, lastPlayed: "2025-06-04", collections: ["Puzzles"] },
+        "steam:105600": { steamAppId: "105600", title: "Terraria", status: "item-2", playtime: 50 },
+      },
+    });
+    expect(methods.import_trilium_games(database, config)).toEqual({ added: 1, updated: 1 });
+    const library = methods.list_games();
+    const names = new Map(library.collections.map((collection) => [collection.id, collection.name]));
+    expect(methods.get_game("rawg:portal-2")).toMatchObject({ status: "completed", rating: 7, playtime_minutes: 305, last_played: "2025-06-04" });
+    expect(methods.get_game("rawg:portal-2")!.collection_ids.map((id) => names.get(id))).toEqual(["Puzzles"]);
+    expect(methods.get_game("steam:105600")).toMatchObject({ title: "Terraria", status: "playing", owned_platforms: ["PC"] });
+    expect(methods.get_game("steam:105600")!.collection_ids.map((id) => names.get(id))).toEqual(["Endless"]);
+  });
+
+  it("refuses a file with no games", () => {
+    expect(() => open_methods().import_trilium_games("{}", "")).toThrow("No games found");
+  });
+});

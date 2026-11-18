@@ -38,7 +38,7 @@ buildNpmPackage {
   '';
 
   meta = {
-    description = "Movies and TV shows to watch, watching and watched, synced through your own server";
+    description = "Movies, TV shows, books and games to watch, read and play, synced through your own server";
     license = lib.licenses.gpl3Plus;
     mainProgram = "x-media-tracker";
   };

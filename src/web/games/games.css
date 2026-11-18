@@ -1,0 +1,22 @@
+/* Layout only; every colour, size and widget look comes from Halon's tokens and stylesheet. */
+
+/* Box art is tall, so the media tiles take a game case's 3:4. */
+.games-page,
+.game-page {
+  --media-aspect: 3 / 4;
+}
+
+.game-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+/* Playtime and the day last played share a row, the day's own label above it. */
+.game-play {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-5);
+  align-items: flex-end;
+}

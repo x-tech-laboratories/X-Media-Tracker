@@ -4,7 +4,6 @@
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
-import { useEffect, useState } from "react";
 import { MediaGrid, MediaTile } from "@x-tech-laboratories/x-libs/web/react/media";
 import { MenuButton } from "@x-tech-laboratories/x-libs/web/react/menu_button";
 import { Segmented, Select } from "@x-tech-laboratories/x-libs/web/react/controls";
@@ -16,7 +15,8 @@ import { is_boolean, one_of } from "@x-tech-laboratories/x-libs/web/prefs";
 import { use_pref } from "@x-tech-laboratories/x-libs/web/react/prefs";
 import { toast } from "@x-tech-laboratories/x-libs/web/react/toasts";
 
-import { calls, data_watch, use_data, use_settings } from "../api.ts";
+import { calls, use_data, use_settings } from "../api.ts";
+import { use_refresh } from "../refresh.ts";
 import {
   facet_counts,
   filter_titles,
@@ -35,7 +35,7 @@ import {
   type LibraryTitle,
   type SortKey,
 } from "../../shared/library/model.ts";
-import type { Library, LibraryRefresh, RefreshReport } from "../../shared/library/store.ts";
+import type { Library, RefreshReport } from "../../shared/library/store.ts";
 import { status_menu_items } from "./status.tsx";
 
 // ── Remembered view ──────────────────────────────────────────────────────────
@@ -124,65 +124,16 @@ function group_filters(collections: Collection[], groups: CollectionGroup[]): { 
 
 // ── Refresh ──────────────────────────────────────────────────────────────────
 
-const refresh_poll_milliseconds = 1000;
-
 function report_text(report: RefreshReport): string {
   return `Refreshed ${report.total} titles: ${report.metadata_updated} with new details, ${report.status_updated} with a new status${report.failed ? `, ${report.failed} not found on TMDB` : ""}.`;
 }
 
-// The refresh runs on its own wherever the library is kept; the page follows it while it runs, including one already
-// running when the page opens, and reports it once it ends.
-function use_library_refresh(): { refresh: LibraryRefresh | null; start: () => void } {
-  const [refresh, set_refresh] = useState<LibraryRefresh | null>(null);
-
-  const follow = (next: LibraryRefresh, was_running: boolean): void => {
-    set_refresh(next);
-    if (!was_running || next.state === "running") return;
-    data_watch.bump();
-    if (next.state === "done" && next.report) toast(report_text(next.report), { tone: "good" });
-    if (next.state === "failed") toast(`Could not refresh: ${next.error}`, { tone: "bad" });
-  };
-
-  useEffect(() => {
-    let live = true;
-    void calls()
-      .get_library_refresh()
-      .then((first) => {
-        if (live) set_refresh(first);
-      })
-      .catch(() => undefined);
-    return () => void (live = false);
-  }, []);
-
-  useEffect(() => {
-    if (refresh?.state !== "running") return;
-    let live = true;
-    const timer = setTimeout(() => {
-      void calls()
-        .get_library_refresh()
-        .then((next) => {
-          if (live) follow(next, true);
-        })
-        .catch((error: unknown) => {
-          if (!live) return;
-          set_refresh(null);
-          toast((error as Error).message, { tone: "bad" });
-        });
-    }, refresh_poll_milliseconds);
-    return () => {
-      live = false;
-      clearTimeout(timer);
-    };
-  }, [refresh]);
-
-  const start = (): void => {
-    calls()
-      .refresh_library()
-      .then((started) => follow(started, true))
-      .catch((error: unknown) => toast((error as Error).message, { tone: "bad" }));
-  };
-
-  return { refresh, start };
+function use_library_refresh() {
+  return use_refresh(
+    () => calls().get_library_refresh(),
+    () => calls().refresh_library(),
+    report_text,
+  );
 }
 
 // ── Page ─────────────────────────────────────────────────────────────────────

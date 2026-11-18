@@ -1,5 +1,5 @@
 {
-  description = "X-Media-Tracker — movies and TV shows to watch, watching and watched, synced through your own server";
+  description = "X-Media-Tracker — movies, TV shows, books and games to watch, read and play, synced through your own server";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

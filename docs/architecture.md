@@ -76,6 +76,27 @@ on the Settings page.
   `src/server/book_alerts.ts` then sends one alert per book still unalerted through X-Libs' `server/notify` channels,
   so books found on any device are announced once, by the server.
 
+## Games
+
+`src/shared/games/`:
+
+- `model.ts` holds the rules that need no database, and is the games file the page imports for more than types:
+  statuses, which ids name one game, pasted links, platforms, playtime, sorting and the Games library's filters with
+  counts.
+- `schema.ts`: `games_games`, keyed by the strongest id (`rawg:…`, else `mobygames:…`, `giantbomb:…`, `wikidata:…`,
+  `steam:…`, `igdb:…`; a Trilium game with none is `title:<title>/<year>`), with the platforms a copy is owned on as a
+  JSON list; `games_collections` and `games_game_collections`. All of them sync.
+- `rawg.ts`, `mobygames.ts`, `giantbomb.ts`, `wikidata.ts` and `steam.ts` are the catalogues' clients, each answering in
+  `catalog.ts`'s shape. Adding or refreshing a game asks Wikidata first, by any id known, for the ids every other
+  catalogue gives it, then RAWG, MobyGames and Giant Bomb (each only with its key) and Steam's store by their own ids;
+  words come from the richest catalogue first and box art from the one best at it. Search asks them all at once and
+  joins the same game into one result. Wikidata and MobyGames are asked one request at a time, as they ask; the keys
+  come from settings and never appear in an error or a log.
+- `steam.ts` also reads a profile's owned games, with playtime, and its wishlist; `schedule.ts` runs `run_steam_sync`
+  hourly on the server and the desktop, and the last import syncs, so they do not both run it. Steam is not a source
+  plugin, since those import into Movies & Series.
+- `trilium.ts` reads the Trilium Game Tracker add-on's Database note and the statuses from its config note.
+
 ## Sources and plugins
 
 Trakt and Stremio are bundled X-Libs plugins, each named once by a manifest in `src/shared/sources/manifests.ts`:
