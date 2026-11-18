@@ -3,7 +3,6 @@
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
-import { useEffect, useState } from "react";
 import { MediaGrid, MediaTile } from "@x-tech-laboratories/x-libs/web/react/media";
 import { MenuButton } from "@x-tech-laboratories/x-libs/web/react/menu_button";
 import { Segmented, Select } from "@x-tech-laboratories/x-libs/web/react/controls";
@@ -15,7 +14,8 @@ import { is_boolean, one_of } from "@x-tech-laboratories/x-libs/web/prefs";
 import { use_pref } from "@x-tech-laboratories/x-libs/web/react/prefs";
 import { toast } from "@x-tech-laboratories/x-libs/web/react/toasts";
 
-import { calls, data_watch, use_data } from "../api.ts";
+import { calls, use_data } from "../api.ts";
+import { use_refresh } from "../refresh.ts";
 import {
   book_facet_counts,
   book_format_labels,
@@ -32,7 +32,7 @@ import {
   type BookSortKey,
   type LibraryBook,
 } from "../../shared/books/model.ts";
-import type { Books, BooksRefresh } from "../../shared/books/store.ts";
+import type { Books, BooksRefreshReport } from "../../shared/books/store.ts";
 import { book_href, book_status_menu_items, stars_text } from "./actions.tsx";
 
 // ── Remembered view ──────────────────────────────────────────────────────────
@@ -106,58 +106,12 @@ function with_count(label: string, count: number | undefined): string {
 
 // ── Refresh ──────────────────────────────────────────────────────────────────
 
-const refresh_poll_milliseconds = 1000;
-
-// The refresh runs on its own wherever the books are kept; the page follows it while it runs and reports it once it ends.
-function use_books_refresh(): { refresh: BooksRefresh | null; start: () => void } {
-  const [refresh, set_refresh] = useState<BooksRefresh | null>(null);
-
-  const follow = (next: BooksRefresh): void => {
-    set_refresh(next);
-    if (next.state === "running") return;
-    data_watch.bump();
-    if (next.state === "done" && next.report) toast(`Refreshed ${next.report.total} books: ${next.report.updated} updated${next.report.failed ? `, ${next.report.failed} not found` : ""}.`, { tone: "good" });
-    if (next.state === "failed") toast(`Could not refresh: ${next.error}`, { tone: "bad" });
-  };
-
-  useEffect(() => {
-    let live = true;
-    void calls()
-      .get_books_refresh()
-      .then((first) => {
-        if (live) set_refresh(first);
-      })
-      .catch(() => undefined);
-    return () => void (live = false);
-  }, []);
-
-  useEffect(() => {
-    if (refresh?.state !== "running") return;
-    let live = true;
-    const timer = setTimeout(() => {
-      void calls()
-        .get_books_refresh()
-        .then((next) => {
-          if (live) follow(next);
-        })
-        .catch(() => {
-          if (live) set_refresh(null);
-        });
-    }, refresh_poll_milliseconds);
-    return () => {
-      live = false;
-      clearTimeout(timer);
-    };
-  }, [refresh]);
-
-  const start = (): void => {
-    calls()
-      .refresh_books()
-      .then(follow)
-      .catch((error: unknown) => toast((error as Error).message, { tone: "bad" }));
-  };
-
-  return { refresh, start };
+function use_books_refresh() {
+  return use_refresh(
+    () => calls().get_books_refresh(),
+    () => calls().refresh_books(),
+    (report: BooksRefreshReport) => `Refreshed ${report.total} books: ${report.updated} updated${report.failed ? `, ${report.failed} not found` : ""}.`,
+  );
 }
 
 // ── Page ─────────────────────────────────────────────────────────────────────
