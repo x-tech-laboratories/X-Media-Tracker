@@ -8,7 +8,7 @@ import { hostname } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { app, BrowserWindow, ipcMain, nativeTheme, screen, session, shell } from "electron";
+import { app, BrowserWindow, ipcMain, nativeTheme, protocol, screen, session, shell } from "electron";
 import { bring_to_front, hold_single_instance } from "@x-tech-laboratories/x-libs/electron/app";
 import type { IpcMainEventLike } from "@x-tech-laboratories/x-libs/electron/bridge";
 import { create_window, is_app_page } from "@x-tech-laboratories/x-libs/electron/window";
@@ -16,11 +16,15 @@ import { keep_backing_up, type BackupSchedule } from "@x-tech-laboratories/x-lib
 import { sqlite_backups } from "@x-tech-laboratories/x-libs/server/sqlite_backups";
 import { create_certificate_trust } from "@x-tech-laboratories/x-libs/certificates";
 import { trust_in_session, trusting_fetch } from "@x-tech-laboratories/x-libs/electron/certificates";
+import { register_file_scheme, serve_files } from "@x-tech-laboratories/x-libs/electron/file_protocol";
+import { folder_file_store } from "@x-tech-laboratories/x-libs/node_file_store";
 import { create_sync_client, sync_device_methods } from "@x-tech-laboratories/x-libs/sync_client";
 import { file_sync_storage } from "@x-tech-laboratories/x-libs/sync_file_storage";
 
 import { media_backup_naming, read_schedule } from "../shared/backups.ts";
 import { certificate_bridge, device_bridge, media_bridge, media_events } from "../shared/bridge.ts";
+import { keep_fetching_covers, referenced_covers, type KeepFetchingCovers } from "../shared/covers.ts";
+import { cover_scheme } from "../shared/page_api.ts";
 import { keep_checking_releases } from "../shared/books/schedule.ts";
 import { keep_syncing_steam } from "../shared/games/schedule.ts";
 import { keep_importing } from "../shared/sources/schedule.ts";
@@ -73,12 +77,25 @@ function read_backup_schedule(): BackupSchedule {
 
 const backing_up = keep_backing_up(kept, read_backup_schedule);
 
+// ── Covers ───────────────────────────────────────────────────────────────────
+
+// Kept beside the database and shown to the page as x-media-cover://<name>.
+const covers = folder_file_store(join(profile, "covers"));
+register_file_scheme(protocol, cover_scheme);
+let fetching_covers: KeepFetchingCovers | undefined;
+
 let stop_importing = (): void => undefined;
 let stop_checking_releases = (): void => undefined;
 let stop_syncing_steam = (): void => undefined;
 
 function announce_change(): void {
   media_events.emit(BrowserWindow.getAllWindows(), "changed", null);
+}
+
+// A write may have changed a cover's address, so the covers are looked at again soon after.
+function after_write(): void {
+  announce_change();
+  fetching_covers?.soon();
 }
 
 // ── Sync ─────────────────────────────────────────────────────────────────────
@@ -90,6 +107,7 @@ const sync = create_sync_client({
   engine: sync_engine,
   database: () => database,
   storage: file_sync_storage({ file: join(profile, "sync.json"), back_up_before_download: async () => void (await kept.create()) }),
+  files: { store: covers, referenced: referenced_covers },
   data_name: "media library",
   device_name: `X-Media-Tracker on ${hostname()}`,
   on_remote_change: announce_change,
@@ -137,7 +155,8 @@ function show_existing_window(): void {
 
 if (hold_single_instance(app, show_existing_window)) {
   void app.whenReady().then(() => {
-    media_bridge.handle(ipcMain, bind_methods(() => database, announce_change), { trusted, envelopes: true });
+    serve_files(protocol, cover_scheme, covers);
+    media_bridge.handle(ipcMain, bind_methods(() => database, after_write), { trusted, envelopes: true });
     certificate_bridge.handle(ipcMain, certificates.methods, { trusted, envelopes: true });
     trust_in_session(session.defaultSession, certificates.is_trusted);
     device_bridge.handle(
@@ -163,15 +182,17 @@ if (hold_single_instance(app, show_existing_window)) {
     );
     open_window();
     sync.start();
-    stop_importing = keep_importing(() => bind_methods(() => database, () => undefined), announce_change);
-    stop_checking_releases = keep_checking_releases(() => bind_methods(() => database, () => undefined), announce_change);
-    stop_syncing_steam = keep_syncing_steam(() => bind_methods(() => database, () => undefined), announce_change);
+    fetching_covers = keep_fetching_covers({ database: () => database, store: covers, on_change: announce_change });
+    stop_importing = keep_importing(() => bind_methods(() => database, () => undefined), after_write);
+    stop_checking_releases = keep_checking_releases(() => bind_methods(() => database, () => undefined), after_write);
+    stop_syncing_steam = keep_syncing_steam(() => bind_methods(() => database, () => undefined), after_write);
   });
 
   app.on("window-all-closed", () => {
     stop_importing();
     stop_checking_releases();
     stop_syncing_steam();
+    fetching_covers?.stop();
     sync.stop();
     backing_up.stop();
     database.close();

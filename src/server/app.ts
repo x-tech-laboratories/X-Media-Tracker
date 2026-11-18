@@ -16,8 +16,10 @@ import { backup_method_names, type BackupMethods } from "@x-tech-laboratories/x-
 import { register_sync_routes } from "@x-tech-laboratories/x-libs/server/sync_routes";
 import { register_web_folder } from "@x-tech-laboratories/x-libs/server/web_folder";
 import type { SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
+import type { SyncFileStore } from "@x-tech-laboratories/x-libs/sync_files";
 
 import { media_bridge } from "../shared/bridge.ts";
+import { keep_fetching_covers, type KeepFetchingCovers } from "../shared/covers.ts";
 import { send_book_alerts } from "./book_alerts.ts";
 import { keep_checking_releases } from "../shared/books/schedule.ts";
 import { keep_syncing_steam } from "../shared/games/schedule.ts";
@@ -37,6 +39,8 @@ export interface AppOptions {
   auto_import?: boolean;
   // Whether new books by the authors and series followed are looked for and alerted on their schedule; on unless false.
   release_checks?: boolean;
+  // Where the covers kept on every device are stored; the server downloads them and the devices sync them from here.
+  covers?: SyncFileStore;
 }
 
 // ── Other programs ───────────────────────────────────────────────────────────
@@ -71,6 +75,13 @@ export async function build_app(options: AppOptions): Promise<FastifyInstance> {
 
   const changes = new EventStream();
   const database = () => options.database;
+  const covers: KeepFetchingCovers | undefined = options.covers && keep_fetching_covers({ database, store: options.covers, on_change: () => changes.announce_change() });
+  if (covers) app.addHook("onClose", async () => covers.stop());
+  // A write may have changed a cover's address, so the covers are looked at again soon after.
+  const announce = (client_id?: string): void => {
+    changes.announce_change(client_id);
+    covers?.soon();
+  };
 
   await app.register(
     async (api) => {
@@ -89,7 +100,7 @@ export async function build_app(options: AppOptions): Promise<FastifyInstance> {
             return send_text(reply, 400, (error as Error).message);
           }
         } else return send_text(reply, 400, "send the arguments as a JSON list or object");
-        const methods = bind_methods(database, () => changes.announce_change(changes.client_id_of(request)));
+        const methods = bind_methods(database, () => announce(changes.client_id_of(request)));
         const result = await media_bridge.dispatch(methods, request.params.method, args);
         if (result === undefined) return reply.code(204).send();
         return is_read_only(request.params.method) ? reply.header("cache-control", "no-store").send(result) : reply.send(result);
@@ -107,7 +118,7 @@ export async function build_app(options: AppOptions): Promise<FastifyInstance> {
         api: media_api,
         is_read_only,
         call: async (method, args) => {
-          const methods = bind_methods(database, () => changes.announce_change());
+          const methods = bind_methods(database, () => announce());
           return without_secrets(method, await media_bridge.dispatch(methods, method, args));
         },
       });
@@ -124,7 +135,8 @@ export async function build_app(options: AppOptions): Promise<FastifyInstance> {
         engine: sync_engine,
         database,
         back_up: async () => void (await options.backups.create_backup()),
-        on_change: (request) => changes.announce_change(changes.client_id_of(request)),
+        on_change: (request) => announce(changes.client_id_of(request)),
+        files: options.covers,
       });
     },
     { prefix: "/api" },
@@ -133,11 +145,11 @@ export async function build_app(options: AppOptions): Promise<FastifyInstance> {
   if (options.auto_import !== false) {
     const stop_importing = keep_importing(
       () => bind_methods(database, () => undefined),
-      () => changes.announce_change(),
+      () => announce(),
     );
     const stop_syncing_steam = keep_syncing_steam(
       () => bind_methods(database, () => undefined),
-      () => changes.announce_change(),
+      () => announce(),
     );
     app.addHook("onClose", async () => {
       stop_importing();
@@ -147,7 +159,7 @@ export async function build_app(options: AppOptions): Promise<FastifyInstance> {
 
   if (options.release_checks !== false) {
     const methods = () => bind_methods(database, () => undefined);
-    const stop_checking = keep_checking_releases(methods, () => changes.announce_change(), () => send_book_alerts(methods()));
+    const stop_checking = keep_checking_releases(methods, () => announce(), () => send_book_alerts(methods()));
     app.addHook("onClose", async () => stop_checking());
   }
 

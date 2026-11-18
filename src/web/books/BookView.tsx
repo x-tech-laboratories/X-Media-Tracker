@@ -41,6 +41,7 @@ import {
 } from "../../shared/books/model.ts";
 import type { CatalogSeries } from "../../shared/books/catalog.ts";
 import { attempt, book_href, report_added, set_book_status } from "./actions.tsx";
+import { HeadPoster } from "../covers.tsx";
 
 // ── Facts ────────────────────────────────────────────────────────────────────
 
@@ -397,7 +398,7 @@ function BookPage({ book, collections, books }: { book: LibraryBook; collections
         }
       />
       <div className="title-head">
-        {book.cover_url && <img className="title-poster" src={book.cover_url} alt="" />}
+        <HeadPoster file={book.cover_file} address={book.cover_url} />
         <div className="title-facts">
           <Facts
             rows={[

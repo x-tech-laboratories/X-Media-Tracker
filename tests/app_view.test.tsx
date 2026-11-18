@@ -19,7 +19,7 @@ function fake_page(): MediaMethods {
   open_store(database);
   const methods = bind_methods(() => database, () => undefined);
   const calls = Object.fromEntries(Object.entries(methods).map(([name, call]) => [name, async (...args: unknown[]) => (call as (...args: unknown[]) => unknown)(...args)]));
-  set_page_api({ host: "desktop", calls: calls as unknown as Client<MediaMethods>, device: null, on_change: () => () => undefined });
+  set_page_api({ host: "desktop", calls: calls as unknown as Client<MediaMethods>, device: null, cover_src: async () => "", on_change: () => () => undefined });
   return methods;
 }
 

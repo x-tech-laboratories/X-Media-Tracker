@@ -33,6 +33,9 @@ export const books_books = sqliteTable(
     release_date: text().notNull().default(""),
     overview: text().notNull().default(""),
     cover_url: text().notNull().default(""),
+    // The full image kept on every device, by its synced file's name, and the address it was taken from ("custom" when set by hand).
+    cover_file: text().notNull().default(""),
+    cover_file_from: text().notNull().default(""),
     genres: text().notNull().default(""),
     pages: integer().notNull().default(0),
     audio_minutes: integer().notNull().default(0),

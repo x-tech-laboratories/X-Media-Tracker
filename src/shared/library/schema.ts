@@ -31,6 +31,9 @@ export const library_titles = sqliteTable(
     year: text().notNull().default(""),
     overview: text().notNull().default(""),
     poster_path: text().notNull().default(""),
+    // The full image kept on every device, by its synced file's name, and the address it was taken from ("custom" when set by hand).
+    cover_file: text().notNull().default(""),
+    cover_file_from: text().notNull().default(""),
     genres: text().notNull().default(""),
     runtime: integer().notNull().default(0),
     status: text().notNull().default("planned"),

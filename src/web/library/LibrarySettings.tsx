@@ -14,7 +14,7 @@ import { toast } from "@x-tech-laboratories/x-libs/web/react/toasts";
 import { calls, use_data } from "../api.ts";
 import { read_picked, save_text } from "../files.ts";
 import type { FeatureSettingsProps } from "../features.tsx";
-import { list_genres, poster_sizes, status_labels, statuses, type Collection, type CollectionGroup } from "../../shared/library/model.ts";
+import { list_genres, poster_sizes, saved_poster_sizes, status_labels, statuses, type Collection, type CollectionGroup } from "../../shared/library/model.ts";
 import type { Library } from "../../shared/library/store.ts";
 
 // ── General ──────────────────────────────────────────────────────────────────
@@ -72,8 +72,17 @@ function TitleSettings({ settings, set_setting }: FeatureSettingsProps) {
           on_change={(status) => void set_setting("library.default_status", status)}
         />
       </SettingRow>
-      <SettingRow label="Poster size" hint="TMDB's image width for the Library's posters.">
+      <SettingRow label="Poster size" hint="TMDB's image width for posters not yet kept on this device, and for search results.">
         <Select label="Poster size" bare options={poster_sizes.map((size) => [size, size] as [string, string])} value={String(settings["library.poster_size"])} on_change={(size) => void set_setting("library.poster_size", size)} />
+      </SettingRow>
+      <SettingRow label="Kept poster size" hint="TMDB's image width for the posters every device keeps, so they show offline. A change downloads every poster again; original is often over 1 MB each.">
+        <Select
+          label="Kept poster size"
+          bare
+          options={saved_poster_sizes.map((size) => [size, size] as [string, string])}
+          value={String(settings["library.saved_poster_size"])}
+          on_change={(size) => void set_setting("library.saved_poster_size", size)}
+        />
       </SettingRow>
     </>
   );

@@ -28,6 +28,8 @@ function title(fields: Partial<LibraryTitle> & Pick<LibraryTitle, "id" | "name">
     year: "",
     overview: "",
     poster_path: "",
+    cover_file: "",
+    cover_file_from: "",
     genres: "",
     runtime: 0,
     status: "planned",

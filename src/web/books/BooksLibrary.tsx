@@ -34,6 +34,7 @@ import {
 } from "../../shared/books/model.ts";
 import type { Books, BooksRefreshReport } from "../../shared/books/store.ts";
 import { book_href, book_status_menu_items, stars_text } from "./actions.tsx";
+import { use_cover } from "../covers.tsx";
 
 // ── Remembered view ──────────────────────────────────────────────────────────
 
@@ -63,11 +64,12 @@ function BookActions({ book }: { book: LibraryBook }) {
 }
 
 function BookTile({ book }: { book: LibraryBook }) {
+  const image = use_cover(book.cover_file, book.cover_url);
   return (
     <MediaTile
       title={book.title}
       href={book_href(book.id)}
-      image={book.cover_url}
+      image={image}
       corner={corner_text(book) || undefined}
       lines={[[book.authors, book.year].filter(Boolean).join(" · "), book_status_labels[book.status]]}
       dimmed={book.status === "dnf"}

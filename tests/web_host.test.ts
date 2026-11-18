@@ -27,7 +27,7 @@ describe("the page's calls", () => {
         return name === "get_settings" ? { "library.poster_size": "w342" } : undefined;
       },
     });
-    set_page_api({ host: "web", calls: host_calls, device: null, on_change: () => () => undefined });
+    set_page_api({ host: "web", calls: host_calls, device: null, cover_src: async () => "", on_change: () => () => undefined });
 
     const before = data_watch.version();
     expect(await calls().get_settings()).toEqual({ "library.poster_size": "w342" });
