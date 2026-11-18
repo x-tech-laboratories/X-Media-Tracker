@@ -55,11 +55,14 @@ search, series in order and new books in the series you follow. Make the key wit
 
 ### Games
 
-- **Library:** every game as its box art or a table row, narrowed by status (Want to play, Playing, Paused, Played, Completed,
-  Dropped), the platform you own it on and collection, each choice showing how many games it would leave, and sorted
-  by title, last played, release, rating, playtime or when added.
+- **Library:** every game as its box art or a table row, narrowed to games, DLC or both, by status (Want to play,
+  Playing, Paused, Played, Completed, Dropped), the platform you own it on and collection, each choice showing how many
+  games it would leave, and sorted by title, last played, release, rating, playtime or when added.
 - **A game's page:** status, rating, playtime and the day last played, edition, the platforms you own it on,
   collections and the review, with what the catalogues say of it and a link to each.
+- **DLC:** a DLC or expansion names the game it adds to, linked from its page, and a game's page lists its DLC. Steam
+  and RAWG say which game a DLC belongs to when it is added or refreshed; **Change** beside **DLC of** sets it by
+  hand, or marks a game as not DLC.
 - **Search:** the bar at the top, in Games, searches your games, RAWG, MobyGames, Giant Bomb, Steam's store and
   Wikidata at once, the same game from several catalogues shown once; a pasted RAWG, MobyGames, Giant Bomb, Wikidata
   or Steam store link is added at once.

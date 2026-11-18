@@ -25,6 +25,9 @@ export interface CatalogGame extends GameIds {
   platforms: string;
   developers: string;
   publishers: string;
+  // The game this is DLC of, by its key such as "steam:620", with its title.
+  base_game: string;
+  base_game_title: string;
 }
 
 export function empty_game(source: GameSource): CatalogGame {
@@ -47,6 +50,8 @@ export function empty_game(source: GameSource): CatalogGame {
     platforms: "",
     developers: "",
     publishers: "",
+    base_game: "",
+    base_game_title: "",
   };
 }
 
@@ -162,6 +167,8 @@ export function merge_games(first: CatalogGame, second: CatalogGame): CatalogGam
     platforms: fill(first.platforms, second.platforms),
     developers: fill(first.developers, second.developers),
     publishers: fill(first.publishers, second.publishers),
+    base_game: first.base_game || second.base_game,
+    base_game_title: first.base_game ? first.base_game_title : second.base_game_title,
   };
 }
 

@@ -91,6 +91,9 @@ export function create_steam(fetcher: Fetch = fetch): Steam {
       const data = entry.data as Json | undefined;
       if (entry.success !== true || !data) throw new Error("Steam has no such game.");
       const release_date = release_day(text_of((data.release_date as Json | undefined)?.date));
+      // DLC names the game it belongs to.
+      const full_game = text_of(data.type) === "dlc" ? ((data.fullgame ?? {}) as Json) : {};
+      const base_id = text_of(full_game.appid);
       return {
         ...empty_game("steam"),
         steam_app_id: app_id,
@@ -105,6 +108,8 @@ export function create_steam(fetcher: Fetch = fetch): Steam {
         platforms: platform_names(data.platforms),
         developers: (Array.isArray(data.developers) ? data.developers : []).map(text_of).filter(Boolean).join(", "),
         publishers: (Array.isArray(data.publishers) ? data.publishers : []).map(text_of).filter(Boolean).join(", "),
+        base_game: base_id ? `steam:${base_id}` : "",
+        base_game_title: base_id ? text_of(full_game.name) : "",
       };
     },
     owned: async (key, steam_id) => {

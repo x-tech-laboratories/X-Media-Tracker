@@ -20,7 +20,8 @@ export const games_api = {
     description:
       "Lists every tracked game, sorted by title, with its catalogue ids (RAWG slug, MobyGames, Giant Bomb guid, Wikidata item, Steam app, IGDB slug), " +
       "release, genres, platforms it came out on, developers, status (want_to_play, playing, paused, played, completed or dropped), rating 1 to 10 (half stars " +
-      "out of five) or null, review, the platforms a copy is owned on, edition, playtime in minutes, the day last played and the collections it is in; " +
+      "out of five) or null, review, the platforms a copy is owned on, edition, playtime in minutes, the day last played, the collections it is in, " +
+      "and for DLC base_game, the key or id of the game it adds to (\"none\" when set as not DLC), with base_game_title; " +
       "then every game collection.",
     params: [],
   },
@@ -68,6 +69,15 @@ export const games_api = {
           },
         },
       },
+    ],
+  },
+  set_game_base: {
+    description:
+      "Marks a game as DLC of another game in the library, so it shows on that game's page and leaves the library's Games list; " +
+      "an empty base_id marks it as not DLC, and the catalogues then stop filling one in.",
+    params: [
+      { name: "id", schema: game_id },
+      { name: "base_id", schema: text("The id of the game it adds to, from list_games, or empty for none.") },
     ],
   },
   remove_game: {

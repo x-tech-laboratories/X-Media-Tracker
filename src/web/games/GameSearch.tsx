@@ -53,7 +53,7 @@ function LibraryMatches({ query }: { query: string }) {
     <Section title="In your library">
       <Loaded resource={games}>
         {(loaded) => {
-          const found = filter_games(loaded.games, { ...no_game_filters, search: query });
+          const found = filter_games(loaded.games, { ...no_game_filters, kind: "all", search: query });
           if (found.length === 0) return <Empty title={`Nothing in your library matches “${query}”.`} />;
           return (
             <MediaGrid label="In your library">
