@@ -1,5 +1,5 @@
 // The games' settings: the catalogues' keys, how new games start, collections, the Steam profile whose library and
-// wishlist come in and how often, and the Trilium Game Tracker's import.
+// wishlist come in and how often, and the Trilium Game Tracker's and IGDB's imports.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -203,6 +203,35 @@ function TriliumSettings() {
   );
 }
 
+// ── IGDB ─────────────────────────────────────────────────────────────────────
+
+function IgdbSettings() {
+  const file = useRef<HTMLInputElement>(null);
+
+  async function import_export(event: ChangeEvent<HTMLInputElement>): Promise<void> {
+    const text = await read_picked(event);
+    if (text === null) return;
+    try {
+      const report = await calls().import_igdb_export(text);
+      toast(`Imported ${report.added} new game(s) and merged ${report.updated} already here. Refresh in Games finds the new ones' details.`, { tone: "good" });
+    } catch (error) {
+      toast(`Could not import: ${(error as Error).message}`, { tone: "bad" });
+    }
+  }
+
+  return (
+    <SettingRow
+      label="Import from IGDB"
+      hint="The index.html from IGDB's data export (Settings → Privacy, unzipped): Want to Play, Playing and Played become statuses, your own lists collections, with ratings and reviews. Games are matched by title."
+    >
+      <input ref={file} type="file" accept="text/html,.html" hidden aria-label="IGDB export file" onChange={(event) => void import_export(event)} />
+      <button type="button" onClick={() => file.current?.click()}>
+        Import IGDB…
+      </button>
+    </SettingRow>
+  );
+}
+
 // ── Sections ─────────────────────────────────────────────────────────────────
 
 export function game_settings(props: FeatureSettingsProps): SettingsSection[] {
@@ -217,5 +246,6 @@ export function game_settings(props: FeatureSettingsProps): SettingsSection[] {
     { id: "game-collections", heading: "Game collections", hint: "Your own shelves, such as Couch co-op or Backlog 2027; a game can be in several.", content: <CollectionSettings /> },
     { id: "steam", heading: "Steam", content: <SteamSettings {...props} /> },
     { id: "trilium-games", heading: "Trilium Game Tracker", content: <TriliumSettings /> },
+    { id: "igdb", heading: "IGDB", hint: "IGDB's API needs a Twitch developer account, so your IGDB lists come in through its data export.", content: <IgdbSettings /> },
   ];
 }

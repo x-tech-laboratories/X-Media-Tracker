@@ -96,6 +96,8 @@ on the Settings page.
   hourly on the server and the desktop, and the last import syncs, so they do not both run it. Steam is not a source
   plugin, since those import into Movies & Series.
 - `trilium.ts` reads the Trilium Game Tracker add-on's Database note and the statuses from its config note.
+- `igdb_export.ts` reads IGDB's data export page, by its tables' headers and without a DOM: lists as statuses or
+  collections, ratings and reviews, each game by its title alone.
 
 ## Sources and plugins
 

@@ -1,6 +1,7 @@
 // The games: every game tracked, with its status, rating, review, owned platforms, edition, playtime and collections.
 // RAWG, MobyGames, Giant Bomb, Wikidata and Steam fill in what games are, with Wikidata linking their ids; a Steam
-// profile's library and wishlist come in by hand or on a schedule, and the Trilium Game Tracker's library by its file.
+// profile's library and wishlist come in by hand or on a schedule, and the Trilium Game Tracker's library and IGDB's
+// lists by their files.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -12,6 +13,7 @@ import { Background, define_feature, drizzle_of, new_id } from "../feature.ts";
 import { games_api } from "./api.ts";
 import { catalog_labels, empty_game, join_results, merge_games, same_game, title_words, type CatalogGame } from "./catalog.ts";
 import { create_giantbomb } from "./giantbomb.ts";
+import { read_igdb_export, type IgdbGame } from "./igdb_export.ts";
 import { migrations } from "./migrations/index.ts";
 import { create_mobygames } from "./mobygames.ts";
 import {
@@ -504,6 +506,35 @@ function import_trilium_game(database: SqlDatabase, game: ImportedGame): "added"
   return existing ? "updated" : "added";
 }
 
+// ── IGDB ─────────────────────────────────────────────────────────────────────
+
+// IGDB's export names games only by title: one already here, matched by title, gains the status, rating, review,
+// platforms and collections it lacks; a new one waits for Refresh to find it on Wikidata by its title.
+function import_igdb_game(database: SqlDatabase, game: IgdbGame): "added" | "updated" {
+  const db = drizzle_of(database);
+  const existing = find_by_title(database, game.title, "");
+  let id = existing;
+  if (existing) {
+    const row = db.select().from(games_games).where(eq(games_games.id, existing)).get()!;
+    db.update(games_games)
+      .set({
+        status: row.status === "want_to_play" ? game.status : row.status,
+        rating: row.rating ?? game.rating,
+        review: row.review || game.review,
+        owned_platforms: JSON.stringify(clean_names([...parse_list(row.owned_platforms), ...game.platforms])),
+      })
+      .where(eq(games_games.id, existing))
+      .run();
+  } else {
+    id = `title:${title_words(game.title)}`;
+    db.insert(games_games)
+      .values({ id, title: game.title, status: game.status, rating: game.rating, review: game.review, owned_platforms: JSON.stringify(game.platforms), added_at: today() })
+      .run();
+  }
+  for (const name of game.collections) add_to_collection(database, id, collection_named(database, name));
+  return existing ? "updated" : "added";
+}
+
 // ── Ids ──────────────────────────────────────────────────────────────────────
 
 const id_labels: Record<keyof GameIds, string> = {
@@ -746,6 +777,17 @@ export const games_feature = define_feature({
       return in_transaction(database, () => {
         const report: GameImportReport = { added: 0, updated: 0 };
         for (const game of games) report[import_trilium_game(database, game)]++;
+        return report;
+      });
+    },
+
+    // IGDB's data export page; adds and merges, never removes.
+    import_igdb_export: (database: SqlDatabase, html: string): GameImportReport => {
+      const games = read_igdb_export(html);
+      if (games.length === 0) throw new Error("No games found; pick the index.html from IGDB's data export.");
+      return in_transaction(database, () => {
+        const report: GameImportReport = { added: 0, updated: 0 };
+        for (const game of games) report[import_igdb_game(database, game)]++;
         return report;
       });
     },

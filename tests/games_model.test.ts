@@ -13,6 +13,7 @@ import {
   sort_games,
   type LibraryGame,
 } from "../src/shared/games/model.ts";
+import { read_igdb_export } from "../src/shared/games/igdb_export.ts";
 import { parse_steam_id, parse_steam_name } from "../src/shared/games/steam.ts";
 import { read_trilium_games, read_trilium_statuses } from "../src/shared/games/trilium.ts";
 
@@ -181,5 +182,37 @@ describe("the Trilium Game Tracker", () => {
     expect(read_trilium_games("")).toEqual([]);
     expect(read_trilium_games("{not json")).toEqual([]);
     expect(read_trilium_statuses("{").backlog).toEqual({ status: "want_to_play", collection: "" });
+  });
+});
+
+describe("IGDB's data export", () => {
+  const row = (game: string, status = "", platform = "") => `<tr><td>0</td><td></td><td>${game}</td><td>${platform}</td><td>${status}</td></tr>`;
+  const list = (name: string, rows: string[]) =>
+    `<h3>${name}</h3><table class="table"><tbody><tr><td>Private</td><td>false</td></tr></tbody></table>` +
+    `<table class="table"><tr><th>Position</th><th>Description</th><th>Game</th><th>Platform</th><th>Status</th></tr>${rows.join("")}</table>`;
+  const page = [
+    `<h1>"someone"</h1><h2>Ratings</h2><table><tr><th>Game</th><th>Rating</th><th>Created at</th><th>Updated at</th></tr><tr><td>Portal 2</td><td>85</td><td></td><td></td></tr></table>`,
+    `<h2>Hypes (Following a game before it's release)</h2><table><tr><th>Game</th><th>Created at</th><th>Updated at</th></tr><tr><td>Hollow Knight: Silksong</td><td></td><td></td></tr></table>`,
+    `<h2>Lists</h2>`,
+    list("Want to Play", [row("Portal 2"), row("Deus Ex"), row("Tom &amp; Jerry")]),
+    list("Played", [row("Portal 2", "", "PC"), row("Deus Ex", "Abandoned")]),
+    list("Couch co-op", [row("Portal 2")]),
+    `<h2>Reviews</h2><table><tr><th>Game</th><th>Title</th><th>Likes</th><th>Category</th><th>Platform</th><th>Created at</th><th>Updated at</th><th>Text/Video</th></tr>` +
+      `<tr><td>Portal 2</td><td>Brilliant</td><td>0</td><td></td><td></td><td></td><td></td><td>Think with portals.</td></tr></table>`,
+  ].join("");
+
+  it("reads lists as statuses, own lists as collections, and ratings and reviews", () => {
+    const games = read_igdb_export(page);
+    expect(games.map((each) => [each.title, each.status])).toEqual([
+      ["Portal 2", "completed"],
+      ["Hollow Knight: Silksong", "want_to_play"],
+      ["Deus Ex", "dropped"],
+      ["Tom & Jerry", "want_to_play"],
+    ]);
+    expect(games[0]).toMatchObject({ rating: 9, review: "Brilliant\n\nThink with portals.", platforms: ["PC"], collections: ["Couch co-op"] });
+  });
+
+  it("reads a page that is not an export as no games", () => {
+    expect(read_igdb_export("<html><h1>Hello</h1></html>")).toEqual([]);
   });
 });

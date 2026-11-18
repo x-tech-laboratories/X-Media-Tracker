@@ -314,3 +314,25 @@ describe("the Trilium Game Tracker import", () => {
     expect(() => open_methods().import_trilium_games("{}", "")).toThrow("No games found");
   });
 });
+
+// ── IGDB ─────────────────────────────────────────────────────────────────────
+
+describe("the IGDB export import", () => {
+  const row = (game: string, status = "") => `<tr><td>0</td><td></td><td>${game}</td><td></td><td>${status}</td></tr>`;
+  const header = "<tr><th>Position</th><th>Description</th><th>Game</th><th>Platform</th><th>Status</th></tr>";
+  const page = `<h3>Want to Play</h3><table>${header}${row("Half-Life 2")}</table><h3>Played</h3><table>${header}${row("Portal")}${row("Terraria", "Abandoned")}</table>`;
+
+  it("matches games by title and adds the rest by their title", () => {
+    const methods = open_methods();
+    methods.import_trilium_games(JSON.stringify({ games: { "steam:400": { steamAppId: "400", title: "Portal", status: "backlog" }, "steam:105600": { steamAppId: "105600", title: "Terraria", status: "playing" } } }), "");
+    expect(methods.import_igdb_export(page)).toEqual({ added: 1, updated: 2 });
+    expect(methods.get_game("steam:400")).toMatchObject({ status: "completed" });
+    expect(methods.get_game("steam:105600")).toMatchObject({ status: "playing" });
+    expect(methods.get_game("title:half life 2")).toMatchObject({ title: "Half-Life 2", status: "want_to_play", added_at: "2026-11-17" });
+    expect(methods.import_igdb_export(page)).toEqual({ added: 0, updated: 3 });
+  });
+
+  it("refuses a page with no games", () => {
+    expect(() => open_methods().import_igdb_export("<h1>Nope</h1>")).toThrow("No games found");
+  });
+});

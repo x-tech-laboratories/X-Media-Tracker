@@ -168,6 +168,13 @@ export const games_api = {
       { name: "config_json", schema: { ...json_file, description: "The add-on's config.json note, for the statuses added there, or empty." } },
     ],
   },
+  import_igdb_export: {
+    description:
+      "Imports IGDB's data export for an account: its Want to Play, Playing and Played lists as statuses (an entry's own status, such as Abandoned, " +
+      "winning), its own lists as collections, and its ratings and reviews. Games are matched by title, since the export names no ids; new ones " +
+      "come in with only their title until refresh_games finds them. Adds and merges, never removes.",
+    params: [{ name: "html", schema: { ...json_file, description: "The export's index.html: its whole text." } }],
+  },
   refresh_games: {
     description: "Starts fetching every game's details from the catalogues again, in the background; a game known only by its title is looked for on Wikidata. Gives the refresh's progress.",
     params: [],

@@ -148,6 +148,12 @@ Open the add-on's `Database` note under your Library Root, save its text as a `.
 already here without changing their status or rating. **Export JSON** writes the library back in the same shape.
 
 
+From IGDB, ask for your data under its **Settings → Privacy**, unzip what it sends, and pick its `index.html` under
+**Settings → Games → IGDB → Import IGDB**. Want to Play, Playing and Played become statuses, an entry's own status
+(such as Abandoned) winning, and a game in several lists takes the furthest along; your own lists become collections,
+with ratings and reviews too. The export names no ids, so games are matched by title, and new ones have only their
+title until **Refresh** in Games finds them on Wikidata.
+
 For the Trilium Game Tracker add-on, save its `Database` note's text as a `.json` file and pick it under **Settings →
 Games → Trilium Game Tracker → Import Trilium**. To keep the statuses you added in the add-on, such as Endless, pick its
 `config.json` note first with **Pick config**; each becomes the built-in status of its role and a collection of its
