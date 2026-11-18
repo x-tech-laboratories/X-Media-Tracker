@@ -14,7 +14,7 @@ import { data_watch, page } from "./api.ts";
 import { page_features } from "./features.tsx";
 import { HistoryView } from "./history/HistoryView.tsx";
 import { SettingsView } from "./settings/SettingsView.tsx";
-import { Sidebar } from "./Sidebar.tsx";
+import { Sidebar, SidebarFoot } from "./Sidebar.tsx";
 
 // ── Sections ─────────────────────────────────────────────────────────────────
 
@@ -87,6 +87,7 @@ function Pages({ me, on_sign_out }: { me: Me | null; on_sign_out?: () => void })
       brand="X-Media-Tracker"
       brand_icon={app_icon}
       sidebar={<Sidebar features={page_features} section={section} page={page?.id ?? ""} />}
+      sidebar_foot={<SidebarFoot />}
       tools={(shown_feature ?? page_features[0]!).top_bar}
       theme={theme}
       view_key={view_key}

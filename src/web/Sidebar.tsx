@@ -1,7 +1,10 @@
-// The sidebar: each section's heading, such as Movies & Series, over its pages, then History, above the Shell's own foot rows.
+// The sidebar: each section's heading, such as Movies & Series, over its pages, then History, and sync in its foot.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
+import { SyncButton } from "@x-tech-laboratories/x-libs/web/react/sync_settings";
+
+import { data_watch, page as page_api } from "./api.ts";
 import type { PageFeature } from "./features.tsx";
 
 // ── Rows ─────────────────────────────────────────────────────────────────────
@@ -48,4 +51,10 @@ export function Sidebar({ features, section, page }: SidebarProps) {
       <Row href="#/history" label="History" active={section === "history"} />
     </nav>
   );
+}
+
+// Sync on a device that syncs, above the Shell's own theme, account and Settings rows.
+export function SidebarFoot() {
+  const { device } = page_api();
+  return device ? <SyncButton device={device} subscribe={data_watch.subscribe} on_open_settings={() => (window.location.hash = "/settings")} /> : null;
 }
