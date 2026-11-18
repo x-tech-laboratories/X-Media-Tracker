@@ -20,6 +20,8 @@ import type { TmdbFullDetails, TmdbSeason } from "../../shared/library/tmdb.ts";
 import { use_page_plugins } from "../sources/plugins.tsx";
 import { set_status } from "./status.tsx";
 import { HeadPoster } from "../covers.tsx";
+import { MergeButton } from "../merging.tsx";
+import { title_merge } from "./merge.tsx";
 
 // ── Episodes ─────────────────────────────────────────────────────────────────
 
@@ -120,7 +122,7 @@ function Collections({ title, collections }: { title: LibraryTitle; collections:
   return <ChipField label="Collections" values={chosen} suggestions={collections.map((collection) => collection.name)} list_on_focus add_label="Add" placeholder="Add to a collection" on_change={(next) => void save(next)} />;
 }
 
-function TitlePage({ title, collections, settings }: { title: LibraryTitle; collections: Collection[]; settings: Record<string, unknown> }) {
+function TitlePage({ title, titles, collections, settings }: { title: LibraryTitle; titles: LibraryTitle[]; collections: Collection[]; settings: Record<string, unknown> }) {
   // TMDB is asked once per visit, not after each tick.
   const details = use_resource(() => calls().lookup_title_details(title.id), [title.id]);
   const genres_on = settings["library.genres_enabled"] !== false;
@@ -147,6 +149,7 @@ function TitlePage({ title, collections, settings }: { title: LibraryTitle; coll
         actions={
           <>
             {plugins && <PluginSlot host={plugins} name="title_actions" props={{ media_type: title.media_type, imdb_id: title.imdb_id || tmdb?.imdb_id || "" }} />}
+            <MergeButton kind={title_merge} start={title} items={titles} />
             <button type="button" className="danger" onClick={remove}>
               Remove
             </button>
@@ -208,7 +211,7 @@ export function TitleView({ id }: { id: string }) {
         {(loaded) =>
           loaded && (
           <Loaded resource={library}>
-            {(collections) => <Loaded resource={settings}>{(values) => <TitlePage title={loaded} collections={collections.collections} settings={values} />}</Loaded>}
+            {(all) => <Loaded resource={settings}>{(values) => <TitlePage title={loaded} titles={all.titles} collections={all.collections} settings={values} />}</Loaded>}
           </Loaded>
           )
         }

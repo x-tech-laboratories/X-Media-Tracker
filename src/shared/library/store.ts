@@ -8,6 +8,7 @@ import { and, asc, count, eq, inArray, or, synced_tables } from "@x-tech-laborat
 import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 
 import { Background, define_feature, drizzle_of, new_id } from "../feature.ts";
+import { merge_columns, merge_ids, type SourceAnswers } from "../merging.ts";
 import { library_api } from "./api.ts";
 import { migrations } from "./migrations/index.ts";
 import {
@@ -255,6 +256,55 @@ function import_title(database: SqlDatabase, title: ImportedTitle, collection_id
   return existing ? "updated" : "added";
 }
 
+// ── Merging ──────────────────────────────────────────────────────────────────
+
+const title_merge_columns = {
+  ...Object.fromEntries(["tmdb_id", "imdb_id", "trakt_id", "media_type", "name", "year", "overview", "poster_path", "cover_file", "cover_file_from", "genres", "status", "last_watched", "added_at"].map((key) => [key, "text"])),
+  runtime: "number",
+  total_episodes: "number",
+  rating: "nullable_number",
+} as const;
+
+// What TMDB says of a tracked title, for picking what to keep field by field.
+async function title_sources(database: SqlDatabase, title: LibraryTitle): Promise<SourceAnswers> {
+  try {
+    const details = await resolve_details(tmdb_of(database), title.media_type, title.tmdb_id, title.imdb_id);
+    const values = { ...metadata_of(details), imdb_id: details.imdb_id, media_type: details.media_type, total_episodes: details.total_episodes };
+    return { answers: [{ source: "tmdb", label: "TMDB", values }], failures: [] };
+  } catch (error) {
+    return { answers: [], failures: [`TMDB: ${(error as Error).message}`] };
+  }
+}
+
+// The titles merged become the one kept: it takes the values given and every watched episode and collection of the
+// others, and the others are removed.
+function merge_into(database: SqlDatabase, ids: string[], keep: string, values: Record<string, unknown>): LibraryTitle {
+  const merged = merge_ids(ids, keep);
+  for (const id of merged) require_title(database, id);
+  const fields = merge_columns(values, title_merge_columns);
+  if (fields.status !== undefined && !is_status(fields.status)) throw new Error(`Unknown status: ${String(fields.status)}.`);
+  if (fields.media_type !== undefined && fields.media_type !== "movie" && fields.media_type !== "show") throw new Error("A title is a movie or a show.");
+  const db = drizzle_of(database);
+  for (const key of ["tmdb_id", "imdb_id", "trakt_id"] as const) {
+    const value = fields[key];
+    if (typeof value !== "string" || !value) continue;
+    const other = db.select({ id: library_titles.id, name: library_titles.name }).from(library_titles).where(eq(library_titles[key], value)).all().find((row) => !merged.includes(row.id));
+    if (other) throw new Error(`${other.name} already has that id; merge it too, or remove one of the two titles first.`);
+  }
+  const others = merged.filter((id) => id !== keep);
+  in_transaction(database, () => {
+    if (others.length > 0) {
+      write_episodes(database, keep, db.select().from(library_episodes).where(inArray(library_episodes.title_id, others)).all(), true);
+      for (const link of db.select().from(library_title_collections).where(inArray(library_title_collections.title_id, others)).all()) {
+        db.insert(library_title_collections).values({ title_id: keep, collection_id: link.collection_id }).onConflictDoNothing().run();
+      }
+      db.delete(library_titles).where(inArray(library_titles.id, others)).run();
+    }
+    if (Object.keys(fields).length > 0) db.update(library_titles).set(fields).where(eq(library_titles.id, keep)).run();
+  });
+  return require_title(database, keep);
+}
+
 // ── Refreshing ───────────────────────────────────────────────────────────────
 
 const no_refresh: LibraryRefresh = { state: "none", done: 0, total: 0, started_at: "", finished_at: "", report: null, error: "" };
@@ -367,6 +417,10 @@ export const library_feature = define_feature({
       }
       throw new Error(`TMDB has no match for ${parsed.imdb_id}.`);
     },
+
+    lookup_title_sources: (database: SqlDatabase, id: string): Promise<SourceAnswers> => title_sources(database, require_title(database, id)),
+
+    merge_titles: (database: SqlDatabase, ids: string[], keep: string, values: Record<string, unknown>): LibraryTitle => merge_into(database, ids, keep, values),
 
     remove_title: (database: SqlDatabase, id: string): void => {
       require_title(database, id);

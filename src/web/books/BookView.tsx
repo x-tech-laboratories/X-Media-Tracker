@@ -42,6 +42,8 @@ import {
 import type { CatalogSeries } from "../../shared/books/catalog.ts";
 import { attempt, book_href, report_added, set_book_status } from "./actions.tsx";
 import { HeadPoster } from "../covers.tsx";
+import { MergeButton } from "../merging.tsx";
+import { book_merge } from "./merge.tsx";
 
 // ── Facts ────────────────────────────────────────────────────────────────────
 
@@ -391,6 +393,7 @@ function BookPage({ book, collections, books }: { book: LibraryBook; collections
             <button type="button" onClick={() => open_dialog((close) => <IdsDialog book={book} close={close} />)}>
               Change ids
             </button>
+            <MergeButton kind={book_merge} start={book} items={books} />
             <button type="button" className="danger" onClick={remove}>
               Remove
             </button>

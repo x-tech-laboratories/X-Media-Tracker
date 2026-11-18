@@ -62,6 +62,25 @@ export const library_api = {
     description: "Adds a movie or show from a TMDB or IMDb link, or a bare IMDb id such as tt15239678. Gives back its id.",
     params: [{ name: "link", schema: text("Such as https://www.themoviedb.org/tv/95396-severance or https://www.imdb.com/title/tt15239678/.") }],
   },
+  lookup_title_sources: {
+    description:
+      "Looks up what TMDB says of a tracked title, with the same field names as list_library gives a title: tmdb_id, imdb_id, media_type, name, year, overview, " +
+      "poster_path, genres, runtime and total_episodes. Names TMDB as failed when it could not answer. Use it to pick, field by field, what a title keeps through merge_titles.",
+    params: [{ name: "id", schema: title_id }],
+  },
+  merge_titles: {
+    description:
+      "Merges tracked titles that are the same movie or show, such as one known only by its IMDb id and one by its TMDB id, into one: the title kept takes the " +
+      "values given, gains every watched episode and collection of the others, and the others are removed; History can bring them back. Values are by " +
+      "list_library's field names, such as tmdb_id, imdb_id, name, status, rating or last_watched, each from one of the titles or from lookup_title_sources; " +
+      "a field left out stays as the kept title has it. An id another tracked title outside the merge already has is refused. With one id it only sets the values. " +
+      "Gives back the title kept.",
+    params: [
+      { name: "ids", schema: { type: "array", items: { type: "string" }, description: "Every title to merge, the kept one among them, by its id as list_library gives it." } },
+      { name: "keep", schema: { ...title_id, description: "The id of the title that stays." } },
+      { name: "values", schema: { type: "object", description: 'The fields the kept title takes, by name, such as {"imdb_id": "tt11280740", "rating": 9}.' } },
+    ],
+  },
   remove_title: {
     description: "Removes a title from the library, with its watched episodes; History can bring it back.",
     params: [{ name: "id", schema: title_id }],

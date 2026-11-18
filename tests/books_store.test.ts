@@ -424,3 +424,45 @@ describe("changing a book's ids", () => {
     expect(store.get_book(added.id)).toMatchObject({ openlibrary_id: "OL5738148W" });
   });
 });
+
+describe("merging books", () => {
+  const header = storygraph_csv.split("\n")[0];
+  const no_isbn = `${header}\nThe Final Empire,Brandon Sanderson,,,paperback,read,2023/01/02,2024/02/09,2024/02/01-2024/02/09,1,adventurous,fast,4.5,Loved it,,Cosmere,Yes`;
+
+  it("gives each catalogue's own answer in a book's shape", async () => {
+    const store = open_methods();
+    const { id } = await store.add_book("bookbrainz", work_id);
+
+    const { answers: found, failures } = await store.lookup_book_sources(id);
+
+    expect(failures).toEqual([]);
+    expect(found.map((answer) => answer.label)).toEqual(["BookBrainz", "Open Library"]);
+    expect(found[0]!.values).toMatchObject({ title: "Mistborn: The Final Empire", bookbrainz_id: work_id, overview: "" });
+    expect(found[1]!.values).toMatchObject({ title: "The Final Empire", overview: "Ash falls from the sky.", authors: "Brandon Sanderson" });
+    expect(found[1]!.values.author_refs).toEqual([expect.objectContaining({ name: "Brandon Sanderson", openlibrary_id: "OL1394865A" })]);
+  });
+
+  it("merges an imported copy into the catalogued one with its reads, collections and picked values", async () => {
+    const store = open_methods();
+    const { id } = await store.add_book("bookbrainz", work_id);
+    store.import_storygraph(no_isbn);
+    const copy = store.list_books().books.find((book) => book.id !== id)!;
+
+    const merged = store.merge_books([id, copy.id], id, { title: "The Final Empire", status: "read", rating: 9, review: "Loved it", owned: true, author_refs: [{ name: "Brandon Sanderson", bookbrainz_id: author_id, openlibrary_id: "", hardcover_id: "" }] });
+
+    expect(store.list_books().books.map((book) => book.id)).toEqual([id]);
+    expect(merged).toMatchObject({ id, title: "The Final Empire", status: "read", rating: 9, review: "Loved it", owned: true, isbn: "9780765311788", read_count: 1, last_read: "2024-02-09" });
+    expect(merged.author_refs[0]).toMatchObject({ bookbrainz_id: author_id });
+    expect(merged.collection_ids).toHaveLength(1);
+  });
+
+  it("refuses an id a book outside the merge has, and a field it does not know", async () => {
+    const store = open_methods();
+    store.import_storygraph(storygraph_csv);
+    const piranesi = store.list_books().books.find((book) => book.title === "Piranesi")!;
+
+    expect(() => store.merge_books([piranesi.id], piranesi.id, { isbn: "9780765311788" })).toThrow("The Final Empire already has that ISBN");
+    expect(() => store.merge_books([piranesi.id], piranesi.id, { id: "isbn:1" })).toThrow("id cannot be merged");
+    expect(() => store.merge_books([piranesi.id], "isbn:1", {})).toThrow("must be one of those merged");
+  });
+});

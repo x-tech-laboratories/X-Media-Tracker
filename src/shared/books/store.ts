@@ -9,6 +9,7 @@ import { and, asc, desc, eq, inArray, or, synced_tables } from "@x-tech-laborato
 import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 
 import { Background, define_feature, drizzle_of, new_id } from "../feature.ts";
+import { merge_columns, merge_ids, type SourceAnswers } from "../merging.ts";
 import { books_api } from "./api.ts";
 import { create_bookbrainz } from "./bookbrainz.ts";
 import { catalog_labels, empty_book, join_results, merge_books, merge_refs, same_book, title_words, type CatalogBook, type CatalogRelease, type CatalogSeries, type CatalogSource } from "./catalog.ts";
@@ -232,17 +233,24 @@ function settle_last_read(database: SqlDatabase, book_id: string): void {
 
 // ── Catalogues ───────────────────────────────────────────────────────────────
 
+// Each catalogue's own answer and the failures, kept for the merge window.
+interface Heard {
+  answers: Partial<Record<CatalogSource, CatalogBook>>;
+  failures: string[];
+}
+
 // What every catalogue that knows the book says, BookBrainz first, then Open Library, then Hardcover; each may fail
 // alone, and the book is refused only when none answered.
-async function gather(database: SqlDatabase, start: CatalogBook): Promise<CatalogBook> {
+async function gather(database: SqlDatabase, start: CatalogBook, heard: Heard = { answers: {}, failures: [] }): Promise<CatalogBook> {
   const { bookbrainz, openlibrary, hardcover } = catalogs_of(database);
   let book = start;
   let answered = start.title !== "";
-  const failures: string[] = [];
+  const failures = heard.failures;
   const series_from: Partial<Record<CatalogSource, CatalogBook>> = {};
   const ask = async (source: CatalogSource, lookup: () => Promise<CatalogBook>) => {
     try {
       const found = await lookup();
+      heard.answers[source] = found;
       book = merge_books(book, found);
       if (found.series) series_from[source] = found;
       answered = true;
@@ -591,15 +599,18 @@ function snapshot_of(refresh: BooksRefresh): BooksRefresh {
   return { ...refresh, report: refresh.report && { ...refresh.report } };
 }
 
-// A book known only by its title, such as one imported without an ISBN, is first looked for on Open Library.
+// Where the catalogues start on a tracked book; one known only by its title, such as one imported without an ISBN, is
+// first looked for on Open Library, and null when it is not there.
+async function start_of(book: LibraryBook): Promise<CatalogBook | null> {
+  const start: CatalogBook = { ...empty_book("openlibrary"), bookbrainz_id: book.bookbrainz_id, openlibrary_id: book.openlibrary_id, hardcover_id: book.hardcover_id, isbn: book.isbn };
+  if (book_key(start)) return start;
+  const candidate: CatalogBook = { ...empty_book("openlibrary"), title: book.title, authors: book.author_refs };
+  return (await create_openlibrary().search(`${book.title} ${book.authors.split(",")[0] ?? ""}`)).find((found) => same_book(found, candidate)) ?? null;
+}
+
 async function refresh_book(database: SqlDatabase, book: LibraryBook): Promise<boolean> {
-  let start: CatalogBook = { ...empty_book("openlibrary"), bookbrainz_id: book.bookbrainz_id, openlibrary_id: book.openlibrary_id, hardcover_id: book.hardcover_id, isbn: book.isbn };
-  if (!book_key(start)) {
-    const candidate: CatalogBook = { ...empty_book("openlibrary"), title: book.title, authors: book.author_refs };
-    const match = (await create_openlibrary().search(`${book.title} ${book.authors.split(",")[0] ?? ""}`)).find((found) => same_book(found, candidate));
-    if (!match) return false;
-    start = match;
-  }
+  const start = await start_of(book);
+  if (!start) return false;
   const details = await gather(database, start);
   const db = drizzle_of(database);
   const row = db.select().from(books_books).where(eq(books_books.id, book.id)).get();
@@ -631,6 +642,81 @@ async function run_refresh(database: SqlDatabase, refresh: BooksRefresh): Promis
     Object.assign(refresh, { state: "failed", error: (error as Error).message });
   }
   refresh.finished_at = new Date().toISOString();
+}
+
+// ── Merging ──────────────────────────────────────────────────────────────────
+
+const book_id_keys = ["bookbrainz_id", "openlibrary_id", "hardcover_id", "isbn"] as const satisfies readonly (keyof BookIds)[];
+
+const book_merge_columns = {
+  ...Object.fromEntries(book_id_keys.map((key) => [key, "text"])),
+  ...Object.fromEntries(
+    ["title", "subtitle", "authors", "author_refs", "series", "series_position", "series_ref", "year", "release_date", "overview", "cover_url", "cover_file", "cover_file_from", "genres", "status", "review", "format", "progress_unit", "moods", "pace", "added_at"].map((key) => [key, "text"]),
+  ),
+  pages: "number",
+  audio_minutes: "number",
+  owned: "number",
+  progress: "number",
+  rating: "nullable_number",
+} as const;
+
+// What one catalogue says, in a tracked book's own shape.
+function answer_values(book: CatalogBook): Record<string, unknown> {
+  return { ...metadata_of(book), author_refs: book.authors, series_ref: book.series };
+}
+
+// Each catalogue's own answer about a tracked book, for picking what to keep field by field.
+async function book_sources(database: SqlDatabase, book: LibraryBook): Promise<SourceAnswers> {
+  const start = await start_of(book).catch(() => null);
+  if (!start) return { answers: [], failures: ["Open Library: no book with that title and author."] };
+  const heard: Heard = { answers: {}, failures: [] };
+  await gather(database, start, heard).catch(() => undefined);
+  const answers = (["bookbrainz", "openlibrary", "hardcover"] as const).flatMap((source) => {
+    const found = heard.answers[source];
+    return found ? [{ source, label: catalog_labels[source], values: answer_values(found) }] : [];
+  });
+  return { answers, failures: heard.failures };
+}
+
+// A book's values as the page holds them, such as its authors as a list, back into its row's columns.
+function stored_book_values(values: Record<string, unknown>): Record<string, unknown> {
+  const stored = { ...values };
+  if ("author_refs" in stored && typeof stored.author_refs !== "string") stored.author_refs = JSON.stringify(stored.author_refs ?? []);
+  if ("series_ref" in stored && typeof stored.series_ref !== "string") stored.series_ref = stored.series_ref ? JSON.stringify(stored.series_ref) : "";
+  if (typeof stored.owned === "boolean") stored.owned = stored.owned ? 1 : 0;
+  return stored;
+}
+
+// The books merged become the one kept: it takes the values given, every read, journal entry and collection of the
+// others, and the others are removed.
+function merge_into(database: SqlDatabase, ids: string[], keep: string, values: Record<string, unknown>): LibraryBook {
+  const merged = merge_ids(ids, keep);
+  for (const id of merged) require_book(database, id);
+  const fields = merge_columns(stored_book_values(values), book_merge_columns);
+  if (fields.status !== undefined) require_status(fields.status as BookStatus);
+  if (fields.format !== undefined && !is_book_format(fields.format)) throw new Error(`Unknown format: ${String(fields.format)}.`);
+  if (fields.progress_unit !== undefined && !is_progress_unit(fields.progress_unit)) throw new Error(`Unknown progress unit: ${String(fields.progress_unit)}.`);
+  const db = drizzle_of(database);
+  for (const key of book_id_keys) {
+    const value = fields[key];
+    if (typeof value !== "string" || !value) continue;
+    const other = db.select({ id: books_books.id, title: books_books.title }).from(books_books).where(eq(books_books[key], value)).all().find((row) => !merged.includes(row.id));
+    if (other) throw new Error(`${other.title} already has that ${id_labels[key]}; merge it too, or remove one of the two books first.`);
+  }
+  const others = merged.filter((id) => id !== keep);
+  in_transaction(database, () => {
+    if (others.length > 0) {
+      db.update(books_reads).set({ book_id: keep }).where(inArray(books_reads.book_id, others)).run();
+      db.update(books_journal).set({ book_id: keep }).where(inArray(books_journal.book_id, others)).run();
+      for (const link of db.select().from(books_book_collections).where(inArray(books_book_collections.book_id, others)).all()) {
+        db.insert(books_book_collections).values({ book_id: keep, collection_id: link.collection_id }).onConflictDoNothing().run();
+      }
+      db.delete(books_books).where(inArray(books_books.id, others)).run();
+    }
+    if (Object.keys(fields).length > 0) db.update(books_books).set(fields).where(eq(books_books.id, keep)).run();
+    settle_last_read(database, keep);
+  });
+  return require_book(database, keep);
 }
 
 // ── Feature ──────────────────────────────────────────────────────────────────
@@ -680,6 +766,10 @@ export const books_feature = define_feature({
     },
 
     set_book_ids: (database: SqlDatabase, id: string, ids: Partial<BookIds>): Promise<LibraryBook> => set_ids(database, id, ids),
+
+    lookup_book_sources: (database: SqlDatabase, id: string): Promise<SourceAnswers> => book_sources(database, require_book(database, id)),
+
+    merge_books: (database: SqlDatabase, ids: string[], keep: string, values: Record<string, unknown>): LibraryBook => merge_into(database, ids, keep, values),
 
     remove_book: (database: SqlDatabase, id: string): void => {
       require_book(database, id);

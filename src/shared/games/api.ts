@@ -85,6 +85,26 @@ export const games_api = {
       { name: "base_id", schema: text("The id of the game it adds to, from list_games, or empty for none.") },
     ],
   },
+  lookup_game_sources: {
+    description:
+      "Looks up what each catalogue (RAWG, MobyGames and Giant Bomb when their keys are set, Steam and Wikidata) says of a tracked game, each answer on its own " +
+      "rather than joined, with the same field names as list_games gives a game: ids, title, year, release_date, overview, cover_url, genres, platforms, developers, " +
+      "publishers and, for DLC, base_game. Names any catalogue that failed. Use it to pick, field by field, which catalogue's value a game keeps through merge_games.",
+    params: [{ name: "id", schema: game_id }],
+  },
+  merge_games: {
+    description:
+      "Merges tracked games that are the same game, such as one imported from Steam and one added from RAWG, into one: the game kept takes the values given, " +
+      "gains every collection of the others, DLC of the others becomes DLC of it, and the others are removed; History can bring them back. Values are by " +
+      "list_games' field names, such as rawg_id, steam_app_id, title, status, rating, owned_platforms or playtime_minutes, each from one of the games or from " +
+      "lookup_game_sources; a field left out stays as the kept game has it. A catalogue id another tracked game outside the merge already has is refused. " +
+      "With one id it only sets the values. Gives back the game kept.",
+    params: [
+      { name: "ids", schema: { type: "array", items: { type: "string" }, description: "Every game to merge, the kept one among them, by its id as list_games gives it." } },
+      { name: "keep", schema: { ...game_id, description: "The id of the game that stays." } },
+      { name: "values", schema: { type: "object", description: 'The fields the kept game takes, by name, such as {"steam_app_id": "620", "playtime_minutes": 840}.' } },
+    ],
+  },
   remove_game: {
     description: "Removes a game from the library; History can bring it back.",
     params: [{ name: "id", schema: game_id }],

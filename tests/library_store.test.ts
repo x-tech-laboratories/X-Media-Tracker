@@ -302,3 +302,42 @@ describe("the Trilium library", () => {
     expect(() => store.import_trilium_media("{}", "")).toThrow(/has no "titles"/);
   });
 });
+
+// ── Merging ──────────────────────────────────────────────────────────────────
+
+describe("merging titles", () => {
+  // A second Breaking Bad, known only by its TMDB id, as a source that never learnt its IMDb id would leave it.
+  function with_duplicate() {
+    const database = new DatabaseSync(":memory:");
+    open_store(database);
+    const store = bind_methods(() => database, () => undefined);
+    store.set_setting("library.tmdb_api_key", "test-key");
+    store.import_trilium_media(trilium_database, "");
+    database.prepare("INSERT INTO library_titles (id, tmdb_id, media_type, name, status, rating) VALUES ('tmdb:1396', '1396', 'show', 'Breaking Bad', 'watching', 8)").run();
+    store.set_episodes_watched("tmdb:1396", [{ season: 1, from: 1, to: 3 }], true, 0);
+    return store;
+  }
+
+  it("gives what TMDB says in a title's shape", async () => {
+    const store = with_duplicate();
+
+    const { answers } = await store.lookup_title_sources("imdb:tt0903747");
+
+    expect(answers).toEqual([{ source: "tmdb", label: "TMDB", values: expect.objectContaining({ tmdb_id: "1396", imdb_id: "tt0903747", name: "Breaking Bad", total_episodes: 7 }) }]);
+  });
+
+  it("merges two copies of a show with their episodes and collections", () => {
+    const store = with_duplicate();
+
+    const merged = store.merge_titles(["imdb:tt0903747", "tmdb:1396"], "imdb:tt0903747", { tmdb_id: "1396", status: "watching", rating: 8 });
+
+    expect(store.list_library().titles.filter((title) => title.name === "Breaking Bad")).toHaveLength(1);
+    expect(merged).toMatchObject({ id: "imdb:tt0903747", tmdb_id: "1396", status: "watching", rating: 8, watched_count: 3, watched_episodes: "s01e01-e03" });
+    expect(merged.collection_ids).toHaveLength(1);
+  });
+
+  it("refuses a status it does not know", () => {
+    const store = with_duplicate();
+    expect(() => store.merge_titles(["tmdb:1396"], "tmdb:1396", { status: "binged" })).toThrow("Unknown status: binged.");
+  });
+});

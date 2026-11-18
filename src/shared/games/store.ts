@@ -10,6 +10,7 @@ import { asc, eq, inArray, or, synced_tables } from "@x-tech-laboratories/x-libs
 import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 
 import { Background, define_feature, drizzle_of, new_id } from "../feature.ts";
+import { merge_columns, merge_ids, type SourceAnswers } from "../merging.ts";
 import { games_api } from "./api.ts";
 import { catalog_labels, empty_game, join_results, merge_games, same_game, title_words, type CatalogGame } from "./catalog.ts";
 import { create_giantbomb } from "./giantbomb.ts";
@@ -210,12 +211,17 @@ function ids_only(game: CatalogGame): CatalogGame {
   return { ...empty_game(game.sources[0] ?? "wikidata"), ...ids };
 }
 
+// Each catalogue's own answer and the failures, kept for the merge window.
+interface Heard {
+  answers: Partial<Record<GameSource, CatalogGame>>;
+  failures: string[];
+}
+
 // What every catalogue that knows the game says: Wikidata first, for the ids the others know it by, then each catalogue
 // with a key by its own id. Each may fail alone, and the game is refused only when none answered.
-async function gather(database: SqlDatabase, start: CatalogGame): Promise<CatalogGame> {
+async function gather(database: SqlDatabase, start: CatalogGame, heard: Heard = { answers: {}, failures: [] }): Promise<CatalogGame> {
   const catalogs = catalogs_of(database);
-  const answers: Partial<Record<GameSource, CatalogGame>> = {};
-  const failures: string[] = [];
+  const { answers, failures } = heard;
   let ids = ids_only(start);
   const ask = async (source: GameSource, lookup: () => Promise<CatalogGame>) => {
     try {
@@ -651,14 +657,19 @@ function snapshot_of(refresh: GamesRefresh): GamesRefresh {
 }
 
 // A game known only by its title, such as one imported without a Steam id, is first looked for on Wikidata.
+// Where the catalogues start on a tracked game; one known only by its title is first looked for on Wikidata, and null
+// when it is not there.
+async function start_of(game: LibraryGame): Promise<CatalogGame | null> {
+  const start: CatalogGame = { ...empty_game("wikidata"), ...Object.fromEntries(game_id_keys.map((key) => [key, game[key]])) };
+  if (game_key(start)) return start;
+  const candidate: CatalogGame = { ...empty_game("wikidata"), title: game.title, year: game.year };
+  const match = (await create_wikidata().search(game.title)).find((found) => same_game(found, candidate));
+  return match ? ids_only(match) : null;
+}
+
 async function refresh_game(database: SqlDatabase, game: LibraryGame): Promise<boolean> {
-  let start: CatalogGame = { ...empty_game("wikidata"), ...Object.fromEntries(game_id_keys.map((key) => [key, game[key]])) };
-  if (!game_key(start)) {
-    const candidate: CatalogGame = { ...empty_game("wikidata"), title: game.title, year: game.year };
-    const match = (await create_wikidata().search(game.title)).find((found) => same_game(found, candidate));
-    if (!match) return false;
-    start = ids_only(match);
-  }
+  const start = await start_of(game);
+  if (!start) return false;
   const details = await gather(database, start);
   const db = drizzle_of(database);
   const row = db.select().from(games_games).where(eq(games_games.id, game.id)).get();
@@ -699,6 +710,66 @@ async function run_refresh(database: SqlDatabase, refresh: GamesRefresh): Promis
   refresh.finished_at = new Date().toISOString();
 }
 
+// ── Merging ──────────────────────────────────────────────────────────────────
+
+const game_merge_columns = {
+  ...Object.fromEntries(game_id_keys.map((key) => [key, "text"])),
+  ...Object.fromEntries(
+    ["title", "year", "release_date", "overview", "cover_url", "cover_file", "cover_file_from", "genres", "platforms", "developers", "publishers", "status", "review", "owned_platforms", "edition", "last_played", "added_at", "base_game", "base_game_title"].map((key) => [
+      key,
+      "text",
+    ]),
+  ),
+  playtime_minutes: "number",
+  rating: "nullable_number",
+} as const;
+
+// Each catalogue's own answer about a tracked game, for picking what to keep field by field.
+async function game_sources(database: SqlDatabase, game: LibraryGame): Promise<SourceAnswers> {
+  const start = await start_of(game).catch(() => null);
+  if (!start) return { answers: [], failures: ["Wikidata: no game with that title and year."] };
+  const heard: Heard = { answers: {}, failures: [] };
+  await gather(database, start, heard).catch(() => undefined);
+  const answers = detail_order.flatMap((source) => {
+    const found = heard.answers[source];
+    return found ? [{ source, label: catalog_labels[source], values: { ...metadata_of(found), ...base_of(undefined, found) } }] : [];
+  });
+  return { answers, failures: heard.failures };
+}
+
+// The games merged become the one kept: it takes the values given and every collection of the others, DLC of the
+// others points at it, and the others are removed.
+function merge_into(database: SqlDatabase, ids: string[], keep: string, values: Record<string, unknown>): LibraryGame {
+  const merged = merge_ids(ids, keep);
+  for (const id of merged) require_game(database, id);
+  const stored = { ...values };
+  if ("owned_platforms" in stored && typeof stored.owned_platforms !== "string") stored.owned_platforms = JSON.stringify(clean_names(stored.owned_platforms as string[]));
+  const fields = merge_columns(stored, game_merge_columns);
+  if (fields.status !== undefined && !is_game_status(fields.status)) throw new Error(`Unknown status: ${String(fields.status)}.`);
+  const db = drizzle_of(database);
+  for (const key of game_id_keys) {
+    const value = fields[key];
+    if (typeof value !== "string" || !value) continue;
+    const other = db.select({ id: games_games.id, title: games_games.title }).from(games_games).where(eq(games_games[key], value)).all().find((row) => !merged.includes(row.id));
+    if (other) throw new Error(`${other.title} already has that ${id_labels[key]}; merge it too, or remove one of the two games first.`);
+  }
+  const others = merged.filter((id) => id !== keep);
+  in_transaction(database, () => {
+    if (others.length > 0) {
+      for (const link of db.select().from(games_game_collections).where(inArray(games_game_collections.game_id, others)).all()) {
+        db.insert(games_game_collections).values({ game_id: keep, collection_id: link.collection_id }).onConflictDoNothing().run();
+      }
+      db.update(games_games).set({ base_game: keep }).where(inArray(games_games.base_game, others)).run();
+      db.delete(games_games).where(inArray(games_games.id, others)).run();
+    }
+    if (Object.keys(fields).length > 0) db.update(games_games).set(fields).where(eq(games_games.id, keep)).run();
+    // A game is never DLC of itself, as when one merged was DLC of another.
+    const base = db.select({ base_game: games_games.base_game }).from(games_games).where(eq(games_games.id, keep)).get()?.base_game ?? "";
+    if (merged.includes(base)) db.update(games_games).set({ base_game: "", base_game_title: "" }).where(eq(games_games.id, keep)).run();
+  });
+  return require_game(database, keep);
+}
+
 // ── Feature ──────────────────────────────────────────────────────────────────
 
 function require_day(day: string, what: string): void {
@@ -735,6 +806,10 @@ export const games_feature = define_feature({
     },
 
     set_game_ids: (database: SqlDatabase, id: string, ids: Partial<GameIds>): Promise<LibraryGame> => set_ids(database, id, ids),
+
+    lookup_game_sources: (database: SqlDatabase, id: string): Promise<SourceAnswers> => game_sources(database, require_game(database, id)),
+
+    merge_games: (database: SqlDatabase, ids: string[], keep: string, values: Record<string, unknown>): LibraryGame => merge_into(database, ids, keep, values),
 
     set_game_base: (database: SqlDatabase, id: string, base_id: string): void => {
       require_game(database, id);

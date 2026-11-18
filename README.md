@@ -246,6 +246,17 @@ the schedule and lists every backup to restore or delete. The schedule belongs t
 synced. The desktop keeps them in `backups/` beside its database, Android in a folder you pick, and the server in
 `backups_folder`, where only an admin sees them.
 
+## Merging
+
+**Merge…** on a title's, book's or game's page opens the merge window: the item as each tracked copy of it and each
+catalogue knows it, side by side, one row per field. Click the value each field keeps; **Prefer** makes one column win
+every field left alone, a field the preferred column lacks comes from the first column that has it, and **Keep all**
+joins lists such as genres. **Other tracked copies** offers items that look like the same one, such as a game imported
+from Steam and added again from RAWG, or finds one by name; once added, **Yours** compares your status, rating,
+playtime and the rest, and **Keep** picks the copy that stays. Merging moves every read, journal entry, watched episode
+and collection into it and removes the others; History can bring them back. With no other copy, it only picks the
+item's details from the catalogues. `merge_titles`, `merge_books` and `merge_games` do the same through the API and MCP.
+
 ## History
 
 Every change to a title (its watched episodes and collections included) and to a collection is kept as a version,
