@@ -16,7 +16,7 @@ describe("store", () => {
     open_store(database);
     const versions = database.prepare("SELECT owner, version FROM schema_versions WHERE owner IN ('settings', 'library') ORDER BY owner").all().map((row) => ({ ...row }));
     expect(versions).toEqual([
-      { owner: "library", version: 1 },
+      { owner: "library", version: 2 },
       { owner: "settings", version: 1 },
     ]);
   });
