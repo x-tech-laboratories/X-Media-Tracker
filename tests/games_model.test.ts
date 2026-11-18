@@ -204,7 +204,7 @@ describe("IGDB's data export", () => {
   it("reads lists as statuses, own lists as collections, and ratings and reviews", () => {
     const games = read_igdb_export(page);
     expect(games.map((each) => [each.title, each.status])).toEqual([
-      ["Portal 2", "completed"],
+      ["Portal 2", "played"],
       ["Hollow Knight: Silksong", "want_to_play"],
       ["Deus Ex", "dropped"],
       ["Tom & Jerry", "want_to_play"],

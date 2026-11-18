@@ -4,11 +4,11 @@
 
 // ── Games ────────────────────────────────────────────────────────────────────
 
-export const game_statuses = ["want_to_play", "playing", "paused", "completed", "dropped"] as const;
+export const game_statuses = ["want_to_play", "playing", "paused", "played", "completed", "dropped"] as const;
 
 export type GameStatus = (typeof game_statuses)[number];
 
-export const game_status_labels: Record<GameStatus, string> = { want_to_play: "Want to play", playing: "Playing", paused: "Paused", completed: "Completed", dropped: "Dropped" };
+export const game_status_labels: Record<GameStatus, string> = { want_to_play: "Want to play", playing: "Playing", paused: "Paused", played: "Played", completed: "Completed", dropped: "Dropped" };
 
 export interface GameIds {
   rawg_id: string;

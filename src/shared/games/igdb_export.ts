@@ -63,9 +63,9 @@ function read_sections(html: string): Section[] {
 // ── Meanings ─────────────────────────────────────────────────────────────────
 
 // Later wins when a game is in several places: having played it says more than wanting to.
-const status_rank: GameStatus[] = ["want_to_play", "paused", "playing", "dropped", "completed"];
+const status_rank: GameStatus[] = ["want_to_play", "paused", "playing", "dropped", "played", "completed"];
 
-const list_statuses: Record<string, GameStatus> = { "want to play": "want_to_play", playing: "playing", played: "completed" };
+const list_statuses: Record<string, GameStatus> = { "want to play": "want_to_play", playing: "playing", played: "played" };
 
 // An entry's own status, as IGDB's list entries name them.
 const entry_statuses: Record<string, GameStatus> = {
@@ -80,7 +80,7 @@ const entry_statuses: Record<string, GameStatus> = {
   completed: "completed",
   finished: "completed",
   beaten: "completed",
-  played: "completed",
+  played: "played",
   abandoned: "dropped",
   dropped: "dropped",
 };

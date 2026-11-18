@@ -55,7 +55,7 @@ search, series in order and new books in the series you follow. Make the key wit
 
 ### Games
 
-- **Library:** every game as its box art or a table row, narrowed by status (Want to play, Playing, Paused, Completed,
+- **Library:** every game as its box art or a table row, narrowed by status (Want to play, Playing, Paused, Played, Completed,
   Dropped), the platform you own it on and collection, each choice showing how many games it would leave, and sorted
   by title, last played, release, rating, playtime or when added.
 - **A game's page:** status, rating, playtime and the day last played, edition, the platforms you own it on,
