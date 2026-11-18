@@ -44,6 +44,7 @@ import {
 import { create_openlibrary } from "./openlibrary.ts";
 import { books_book_collections, books_books, books_collections, books_follows, books_goals, books_journal, books_reads, books_releases, books_tables } from "./schema.ts";
 import { books_secret_settings, books_setting_defaults } from "./settings.ts";
+import { read_librarything_export } from "./librarything.ts";
 import { read_storygraph_csv, write_goodreads_csv, type ImportedBook } from "./storygraph.ts";
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
@@ -198,7 +199,7 @@ export function find_book(database: SqlDatabase, ids: Partial<BookIds>): string 
   return db.select({ id: books_books.id }).from(books_books).where(or(...matches)).get()?.id ?? "";
 }
 
-// A book with no catalogue id, such as one imported from StoryGraph without an ISBN, found by its title and first author.
+// A book with no catalogue id, such as one imported from StoryGraph or LibraryThing without an ISBN, found by its title and first author.
 function find_by_title(database: SqlDatabase, title: string, authors: string): string {
   const words = title_words(title);
   const author = authors.split(",")[0]!.trim().toLowerCase();
@@ -897,6 +898,16 @@ export const books_feature = define_feature({
     // StoryGraph's own export; adds and merges, never removes.
     import_storygraph: (database: SqlDatabase, csv: string): BookImportReport => {
       const books = read_storygraph_csv(csv);
+      return in_transaction(database, () => {
+        const report: BookImportReport = { added: 0, updated: 0 };
+        for (const book of books) report[import_book(database, book)]++;
+        return report;
+      });
+    },
+
+    // LibraryThing's own export, tab-separated or CSV; adds and merges, never removes.
+    import_librarything: (database: SqlDatabase, text: string): BookImportReport => {
+      const books = read_librarything_export(text);
       return in_transaction(database, () => {
         const report: BookImportReport = { added: 0, updated: 0 };
         for (const book of books) report[import_book(database, book)]++;

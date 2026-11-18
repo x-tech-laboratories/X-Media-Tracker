@@ -61,7 +61,7 @@ on the Settings page.
   statuses and formats, which ids name one book, pasted links and ISBNs, progress, series order, sorting, the Books
   library's filters with counts, release days and a year's reading stats.
 - `schema.ts`: `books_books`, keyed by the strongest id (`bookbrainz:…`, else `openlibrary:…`, else `hardcover:…`, else
-  `isbn:…`; a StoryGraph book with none is `title:<title>/<author>`); `books_reads`, one row per time through a book;
+  `isbn:…`; a StoryGraph or LibraryThing book with none is `title:<title>/<author>`); `books_reads`, one row per time through a book;
   `books_journal`; `books_collections` and `books_book_collections`; `books_follows`, the authors and series followed;
   `books_releases`, the books found for them; and `books_goals`, one per year. All of them sync.
 - `bookbrainz.ts`, `openlibrary.ts` and `hardcover.ts` are the catalogues' clients, each answering in `catalog.ts`'s
@@ -69,8 +69,9 @@ on the Settings page.
   Library work), then Hardcover when a key is set, each filling what the one before lacks; search asks them all at once
   and joins the same book into one result. Hardcover is reached only with the user's key from settings, which never
   appears in an error or a log.
-- `storygraph.ts` reads StoryGraph's export CSV and writes the Goodreads library CSV StoryGraph imports; `csv.ts` reads
-  and writes CSV.
+- `storygraph.ts` reads StoryGraph's export CSV and writes the Goodreads library CSV StoryGraph and LibraryThing
+  import; `librarything.ts` reads LibraryThing's tab-separated or CSV export into the same shape; `csv.ts` reads and
+  writes CSV and reads LibraryThing's unquoted TSV.
 - `schedule.ts` runs `run_release_check` hourly on the server and the desktop; the check's last run syncs, so they do
   not both run it. A follow's first check stores what it finds as already alerted. The server's
   `src/server/book_alerts.ts` then sends one alert per book still unalerted through X-Libs' `server/notify` channels,

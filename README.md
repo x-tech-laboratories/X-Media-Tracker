@@ -47,6 +47,7 @@ TMDB supplies search, posters, episode lists and details, and needs a free API k
 - **Goals & stats:** a yearly goal in books, and how far along it is against an even pace; books and pages by month,
   ratings, formats and top genres.
 - **StoryGraph:** import its export, and export the library for StoryGraph to import.
+- **LibraryThing:** import its export, and export the library for LibraryThing's Goodreads import.
 
 BookBrainz and Open Library need no key: search, covers, descriptions, series and new books by the authors you follow
 come from them. A [Hardcover](https://hardcover.app) key, set under **Settings → Books → Catalogues**, adds Hardcover's
@@ -106,6 +107,18 @@ and keeps its rating unless **Imports replace ratings** is on. Books from StoryG
 
 **Export CSV** writes the library as a Goodreads library export, which StoryGraph's Goodreads import reads, as does
 Hardcover's.
+
+## Coming from LibraryThing
+
+LibraryThing has no API for a library, so books travel through files too. Export your library from LibraryThing's
+**Import/Export** page as tab-separated text or CSV, and pick it under **Settings → Books → LibraryThing → Import
+LibraryThing**. Each book keeps its start and finish days, rating, review and format (from Media); it is Reading when
+started but not finished or in **Currently reading**, Read when finished or in **Read but unowned**, else Want to read,
+and owned when in **Your library**. Its other collections and its tags become collections. Books already here merge as
+they do from StoryGraph.
+
+LibraryThing's **Export CSV** writes the same Goodreads library export as StoryGraph's, which LibraryThing's Goodreads
+import reads.
 
 ## Alerts for new books
 
@@ -293,6 +306,8 @@ X-Media-Tracker is built on these services and the people who keep them:
   progress, re-reads, reading journal, goals and stats inspired the Books section's.
 - [The StoryGraph](https://thestorygraph.com/): its library export is imported, and the export for it is written in the
   Goodreads format its importer reads.
+- [LibraryThing](https://www.librarything.com/): its library export is imported, and the export for it is written in
+  the Goodreads format its importer reads.
 - [BookNotification](https://www.booknotification.com/): its alerts for new books by the authors and series you follow
   inspired Upcoming and its alerts.
 - [RAWG](https://rawg.io/): game details, through its API.

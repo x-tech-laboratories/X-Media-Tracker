@@ -232,6 +232,83 @@ describe("StoryGraph", () => {
   });
 });
 
+// ── LibraryThing ─────────────────────────────────────────────────────────────
+
+const librarything_header =
+  "Book Id\tTitle\tSort Character\tPrimary Author\tPrimary Author Role\tSecondary Author\tSecondary Author Roles\tPublication\tDate\tReview\tRating\tComment\tPrivate Comment\tSummary\tMedia\tPhysical Description\tWeight\tHeight\tThickness\tLength\tDimensions\tPage Count\tLCCN\tAcquired\tDate Started\tDate Read\tBarcode\tBCID\tTags\tCollections\tLanguages\tOriginal Languages\tLC Classification\tISBN\tISBNs\tSubjects\tDewey Decimal\tDewey Wording\tOther Call Number\tCopies\tSource\tEntry Date\tFrom Where\tOCLC\tWork id\tLending Patron\tLending Status\tLending Start\tLending End";
+
+// One row with its columns by name, the rest empty.
+function librarything_row(values: Record<string, string>): string {
+  return librarything_header
+    .split("\t")
+    .map((name) => values[name] ?? "")
+    .join("\t");
+}
+
+const librarything_tsv = [
+  librarything_header,
+  librarything_row({
+    Title: "The Final Empire",
+    "Primary Author": "Sanderson, Brandon",
+    Review: "Loved it",
+    Rating: "4.5",
+    Media: "Paperback",
+    "Date Started": "[2023-01-05]",
+    "Date Read": "[2023-01-20]",
+    Tags: "fantasy, cosmere",
+    Collections: "Your library, Favorites",
+    ISBN: "[0765311788]",
+    ISBNs: "0765311788, 9780765311788",
+    "Entry Date": "[2022-12-30]",
+  }),
+  librarything_row({ Title: 'The "Hobbit"', "Primary Author": "Tolkien, J. R. R.", Media: "Audiobook", "Date Started": "[2026-11-01]", Collections: "Your library" }),
+  librarything_row({ Title: "Piranesi", "Primary Author": "Clarke, Susanna", Collections: "Wishlist" }),
+].join("\n");
+
+describe("LibraryThing", () => {
+  it("imports its tab-separated export with reads, rating, status, owned and collections, merging by ISBN", async () => {
+    const store = open_methods();
+    const { id } = await store.add_book("openlibrary", "OL5738148W");
+
+    const report = store.import_librarything(librarything_tsv);
+
+    expect(report).toEqual({ added: 2, updated: 1 });
+    const { books, collections } = store.list_books();
+    const empire = books.find((book) => book.id === id)!;
+    expect(empire).toMatchObject({ status: "read", rating: 9, review: "Loved it", owned: true, format: "print", last_read: "2023-01-20", read_count: 1 });
+    expect(empire.reads[0]).toMatchObject({ started_on: "2023-01-05", finished_on: "2023-01-20" });
+    expect(collections.map((collection) => collection.name).sort()).toEqual(["Favorites", "cosmere", "fantasy"]);
+    const hobbit = books.find((book) => book.title === 'The "Hobbit"')!;
+    expect(hobbit).toMatchObject({ authors: "J. R. R. Tolkien", status: "reading", format: "audiobook", owned: true });
+    expect(hobbit.reads).toEqual([expect.objectContaining({ started_on: "2026-11-01", finished_on: "" })]);
+    expect(books.find((book) => book.title === "Piranesi")).toMatchObject({ status: "want_to_read", owned: false });
+  });
+
+  it("imports the same file twice without doubling reads", () => {
+    const store = open_methods();
+    store.import_librarything(librarything_tsv);
+
+    store.import_librarything(librarything_tsv);
+
+    const books = store.list_books().books;
+    expect(books.find((book) => book.title === "The Final Empire")!.reads).toHaveLength(1);
+    expect(books.find((book) => book.title === 'The "Hobbit"')!.reads).toHaveLength(1);
+  });
+
+  it("reads its CSV export too", () => {
+    const store = open_methods();
+
+    store.import_librarything(["Title,Primary Author,Date Read,Collections", 'Piranesi,"Clarke, Susanna",2021-03-04,Read but unowned'].join("\n"));
+
+    expect(store.list_books().books[0]).toMatchObject({ title: "Piranesi", authors: "Susanna Clarke", status: "read", owned: false, last_read: "2021-03-04" });
+  });
+
+  it("refuses a file that is not a LibraryThing export", () => {
+    const store = open_methods();
+    expect(() => store.import_librarything("Name,Score\nA,1")).toThrow("doesn't look like a LibraryThing export");
+  });
+});
+
 // ── Following ────────────────────────────────────────────────────────────────
 
 describe("following authors", () => {

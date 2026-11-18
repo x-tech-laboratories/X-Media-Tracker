@@ -141,4 +141,18 @@ describe("books settings", () => {
     const section = screen.getByRole("heading", { name: "StoryGraph" }).closest("section")!;
     expect(within(section).getByRole("button", { name: "Export CSV" })).toBeTruthy();
   });
+
+  it("imports a LibraryThing export from the file picked", async () => {
+    const store = fake_page();
+    render(<App />);
+    go("#/settings");
+
+    const picker = (await screen.findByLabelText("LibraryThing export file")) as HTMLInputElement;
+    const tsv = ["Title\tPrimary Author\tDate Read\tCollections", "Piranesi\tClarke, Susanna\t[2021-03-04]\tYour library"].join("\n");
+    fireEvent.change(picker, { target: { files: [new File([tsv], "librarything.tsv", { type: "text/tab-separated-values" })] } });
+
+    await waitFor(() => expect(store.list_books().books).toHaveLength(1));
+    const section = screen.getByRole("heading", { name: "LibraryThing" }).closest("section")!;
+    expect(within(section).getByRole("button", { name: "Export CSV" })).toBeTruthy();
+  });
 });
