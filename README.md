@@ -2,14 +2,15 @@
 
 <a href="https://liberapay.com/BeatLink/donate"><img alt="Donate using Liberapay" src="https://liberapay.com/assets/widgets/donate.svg"></a> <a href="https://ko-fi.com/I4V52ANK6N"><img alt="Support me on Ko-fi" src="https://ko-fi.com/img/githubbutton_sm.svg"></a>
 
-Movies, TV shows and books: what you plan to watch or read, are in the middle of, have finished or dropped, with
-ratings, every episode ticked off, every read of a book with its days, and your own collections. It runs as a web page
+Movies, TV shows, books and games: what you plan to watch, read or play, are in the middle of, have finished or
+dropped, with ratings, every episode ticked off, every read of a book with its days, a game's playtime and the
+platforms you own it on, and your own collections. It runs as a web page
 served by your own server, as a desktop app and as an Android app; the desktop and Android apps keep their own copy of
 the library, work offline, and sync with the server whenever it can be reached. It is the X-Tech port of the Trilium
 Media Tracker add-on, and imports its library.
 
-The sidebar has a section for each: **Movies & Series** and **Books**, each with its own pages, search in the top bar
-and settings.
+The sidebar has a section for each: **Movies & Series**, **Books** and **Games**, each with its own pages, search in
+the top bar and settings.
 
 ### Movies & Series
 
@@ -51,6 +52,36 @@ BookBrainz and Open Library need no key: search, covers, descriptions, series an
 come from them. A [Hardcover](https://hardcover.app) key, set under **Settings → Books → Catalogues**, adds Hardcover's
 search, series in order and new books in the series you follow. Make the key with only the `read:catalog` scope (the
 **Open Hardcover** link there ticks it for you), so it can read books but nothing of your account.
+
+### Games
+
+- **Library:** every game as its box art or a table row, narrowed by status (Want to play, Playing, Paused, Completed,
+  Dropped), the platform you own it on and collection, each choice showing how many games it would leave, and sorted
+  by title, last played, release, rating, playtime or when added.
+- **A game's page:** status, rating, playtime and the day last played, edition, the platforms you own it on,
+  collections and the review, with what the catalogues say of it and a link to each.
+- **Search:** the bar at the top, in Games, searches your games, RAWG, MobyGames, Giant Bomb, Steam's store and
+  Wikidata at once, the same game from several catalogues shown once; a pasted RAWG, MobyGames, Giant Bomb, Wikidata
+  or Steam store link is added at once.
+- **Steam:** your library, with playtime and the day last played, and your wishlist, imported by hand or on a schedule.
+
+Wikidata and Steam's store need no key. Wikidata matters most: its items name a game's RAWG, MobyGames, Giant Bomb,
+Steam and IGDB ids, so a game known to one catalogue, such as a game from your Steam library, is found in the others.
+Keys for [RAWG](https://rawg.io/apidocs), [MobyGames](https://www.mobygames.com/info/api/) and
+[Giant Bomb](https://www.giantbomb.com/api/), each free for personal use and set under **Settings → Games →
+Catalogues**, add that catalogue to search and details. Box art comes from MobyGames or Giant Bomb when set, else from
+Steam's library art.
+
+## Steam
+
+Set a [Steam Web API key](https://steamcommunity.com/dev/apikey) and your profile's 64-bit Steam id (or a link to your
+profile) under **Settings → Games → Steam**; the profile's **Game details** must be public. **Import library** adds
+every game you own, owned on PC, as Playing once played and Want to play before; a game already here takes Steam's
+playtime and last day played when they are later, and keeps its status unless it was Want to play. **Import wishlist**
+adds wished games as Want to play and keeps the **Steam wishlist** collection to exactly your wishlist. With **Import
+from Steam every** set to some hours, the server and the desktop app import both on that schedule; the last import
+syncs, so they do not both run it. New games from Steam have their names and box art at once; **Refresh** in Games fills
+in the rest from the catalogues.
 
 ## Coming from StoryGraph
 
@@ -116,6 +147,13 @@ Open the add-on's `Database` note under your Library Root, save its text as a `.
 `tmdb:693134`), status, rating, watched episodes, dates and collections; an import adds new titles and merges ones
 already here without changing their status or rating. **Export JSON** writes the library back in the same shape.
 
+
+For the Trilium Game Tracker add-on, save its `Database` note's text as a `.json` file and pick it under **Settings →
+Games → Trilium Game Tracker → Import Trilium**. To keep the statuses you added in the add-on, such as Endless, pick its
+`config.json` note first with **Pick config**; each becomes the built-in status of its role and a collection of its
+name. Only the config's statuses are read; its Steam key stays on the page. Games keep their Steam id, status, rating,
+playtime, days and collections; a game already here gains its playtime, days and collections and keeps its own status
+and rating.
 
 ## Importing from Trakt and Stremio
 
@@ -239,6 +277,12 @@ X-Media-Tracker is built on these services and the people who keep them:
   Goodreads format its importer reads.
 - [BookNotification](https://www.booknotification.com/): its alerts for new books by the authors and series you follow
   inspired Upcoming and its alerts.
+- [RAWG](https://rawg.io/): game details, through its API.
+- [MobyGames](https://www.mobygames.com/): game details and box art, through its API.
+- [Giant Bomb](https://www.giantbomb.com/): game details and box art, through its API.
+- [Wikidata](https://www.wikidata.org/), of the Wikimedia Foundation: game details and the ids that link the other
+  catalogues, under CC0.
+- [Steam](https://store.steampowered.com/): game details, library art, and your library, playtime and wishlist.
 
 None of them endorse this app. The names are their owners' trademarks.
 

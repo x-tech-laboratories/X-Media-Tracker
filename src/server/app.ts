@@ -20,6 +20,7 @@ import type { SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 import { media_bridge } from "../shared/bridge.ts";
 import { send_book_alerts } from "./book_alerts.ts";
 import { keep_checking_releases } from "../shared/books/schedule.ts";
+import { keep_syncing_steam } from "../shared/games/schedule.ts";
 import { keep_importing } from "../shared/sources/schedule.ts";
 import { bind_methods, media_api, is_read_only, secret_settings, sync_engine, type MediaMethods } from "../shared/store.ts";
 
@@ -32,7 +33,7 @@ export interface AppOptions {
   web_folder: string;
   // The database's backups, which an admin manages from the page; one is taken before a device's data replaces it.
   backups: BackupMethods;
-  // Whether the sources set to import automatically run on their schedule; on unless false.
+  // Whether the sources set to import automatically, and the Steam import, run on their schedule; on unless false.
   auto_import?: boolean;
   // Whether new books by the authors and series followed are looked for and alerted on their schedule; on unless false.
   release_checks?: boolean;
@@ -134,7 +135,14 @@ export async function build_app(options: AppOptions): Promise<FastifyInstance> {
       () => bind_methods(database, () => undefined),
       () => changes.announce_change(),
     );
-    app.addHook("onClose", async () => stop_importing());
+    const stop_syncing_steam = keep_syncing_steam(
+      () => bind_methods(database, () => undefined),
+      () => changes.announce_change(),
+    );
+    app.addHook("onClose", async () => {
+      stop_importing();
+      stop_syncing_steam();
+    });
   }
 
   if (options.release_checks !== false) {

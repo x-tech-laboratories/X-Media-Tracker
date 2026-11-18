@@ -137,6 +137,30 @@ export const item_kinds: ItemKind[] = [
     summary: () => "",
   },
   {
+    kind: "game",
+    label: "Game",
+    item_table: "games_games",
+    levels: [
+      { table: "games_games", column: "id" },
+      { table: "games_game_collections", column: "game_id" },
+    ],
+    watches: [
+      { table: "games_games", item_columns: ["id"] },
+      { table: "games_game_collections", item_columns: ["game_id"] },
+    ],
+    name_of: (snapshot) => String(first(snapshot, "games_games")?.title ?? "Game"),
+    summary: (snapshot) => String(first(snapshot, "games_games")?.status ?? "").replace(/_/g, " "),
+  },
+  {
+    kind: "game_collection",
+    label: "Game collection",
+    item_table: "games_collections",
+    levels: [{ table: "games_collections", column: "id" }],
+    watches: [{ table: "games_collections", item_columns: ["id"] }],
+    name_of: (snapshot) => String(first(snapshot, "games_collections")?.name ?? "Game collection"),
+    summary: () => "",
+  },
+  {
     kind: "follow",
     label: "Follow",
     item_table: "books_follows",

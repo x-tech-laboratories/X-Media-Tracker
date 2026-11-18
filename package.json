@@ -2,7 +2,7 @@
   "name": "x-media-tracker",
   "version": "0.2.0",
   "private": true,
-  "description": "Movies, TV shows and books to watch and read, with ratings, episodes, reads and collections, kept on every device and synced through your own server",
+  "description": "Movies, TV shows, books and games to watch, read and play, with ratings, episodes, reads, playtime and collections, kept on every device and synced through your own server",
   "license": "GPL-3.0-or-later",
   "type": "module",
   "main": "out/main/index.js",

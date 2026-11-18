@@ -1,4 +1,4 @@
-// The sections of the app, such as Movies & Series and Books, each a heading in the sidebar over its pages, with its own
+// The sections of the app, such as Movies & Series, Books and Games, each a heading in the sidebar over its pages, with its own
 // settings, in the order the sidebar lists them.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
@@ -7,6 +7,7 @@ import type { ReactNode } from "react";
 import type { SettingsSection } from "@x-tech-laboratories/x-libs/web/react/layout";
 
 import { BookSearchBar, BooksView, book_settings, books_pages } from "./books/index.tsx";
+import { GameSearchBar, GamesView, game_settings, games_pages } from "./games/index.tsx";
 import { LibraryView, SearchBar, library_pages, library_settings } from "./library/index.tsx";
 
 // ── Features ─────────────────────────────────────────────────────────────────
@@ -39,4 +40,5 @@ export interface PageFeature {
 export const page_features: PageFeature[] = [
   { id: "movies", label: "Movies & Series", pages: library_pages, view: (parts) => <LibraryView parts={parts} />, settings: library_settings, top_bar: <SearchBar />, aliases: ["library"] },
   { id: "books", label: "Books", pages: books_pages, view: (parts) => <BooksView parts={parts} />, settings: book_settings, top_bar: <BookSearchBar /> },
+  { id: "games", label: "Games", pages: games_pages, view: (parts) => <GamesView parts={parts} />, settings: game_settings, top_bar: <GameSearchBar /> },
 ];

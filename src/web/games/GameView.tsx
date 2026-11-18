@@ -1,0 +1,225 @@
+// One game's page: its cover, status, rating, the platforms a copy is owned on, edition, playtime, last day played and
+// collections, what the catalogues say of it with links to each, and the review.
+
+// ── Imports ──────────────────────────────────────────────────────────────────
+
+import { useState } from "react";
+import { ChipField } from "@x-tech-laboratories/x-libs/web/react/chip_field";
+import { CommitInput, DateTimeField, NumberField, Segmented } from "@x-tech-laboratories/x-libs/web/react/controls";
+import { confirm_dialog, Dialog, open_dialog } from "@x-tech-laboratories/x-libs/web/react/dialog";
+import { Facts, FormRow, PageHeading, Section, Stack } from "@x-tech-laboratories/x-libs/web/react/layout";
+import { Rating } from "@x-tech-laboratories/x-libs/web/react/rating";
+import { RichText } from "@x-tech-laboratories/x-libs/web/react/rich_text";
+import { Empty, Loaded } from "@x-tech-laboratories/x-libs/web/react/states";
+
+import { calls, use_data } from "../api.ts";
+import { HistoryButton } from "../history/HistoryView.tsx";
+import { common_platforms, game_links, game_status_labels, game_statuses, type GameCollection, type GameIds, type LibraryGame } from "../../shared/games/model.ts";
+import { attempt, set_game_status } from "./actions.tsx";
+
+// ── Owning ───────────────────────────────────────────────────────────────────
+
+function Platforms({ game, known }: { game: LibraryGame; known: string[] }) {
+  const suggestions = [...new Set([...common_platforms, ...known])];
+  return (
+    <ChipField
+      label="Owned on"
+      values={game.owned_platforms}
+      suggestions={suggestions}
+      list_on_focus
+      add_label="Add"
+      placeholder="Add a platform, such as PC"
+      on_change={(next) => attempt(calls().set_game_platforms(game.id, next))}
+    />
+  );
+}
+
+function Collections({ game, collections }: { game: LibraryGame; collections: GameCollection[] }) {
+  const names = new Map(collections.map((collection) => [collection.id, collection.name]));
+  const chosen = game.collection_ids.map((id) => names.get(id)).filter((name): name is string => !!name);
+  // A name not yet a collection is made one.
+  const save = async (next: string[]) => {
+    const ids = await Promise.all(next.map((name) => collections.find((collection) => collection.name.toLowerCase() === name.toLowerCase())?.id ?? calls().save_game_collection({ name })));
+    await calls().set_game_collections(game.id, ids);
+  };
+  return <ChipField label="Collections" values={chosen} suggestions={collections.map((collection) => collection.name)} list_on_focus add_label="Add" placeholder="Add to a collection" on_change={(next) => attempt(save(next))} />;
+}
+
+// Kept in minutes, shown and typed in hours.
+function Playtime({ game }: { game: LibraryGame }) {
+  const hours = game.playtime_minutes ? Math.round((game.playtime_minutes / 60) * 10) / 10 : null;
+  return <NumberField label="Playtime" bare unit="hours" min={0} step={0.5} value={hours} on_change={(value) => attempt(calls().set_game_playtime(game.id, Math.round((value ?? 0) * 60)))} />;
+}
+
+// ── Ids ──────────────────────────────────────────────────────────────────────
+
+const id_fields: [keyof GameIds, string, string][] = [
+  ["rawg_id", "RAWG", "A game's slug, such as portal-2, or its link"],
+  ["mobygames_id", "MobyGames", "A game's number, such as 51233, or its link"],
+  ["giantbomb_id", "Giant Bomb", "A game's guid, such as 3030-21662, or its link"],
+  ["wikidata_id", "Wikidata", "An item, such as Q279446, or its link"],
+  ["steam_app_id", "Steam", "An app's number, such as 620, or its store link"],
+  ["igdb_id", "IGDB", "A game's slug, such as portal-2, or its link"],
+];
+
+function IdsDialog({ game, close }: { game: LibraryGame; close: () => void }) {
+  const [ids, set_ids] = useState<GameIds>({
+    rawg_id: game.rawg_id,
+    mobygames_id: game.mobygames_id,
+    giantbomb_id: game.giantbomb_id,
+    wikidata_id: game.wikidata_id,
+    steam_app_id: game.steam_app_id,
+    igdb_id: game.igdb_id,
+  });
+  const [busy, set_busy] = useState(false);
+  return (
+    <Dialog
+      title="Change ids"
+      subtitle={game.title}
+      on_close={close}
+      form={{
+        submit_label: busy ? "Saving…" : "Save",
+        on_submit: (event) => {
+          event.preventDefault();
+          set_busy(true);
+          attempt(
+            calls()
+              .set_game_ids(game.id, ids)
+              .then(close)
+              .finally(() => set_busy(false)),
+          );
+        },
+      }}
+    >
+      {id_fields.map(([key, label, hint]) => (
+        <FormRow key={key} label={label} id={`game-${key}`} hint={hint}>
+          <input id={`game-${key}`} autoComplete="off" spellCheck={false} value={ids[key]} onChange={(event) => set_ids({ ...ids, [key]: event.currentTarget.value })} />
+        </FormRow>
+      ))}
+    </Dialog>
+  );
+}
+
+// ── Review ───────────────────────────────────────────────────────────────────
+
+// Saved once the field is left, so each keystroke is not a change in History.
+function Review({ game }: { game: LibraryGame }) {
+  const [text, set_text] = useState(game.review);
+  return (
+    <Section title="Review">
+      <RichText label="Review" placeholder="What did you think?" value={text} on_change={set_text} on_blur={() => text.trim() !== game.review && attempt(calls().set_game_review(game.id, text))} />
+    </Section>
+  );
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
+
+function GamePage({ game, collections, known_platforms }: { game: LibraryGame; collections: GameCollection[]; known_platforms: string[] }) {
+  const remove = () =>
+    confirm_dialog({
+      title: `Remove ${game.title}?`,
+      message: "Its rating, review and playtime go with it; History can bring it back.",
+      confirm_label: "Remove",
+      danger: true,
+      run: async () => {
+        await calls().remove_game(game.id);
+        window.location.hash = "#/games";
+      },
+    });
+
+  const links = game_links(game);
+  return (
+    <Stack>
+      <PageHeading
+        title={game.title}
+        subtitle={[game.developers, game.year].filter(Boolean).join(" · ")}
+        actions={
+          <>
+            <HistoryButton kind="game" item_id={game.id} name={game.title} />
+            <button type="button" onClick={() => open_dialog((close) => <IdsDialog game={game} close={close} />)}>
+              Change ids
+            </button>
+            <button type="button" className="danger" onClick={remove}>
+              Remove
+            </button>
+          </>
+        }
+      />
+      <div className="title-head">
+        {game.cover_url && <img className="title-poster" src={game.cover_url} alt="" />}
+        <div className="title-facts">
+          {/* What is yours to set, one control a row, so the wide ones never crowd each other. */}
+          <Facts
+            layout="rows"
+            rows={[
+              [
+                "Status",
+                <Segmented label="Status" choices={game_statuses.map((status) => ({ value: status, label: game_status_labels[status] }))} value={game.status} on_change={(status) => set_game_status(game, status)} />,
+              ],
+              ["Rating", <Rating label="Rating" max={10} value={game.rating} on_change={(rating) => attempt(calls().set_game_rating(game.id, rating))} />],
+              [
+                "Playtime",
+                <span className="game-play">
+                  <Playtime game={game} />
+                  <DateTimeField label="Last played" allow_time={false} value={game.last_played || null} on_change={(day) => attempt(calls().set_game_last_played(game.id, day ?? ""))} />
+                </span>,
+              ],
+              [
+                "Edition",
+                <CommitInput
+                  aria-label="Edition"
+                  placeholder="Such as Game of the Year Edition"
+                  value={game.edition}
+                  on_commit={(event) => event.currentTarget.value.trim() !== game.edition && attempt(calls().set_game_edition(game.id, event.currentTarget.value))}
+                />,
+              ],
+              ["Owned on", <Platforms game={game} known={known_platforms} />],
+              ["Collections", <Collections game={game} collections={collections} />],
+            ]}
+          />
+          <Facts
+            rows={[
+              !!game.release_date && ["Released", game.release_date],
+              !game.release_date && !!game.year && ["Released", game.year],
+              !!game.genres && ["Genres", game.genres],
+              !!game.platforms && ["Platforms", game.platforms],
+              !!game.developers && ["Developers", game.developers],
+              !!game.publishers && ["Publishers", game.publishers],
+              !!game.added_at && ["Added", game.added_at],
+              links.length > 0 && [
+                "Links",
+                <span className="game-links">
+                  {links.map((link) => (
+                    <a key={link.label} href={link.href} target="_blank" rel="noreferrer">
+                      {link.label}
+                    </a>
+                  ))}
+                </span>,
+              ],
+            ]}
+          />
+          {game.overview && <p className="title-overview">{game.overview}</p>}
+        </div>
+      </div>
+      <Review key={game.id} game={game} />
+    </Stack>
+  );
+}
+
+export function GameView({ id }: { id: string }) {
+  const game = use_data((api) => api.get_game(id), [id]);
+  const library = use_data((api) => api.list_games());
+  return (
+    <div className="game-page">
+      <Loaded resource={game} empty={<Empty title="That game is not in the library." hint={<a href="#/games">Back to Games</a>} />}>
+        {(loaded) =>
+          loaded && (
+            <Loaded resource={library}>
+              {(all) => <GamePage game={loaded} collections={all.collections} known_platforms={[...new Set(all.games.flatMap((each) => each.owned_platforms))]} />}
+            </Loaded>
+          )
+        }
+      </Loaded>
+    </div>
+  );
+}
