@@ -1,7 +1,7 @@
 // The games: every game tracked, with its status, rating, review, owned platforms, edition, playtime and collections.
 // RAWG, IGDB, MobyGames, Giant Bomb, TheGamesDB, GOG, Wikidata, Steam and itch.io fill in what games are, with Wikidata
 // linking their ids, and SteamGridDB adds art; a Steam profile's library and wishlist and an itch.io account's library
-// come in by hand or on a schedule, and the Trilium Game Tracker's library and IGDB's lists by their files.
+// come in by hand or on a schedule, and IGDB's lists by its export file.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -55,7 +55,6 @@ import { create_thegamesdb } from "./thegamesdb.ts";
 import { read_steam_categories, type SteamCategory } from "./steam_collections.ts";
 import { create_steamgriddb, type SteamGridDb } from "./steamgriddb.ts";
 import { create_steam, parse_steam_id, parse_steam_name, steam_cover, type OwnedGame, type WishedGame } from "./steam.ts";
-import { read_trilium_games, read_trilium_statuses, type ImportedGame } from "./trilium.ts";
 import { create_wikidata } from "./wikidata.ts";
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
@@ -689,60 +688,13 @@ function import_categories(database: SqlDatabase, categories: SteamCategory[]): 
   return report;
 }
 
-// ── Trilium ──────────────────────────────────────────────────────────────────
+// ── IGDB ─────────────────────────────────────────────────────────────────────
 
 // A game still to play takes the imported status; one already played keeps its own.
 function moved_on(statuses: GameStatusInfo[], stored: string, imported: GameStatus): GameStatus {
   const status = game_status_of(statuses, stored);
   return is_unplayed(statuses, status) ? game_status_of(statuses, imported) : status;
 }
-
-// A new game whole; one already here gains the playtime, days, rating and collections it lacks, and moves on from Want to play.
-function import_trilium_game(database: SqlDatabase, game: ImportedGame): "added" | "updated" {
-  const db = drizzle_of(database);
-  const ids = { steam_app_id: game.steam_app_id, igdb_id: game.igdb_id };
-  const existing = find_game(database, ids) || find_by_title(database, game.title, game.year);
-  let id = existing;
-  if (existing) {
-    const row = db.select().from(games_games).where(eq(games_games.id, existing)).get()!;
-    db.update(games_games)
-      .set({
-        steam_app_id: row.steam_app_id || game.steam_app_id,
-        igdb_id: row.igdb_id || game.igdb_id,
-        status: moved_on(statuses_of(database), row.status, game.status),
-        rating: row.rating ?? game.rating,
-        playtime_minutes: Math.max(row.playtime_minutes, game.playtime_minutes),
-        last_played: later_day(row.last_played, game.last_played),
-        added_at: row.added_at && game.added_at ? (row.added_at < game.added_at ? row.added_at : game.added_at) : row.added_at || game.added_at,
-      })
-      .where(eq(games_games.id, existing))
-      .run();
-  } else {
-    id = game_key(ids) || `title:${title_words(game.title)}${game.year ? `/${game.year}` : ""}`;
-    db.insert(games_games)
-      .values({
-        id,
-        ...ids,
-        title: game.title,
-        year: game.year,
-        overview: game.overview,
-        cover_url: game.cover_url || steam_cover(game.steam_app_id),
-        genres: game.genres,
-        platforms: game.platforms,
-        status: game_status_of(statuses_of(database), game.status),
-        rating: game.rating,
-        owned_platforms: game.steam_app_id ? JSON.stringify([pc_platform]) : "[]",
-        playtime_minutes: game.playtime_minutes,
-        last_played: game.last_played,
-        added_at: game.added_at || today(),
-      })
-      .run();
-  }
-  for (const name of game.collections) add_to_collection(database, id, collection_named(database, name));
-  return existing ? "updated" : "added";
-}
-
-// ── IGDB ─────────────────────────────────────────────────────────────────────
 
 // IGDB's export names games only by title: one already here, matched by title, gains the status, rating, review,
 // platforms and collections it lacks; a new one waits for Refresh to find it on Wikidata by its title.
@@ -1192,18 +1144,6 @@ export const games_feature = define_feature({
       if (status && !is_game_status(statuses_of(database), status)) throw new Error(`Unknown status: ${String(status)}.`);
       const mapping = Object.fromEntries(Object.entries(games_setting(database, "games.steam_category_statuses") ?? {}).filter(([each]) => each.toLowerCase() !== name.toLowerCase()));
       set_games_setting(database, "games.steam_category_statuses", status ? { ...mapping, [name]: status } : mapping);
-    },
-
-    // The Trilium Game Tracker's Database note, and optionally its config note for the statuses added there; adds and
-    // merges, never removes.
-    import_trilium_games: (database: SqlDatabase, database_json: string, config_json: string): GameImportReport => {
-      const games = read_trilium_games(database_json, read_trilium_statuses(config_json));
-      if (games.length === 0) throw new Error("No games found; pick the Game Tracker's Database note, saved as a .json file.");
-      return in_transaction(database, () => {
-        const report: GameImportReport = { added: 0, updated: 0 };
-        for (const game of games) report[import_trilium_game(database, game)]++;
-        return report;
-      });
     },
 
     // IGDB's data export page; adds and merges, never removes.

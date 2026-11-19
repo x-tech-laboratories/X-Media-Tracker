@@ -11,11 +11,13 @@ import { bind_methods, open_store, type MediaMethods } from "../src/shared/store
 import { set_page_api } from "../src/web/api.ts";
 import { App } from "../src/web/App.tsx";
 import { forget_page_plugins } from "../src/web/sources/plugins.tsx";
+import { insert_games, type SampleGame } from "./games_sample.ts";
 
 // The page's calls answered by a real store on a throwaway database, as the desktop app would, which needs no sign-in.
-function fake_page(): MediaMethods {
+function fake_page(games: SampleGame[] = []): MediaMethods {
   const database = new DatabaseSync(":memory:");
   open_store(database);
+  insert_games(database, games);
   const methods = bind_methods(() => database, () => undefined);
   const calls = Object.fromEntries(Object.entries(methods).map(([name, call]) => [name, async (...args: unknown[]) => (call as (...args: unknown[]) => unknown)(...args)]));
   set_page_api({ host: "desktop", calls: calls as unknown as Client<MediaMethods>, device: null, cover_src: async () => "", on_change: () => () => undefined });
@@ -29,13 +31,11 @@ function go(hash: string) {
   });
 }
 
-const trilium_database = JSON.stringify({
-  games: {
-    "steam:620": { steamAppId: "620", title: "Portal 2", status: "beaten", rating: 9, playtime: 305, lastPlayed: "2025-06-04", addedAt: "2026-07-28", collections: [] },
-    "steam:105600": { steamAppId: "105600", title: "Terraria", status: "playing", playtime: 50, collections: [] },
-    "steam:70": { steamAppId: "70", title: "Half-Life", status: "backlog", collections: [] },
-  },
-});
+const sample_games: SampleGame[] = [
+  { id: "steam:620", steam_app_id: "620", title: "Portal 2", status: "finished", rating: 9, playtime_minutes: 305, last_played: "2025-06-04", added_at: "2026-07-28" },
+  { id: "steam:105600", steam_app_id: "105600", title: "Terraria", status: "currently_playing", playtime_minutes: 50 },
+  { id: "steam:70", steam_app_id: "70", title: "Half-Life", status: "backlog" },
+];
 
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ["Date"] });
@@ -52,8 +52,7 @@ afterEach(() => {
 
 describe("games library", () => {
   it("groups the covers under a heading per status group, in order from not yet played to done", async () => {
-    const store = fake_page();
-    store.import_trilium_games(trilium_database, "");
+    fake_page(sample_games);
     render(<App />);
     go("#/games/library");
     await screen.findByText("3 of 3 games");
@@ -66,8 +65,7 @@ describe("games library", () => {
   });
 
   it("lists the games with counts on each filter and narrows by status", async () => {
-    const store = fake_page();
-    store.import_trilium_games(trilium_database, "");
+    fake_page(sample_games);
     render(<App />);
     go("#/games/library");
 
@@ -105,8 +103,7 @@ describe("games library", () => {
 
 describe("game page", () => {
   it("shows a game's playtime in hours and sets its status", async () => {
-    const store = fake_page();
-    store.import_trilium_games(trilium_database, "");
+    const store = fake_page(sample_games);
     render(<App />);
     go("#/games/game/steam%3A105600");
 
@@ -119,8 +116,7 @@ describe("game page", () => {
   });
 
   it("lists a game's DLC, which the library leaves out until asked for, and links DLC back to its game", async () => {
-    const store = fake_page();
-    store.import_trilium_games(trilium_database, "");
+    const store = fake_page(sample_games);
     store.set_game_base("steam:70", "steam:620");
     render(<App />);
     go("#/games/library");

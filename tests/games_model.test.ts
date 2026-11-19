@@ -27,7 +27,6 @@ import {
 import { read_igdb_export } from "../src/shared/games/igdb_export.ts";
 import { parse_steam_id, parse_steam_name } from "../src/shared/games/steam.ts";
 import { read_steam_categories, steam_account_folder } from "../src/shared/games/steam_collections.ts";
-import { read_trilium_games, read_trilium_statuses } from "../src/shared/games/trilium.ts";
 
 function game(fields: Partial<LibraryGame>): LibraryGame {
   const status = game_status_info(built_in_statuses, fields.status ?? "backlog");
@@ -207,46 +206,6 @@ describe("the Games library", () => {
     expect(release_day("2011-04")).toBe("2011-04-01");
     expect(release_day("18 Apr, 2011")).toBe("2011-04-18");
     expect(release_day("Coming soon")).toBe("");
-  });
-});
-
-describe("the Trilium Game Tracker", () => {
-  const config = JSON.stringify({
-    statuses: {
-      entries: {
-        backlog: { name: "To Play" },
-        beaten: { name: "Completed" },
-        "item-1": { name: "Watched Let's Play", role: "done" },
-        "item-2": { name: "Endless", role: "playing" },
-      },
-    },
-    steamApiKey: "not read",
-  });
-
-  const database = JSON.stringify({
-    games: {
-      "steam:620": { steamAppId: "620", igdbId: "", title: "Portal 2", status: "beaten", rating: 9, playtime: 305, lastPlayed: "2025-06-04", addedAt: "2026-07-28", collections: ["Puzzles"] },
-      "steam:105600": { steamAppId: "105600", title: "Terraria", status: "item-2", playtime: 0, collections: [] },
-      "igdb:x": { title: "A Let's Play", status: "item-1" },
-      broken: "nonsense",
-      untitled: { status: "playing" },
-    },
-  });
-
-  it("reads each game, a status of the user's own as the status of its name, else its role and a collection of its name", () => {
-    const games = read_trilium_games(database, read_trilium_statuses(config));
-    expect(games.map((each) => [each.title, each.status, each.collections])).toEqual([
-      ["Portal 2", "finished", ["Puzzles"]],
-      ["Terraria", "endless", []],
-      ["A Let's Play", "finished", ["Watched Let's Play"]],
-    ]);
-    expect(games[0]).toMatchObject({ steam_app_id: "620", rating: 9, playtime_minutes: 305, last_played: "2025-06-04", added_at: "2026-07-28" });
-  });
-
-  it("reads a blank or broken file as no games", () => {
-    expect(read_trilium_games("")).toEqual([]);
-    expect(read_trilium_games("{not json")).toEqual([]);
-    expect(read_trilium_statuses("{").backlog).toEqual({ status: "backlog", collection: "" });
   });
 });
 
