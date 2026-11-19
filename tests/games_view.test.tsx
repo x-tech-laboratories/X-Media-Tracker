@@ -53,8 +53,7 @@ afterEach(() => {
 
 describe("games library", () => {
   it("draws the covers at the grid size chosen in settings", async () => {
-    const store = fake_page();
-    store.import_trilium_games(trilium_database, "");
+    const store = fake_page(sample_games);
     render(<App />);
     go("#/settings");
 
