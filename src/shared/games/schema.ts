@@ -33,6 +33,8 @@ export const games_games = sqliteTable(
     // The full image kept on every device, by its synced file's name, and the address it was taken from ("custom" when set by hand).
     cover_file: text().notNull().default(""),
     cover_file_from: text().notNull().default(""),
+    // Whether the cover's address was set by hand, so a refresh of the catalogues leaves it.
+    cover_by_hand: integer({ mode: "boolean" }).notNull().default(false),
     genres: text().notNull().default(""),
     platforms: text().notNull().default(""),
     developers: text().notNull().default(""),

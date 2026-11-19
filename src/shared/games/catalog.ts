@@ -160,11 +160,15 @@ export function same_game(first: CatalogGame, second: CatalogGame): boolean {
 // upright store art, and SteamGridDB its users' art.
 const cover_order: GameSource[] = ["mobygames", "giantbomb", "igdb", "thegamesdb", "steam", "gog", "steamgriddb", "rawg", "wikidata"];
 
+// Where an answer's cover stands in that order; lower is better, and no cover is last.
+export function cover_rank(game: CatalogGame): number {
+  return game.cover_url && game.cover_source ? cover_order.indexOf(game.cover_source) : game.cover_url ? cover_order.length : cover_order.length + 1;
+}
+
 // The first answer wins where both say something; the second fills what the first lacks.
 export function merge_games(first: CatalogGame, second: CatalogGame): CatalogGame {
   const fill = (mine: string, theirs: string) => mine || theirs;
-  const rank = (game: CatalogGame) => (game.cover_url && game.cover_source ? cover_order.indexOf(game.cover_source) : game.cover_url ? cover_order.length : cover_order.length + 1);
-  const cover_from = rank(second) < rank(first) ? second : first;
+  const cover_from = cover_rank(second) < cover_rank(first) ? second : first;
   return {
     sources: [...new Set([...first.sources, ...second.sources])],
     ...(Object.fromEntries(game_id_keys.map((key) => [key, fill(first[key], second[key])])) as Record<keyof GameIds, string>),

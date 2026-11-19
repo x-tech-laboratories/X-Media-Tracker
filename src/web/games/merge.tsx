@@ -15,7 +15,7 @@ const fields: MergeFieldSpec[] = [
   { id: "year", label: "Year", columns: ["year"] },
   { id: "release_date", label: "Released", columns: ["release_date"] },
   { id: "overview", label: "Overview", columns: ["overview"] },
-  { id: "cover", label: "Cover", columns: ["cover_url", "cover_file", "cover_file_from"] },
+  { id: "cover", label: "Cover", columns: ["cover_url", "cover_file", "cover_file_from", "cover_by_hand"] },
   { id: "genres", label: "Genres", columns: ["genres"], combine: combine_lists },
   { id: "platforms", label: "Platforms", columns: ["platforms"], combine: combine_lists },
   { id: "developers", label: "Developers", columns: ["developers"], combine: combine_lists },

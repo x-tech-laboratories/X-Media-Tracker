@@ -7,7 +7,7 @@ import { folder_file_store } from "@x-tech-laboratories/x-libs/node_file_store";
 import { hash_bytes } from "@x-tech-laboratories/x-libs/sync_files";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { custom_cover, fetch_covers, referenced_covers, stale_covers } from "../src/shared/covers.ts";
+import { custom_cover, fetch_covers, referenced_covers, serves_image, stale_covers } from "../src/shared/covers.ts";
 import { open_store } from "../src/shared/store.ts";
 
 let folders: string[] = [];
@@ -68,6 +68,14 @@ describe("kept covers", () => {
     database.prepare("UPDATE games_games SET cover_url = 'https://example.org/gone.jpg'").run();
     expect(await run()).toBe(0);
     expect(game("rawg:portal")).toMatchObject({ cover_file: await hash_bytes(new TextEncoder().encode("new art")), cover_file_from: "https://example.org/new.jpg" });
+  });
+
+  it("tells an image, or bytes of no stated kind, from a missing image or a page", async () => {
+    const answering = (response: Response) => (async () => response) as unknown as typeof fetch;
+    expect(await serves_image("https://example.org/a.jpg", answering(new Response("art", { headers: { "content-type": "image/jpeg" } })))).toBe(true);
+    expect(await serves_image("https://example.org/a.jpg", answering(new Response("art", { headers: { "content-type": "application/octet-stream" } })))).toBe(true);
+    expect(await serves_image("https://example.org/a.jpg", answering(new Response("gone", { status: 404 })))).toBe(false);
+    expect(await serves_image("https://example.org/a.jpg", answering(new Response("<html>", { headers: { "content-type": "text/html" } })))).toBe(false);
   });
 
   it("leaves a cover set by hand alone", async () => {

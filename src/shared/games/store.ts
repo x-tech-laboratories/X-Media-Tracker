@@ -10,10 +10,11 @@ import { today } from "@x-tech-laboratories/x-libs/dates";
 import { asc, eq, inArray, or, synced_tables } from "@x-tech-laboratories/x-libs/drizzle";
 import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 
+import { custom_cover, serves_image } from "../covers.ts";
 import { Background, define_feature, drizzle_of, new_id } from "../feature.ts";
 import { merge_columns, merge_ids, type SourceAnswers } from "../merging.ts";
 import { games_api } from "./api.ts";
-import { catalog_labels, empty_game, join_results, merge_games, same_game, title_words, type CatalogGame } from "./catalog.ts";
+import { catalog_labels, cover_rank, empty_game, join_results, merge_games, same_game, title_words, type CatalogGame } from "./catalog.ts";
 import { create_giantbomb } from "./giantbomb.ts";
 import { create_gog } from "./gog.ts";
 import { create_igdb } from "./igdb.ts";
@@ -266,6 +267,25 @@ async function gather(database: SqlDatabase, start: CatalogGame, heard: Heard = 
   return merge_games(merge_games(game, ids), start);
 }
 
+// Every catalogue's box art for a game, best first, then Steam's library art and a wide picture.
+function cover_choices(game: CatalogGame, answers: CatalogGame[]): string[] {
+  const others = answers.filter((answer) => answer.cover_url).sort((first, second) => cover_rank(first) - cover_rank(second));
+  return [...new Set([cover_of(game), ...others.map((answer) => answer.cover_url), steam_cover(game.steam_app_id), game.banner_url])].filter(Boolean);
+}
+
+// What the catalogues say of a game, with the first cover that serves an image, so art a catalogue lists but no longer has
+// gives way to the next; the address of the image already kept counts without asking, and when none answers the first stays.
+async function gather_with_cover(database: SqlDatabase, start: CatalogGame, kept_from = ""): Promise<CatalogGame> {
+  const heard: Heard = { answers: {}, failures: [] };
+  const game = await gather(database, start, heard);
+  const choices = cover_choices(game, Object.values(heard.answers));
+  if (choices.length <= 1 || kept_from === custom_cover) return game;
+  for (const address of choices) {
+    if (address === kept_from || (await serves_image(address))) return { ...game, cover_url: address };
+  }
+  return game;
+}
+
 // A game's SteamGridDB id: from its Steam app, else the game of the same title and year; "" when neither finds one.
 async function steamgriddb_id_of(steamgriddb: SteamGridDb, ids: CatalogGame, known: CatalogGame): Promise<string> {
   const by_steam = ids.steam_app_id ? await steamgriddb.by_steam(ids.steam_app_id).catch(() => "") : "";
@@ -304,9 +324,9 @@ function base_of(row: { base_game: string } | undefined, game: CatalogGame) {
   return !row?.base_game && game.base_game ? { base_game: game.base_game, base_game_title: game.base_game_title } : {};
 }
 
-// What the catalogues say replaces what was there; a value they no longer give is kept.
+// What the catalogues say replaces what was there; a value they no longer give is kept, and so is a cover set by hand.
 function keep_known(row: Record<string, unknown>, fields: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, value === "" ? row[key] : value]));
+  return Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, value === "" || (key === "cover_url" && row.cover_by_hand) ? row[key] : value]));
 }
 
 // A game already tracked keeps its status, rating, platforms and notes; only what the catalogues say of it changes.
@@ -347,7 +367,7 @@ function start_from(source: GameSource, id: string): CatalogGame {
 }
 
 async function add_from(database: SqlDatabase, source: GameSource, id: string): Promise<AddedGame> {
-  return write_details(database, await gather(database, start_from(source, id.trim())));
+  return write_details(database, await gather_with_cover(database, start_from(source, id.trim())));
 }
 
 // Every catalogue searched at once; one failing, or left out for want of a key, leaves the others' answers.
@@ -703,7 +723,7 @@ async function start_of(game: LibraryGame): Promise<CatalogGame | null> {
 async function refresh_game(database: SqlDatabase, game: LibraryGame): Promise<boolean> {
   const start = await start_of(game);
   if (!start) return false;
-  const details = await gather(database, start);
+  const details = game.cover_by_hand ? await gather(database, start) : await gather_with_cover(database, start, game.cover_file_from);
   const db = drizzle_of(database);
   const row = db.select().from(games_games).where(eq(games_games.id, game.id)).get();
   if (!row) return false;
@@ -755,6 +775,7 @@ const game_merge_columns = {
   ),
   playtime_minutes: "number",
   rating: "nullable_number",
+  cover_by_hand: "boolean",
 } as const;
 
 // Each catalogue's own answer about a tracked game, for picking what to keep field by field.
@@ -875,7 +896,7 @@ export const games_feature = define_feature({
     set_game_cover: (database: SqlDatabase, id: string, address: string): void => {
       const cover_url = address.trim();
       if (cover_url !== "" && !/^https?:\/\/\S+$/i.test(cover_url)) throw new Error("A cover is the web address of an image, starting with http:// or https://.");
-      update_game(database, id, cover_url === "" ? { cover_url, cover_file: "", cover_file_from: "" } : { cover_url });
+      update_game(database, id, cover_url === "" ? { cover_url, cover_file: "", cover_file_from: "", cover_by_hand: false } : { cover_url, cover_by_hand: true });
     },
 
     set_game_platforms: (database: SqlDatabase, id: string, platforms: string[]): void => {

@@ -95,7 +95,9 @@ on the Settings page.
   Wikidata first, by any id known, for the ids every other catalogue gives it, then RAWG, IGDB, MobyGames, Giant Bomb
   and TheGamesDB (each only with its key), GOG and Steam's store by their own ids, and last SteamGridDB (with its key)
   for art, by its id, the Steam app or else the title and year; words come from the richest catalogue first and box art
-  from the one best at it. Search asks all but SteamGridDB at once and joins the same game into one result. Wikidata
+  from the one best at it. Adding or refreshing a game keeps the first box art that serves an image, so art a
+  catalogue lists but no longer has gives way to the next catalogue's, then Steam's library art and a wide picture; the
+  address of the image already kept is not asked again, and when none answers the best stays. A cover set by hand is marked `cover_by_hand` and no refresh replaces it. Search asks all but SteamGridDB at once and joins the same game into one result. Wikidata
   and MobyGames are asked one request at a time and IGDB four a second, as they ask; IGDB's Twitch access is asked for
   once and kept in memory. A GOG id is a store page's slug, as Wikidata keeps it without its `game/`, and the client
   reads the product number from that page. The keys come from settings and never appear in an error or a log.
