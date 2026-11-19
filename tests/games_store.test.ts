@@ -561,6 +561,26 @@ describe("merging games", () => {
   });
 });
 
+describe("cover", () => {
+  it("sets a game's cover address and clears the kept image with it", async () => {
+    const methods = open_methods();
+    await methods.add_game("steam", "620");
+
+    methods.set_game_cover("rawg:portal-2", " https://example.org/portal.jpg ");
+    expect(methods.get_game("rawg:portal-2")).toMatchObject({ cover_url: "https://example.org/portal.jpg" });
+
+    methods.set_game_cover("rawg:portal-2", "");
+    expect(methods.get_game("rawg:portal-2")).toMatchObject({ cover_url: "", cover_file: "", cover_file_from: "" });
+  });
+
+  it("refuses an address that is not a web address", async () => {
+    const methods = open_methods();
+    await methods.add_game("steam", "620");
+
+    expect(() => methods.set_game_cover("rawg:portal-2", "file:///etc/passwd")).toThrow("web address");
+  });
+});
+
 describe("notes", () => {
   it("keeps a game's notes apart from its review", async () => {
     const methods = open_methods();

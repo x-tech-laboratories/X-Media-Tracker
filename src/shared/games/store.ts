@@ -871,6 +871,13 @@ export const games_feature = define_feature({
 
     set_game_notes: (database: SqlDatabase, id: string, notes: string): void => update_game(database, id, { notes: notes.trim() }),
 
+    // A new address is downloaded into the synced cover file soon after; empty goes back to no cover.
+    set_game_cover: (database: SqlDatabase, id: string, address: string): void => {
+      const cover_url = address.trim();
+      if (cover_url !== "" && !/^https?:\/\/\S+$/i.test(cover_url)) throw new Error("A cover is the web address of an image, starting with http:// or https://.");
+      update_game(database, id, cover_url === "" ? { cover_url, cover_file: "", cover_file_from: "" } : { cover_url });
+    },
+
     set_game_platforms: (database: SqlDatabase, id: string, platforms: string[]): void => {
       if (!Array.isArray(platforms)) throw new Error("Platforms are a list of names, such as PC or Nintendo Switch.");
       update_game(database, id, { owned_platforms: JSON.stringify(clean_names(platforms.map(String))) });

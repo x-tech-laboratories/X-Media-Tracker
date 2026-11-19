@@ -137,6 +137,14 @@ export const games_api = {
       { name: "notes", schema: text("The notes' text, in Markdown.") },
     ],
   },
+  set_game_cover: {
+    description:
+      "Sets the web address of a game's cover image, such as one found for a game no catalogue has art for; the image is downloaded and kept soon after, and a later catalogue refresh does not replace it. Empty removes the cover.",
+    params: [
+      { name: "id", schema: game_id },
+      { name: "address", schema: text("The image's web address, starting with http:// or https://.") },
+    ],
+  },
   set_game_review: {
     description: "Sets a game's review, replacing any before; empty clears it.",
     params: [
