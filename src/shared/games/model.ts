@@ -99,6 +99,8 @@ export interface Game extends GameIds {
   // The full image kept on every device, by its synced file's name, and the address it was taken from ("custom" when set by hand).
   cover_file: string;
   cover_file_from: string;
+  // Whether the cover's address was set by hand, so a refresh of the catalogues leaves it.
+  cover_by_hand: boolean;
   // Each as one line, such as "Action, Puzzle".
   genres: string;
   platforms: string;

@@ -26,13 +26,14 @@ export function merge_ids(ids: string[], keep: string): string[] {
 }
 
 // Only the columns a merge may write, each of the type the row holds.
-export function merge_columns(values: Record<string, unknown>, columns: Record<string, "text" | "number" | "nullable_number">): Record<string, unknown> {
+export function merge_columns(values: Record<string, unknown>, columns: Record<string, "text" | "number" | "nullable_number" | "boolean">): Record<string, unknown> {
   const picked: Record<string, unknown> = {};
   for (const [column, value] of Object.entries(values ?? {})) {
     const kind = columns[column];
     if (!kind) throw new Error(`${column} cannot be merged.`);
     if (kind === "text" && typeof value !== "string") throw new Error(`${column} must be text.`);
     if (kind === "number" && (typeof value !== "number" || !Number.isFinite(value))) throw new Error(`${column} must be a number.`);
+    if (kind === "boolean" && typeof value !== "boolean") throw new Error(`${column} must be true or false.`);
     if (kind === "nullable_number" && value !== null && (typeof value !== "number" || !Number.isFinite(value))) throw new Error(`${column} must be a number or null.`);
     picked[column] = value;
   }

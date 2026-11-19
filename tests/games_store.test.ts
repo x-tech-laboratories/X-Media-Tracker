@@ -77,6 +77,7 @@ function answer_of(url: URL): unknown {
 
 const fetch_stub = vi.fn(async (address: string) => {
   const answer = answer_of(new URL(address));
+  if (answer instanceof Blob) return new Response(answer, { status: 200 });
   // A page, such as a store page, is answered as its text.
   if (typeof answer === "string") return new Response(answer, { status: 200 });
   if (answer) return new Response(JSON.stringify(answer), { status: 200 });
@@ -573,11 +574,44 @@ describe("cover", () => {
     expect(methods.get_game("rawg:portal-2")).toMatchObject({ cover_url: "", cover_file: "", cover_file_from: "" });
   });
 
+  it("keeps a cover set by hand through a refresh, until it is cleared", async () => {
+    const methods = open_methods();
+    await methods.add_game("steam", "620");
+    methods.set_game_cover("rawg:portal-2", "https://example.org/portal.jpg");
+
+    await methods.set_game_ids("rawg:portal-2", { steam_app_id: "620" });
+    expect(methods.get_game("rawg:portal-2")).toMatchObject({ cover_url: "https://example.org/portal.jpg", cover_by_hand: true });
+
+    methods.set_game_cover("rawg:portal-2", "");
+    await methods.set_game_ids("rawg:portal-2", { steam_app_id: "620" });
+    expect(methods.get_game("rawg:portal-2")).toMatchObject({ cover_url: "https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/620/abc/library_capsule_2x.jpg?t=1", cover_by_hand: false });
+  });
+
   it("refuses an address that is not a web address", async () => {
     const methods = open_methods();
     await methods.add_game("steam", "620");
 
     expect(() => methods.set_game_cover("rawg:portal-2", "file:///etc/passwd")).toThrow("web address");
+  });
+});
+
+describe("cover fallback", () => {
+  it("takes the next catalogue's art when the best one does not load", async () => {
+    const methods = open_methods();
+    methods.set_setting("games.rawg_api_key", "rawg-key");
+    answers["rawg/shot.jpg"] = new Blob([new Uint8Array([1, 2, 3])], { type: "image/jpeg" });
+    await methods.add_game("steam", "620");
+    expect(methods.get_game("rawg:portal-2")!.cover_url).toBe("https://rawg/shot.jpg");
+  });
+
+  it("asks again on a refresh and keeps the best art once it loads", async () => {
+    const methods = open_methods();
+    methods.set_setting("games.rawg_api_key", "rawg-key");
+    answers["rawg/shot.jpg"] = new Blob([new Uint8Array([1, 2, 3])], { type: "image/jpeg" });
+    await methods.add_game("steam", "620");
+    answers["shared.akamai.steamstatic.com/store_item_assets/steam/apps/620/abc/library_capsule_2x.jpg"] = new Blob([new Uint8Array([4])], { type: "image/jpeg" });
+    await methods.set_game_ids("rawg:portal-2", { steam_app_id: "620" });
+    expect(methods.get_game("rawg:portal-2")!.cover_url).toBe("https://shared.akamai.steamstatic.com/store_item_assets/steam/apps/620/abc/library_capsule_2x.jpg?t=1");
   });
 });
 

@@ -85,12 +85,28 @@ function keep_cover(database: SqlDatabase, cover: StaleCover, file: string): boo
 const timeout_in_milliseconds = 30_000;
 const downloads_at_once = 4;
 
+// An image, or bytes sent without saying what they are, as some image hosts do.
+function is_image_type(type: string): boolean {
+  return !type || type.startsWith("image/") || type.startsWith("application/octet-stream");
+}
+
 async function download(fetcher: typeof fetch, address: string): Promise<Uint8Array> {
   const response = await fetcher(address, { signal: AbortSignal.timeout(timeout_in_milliseconds) });
   if (!response.ok) throw new Error(`${new URL(address).hostname} answered ${response.status}`);
   const type = response.headers.get("content-type") ?? "";
-  if (type && !type.startsWith("image/")) throw new Error(`${new URL(address).hostname} sent ${type}, not an image`);
+  if (!is_image_type(type)) throw new Error(`${new URL(address).hostname} sent ${type}, not an image`);
   return new Uint8Array(await response.arrayBuffer());
+}
+
+// Whether an address answers with an image, read no further than its headers.
+export async function serves_image(address: string, fetcher: typeof fetch = fetch): Promise<boolean> {
+  try {
+    const response = await fetcher(address, { signal: AbortSignal.timeout(timeout_in_milliseconds) });
+    await response.body?.cancel();
+    return response.ok && is_image_type(response.headers.get("content-type") ?? "");
+  } catch {
+    return false;
+  }
 }
 
 export interface FetchCoversOptions {

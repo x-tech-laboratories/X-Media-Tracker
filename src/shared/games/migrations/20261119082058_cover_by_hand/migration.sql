@@ -1,0 +1,1 @@
+ALTER TABLE `games_games` ADD `cover_by_hand` integer DEFAULT false NOT NULL;

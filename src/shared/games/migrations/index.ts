@@ -58,5 +58,11 @@ export const migrations: DrizzleMigration[] = [
       "CREATE INDEX `games_games_by_thegamesdb` ON `games_games` (`thegamesdb_id`);",
       "CREATE INDEX `games_games_by_gog` ON `games_games` (`gog_id`);"
     ]
+  },
+  {
+    "name": "20261119082058_cover_by_hand",
+    "statements": [
+      "ALTER TABLE `games_games` ADD `cover_by_hand` integer DEFAULT false NOT NULL;"
+    ]
   }
 ];

@@ -35,6 +35,7 @@ function game(fields: Partial<LibraryGame>): LibraryGame {
     steamgriddb_id: "",
     cover_file: "",
     cover_file_from: "",
+    cover_by_hand: false,
     title: "",
     year: "",
     release_date: "",
