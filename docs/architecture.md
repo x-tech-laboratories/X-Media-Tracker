@@ -85,24 +85,26 @@ on the Settings page.
   IGDB's statuses in their three groups, with older ones read as their nearest, which ids name one game, pasted links, platforms, playtime, sorting and the Games library's filters with
   counts.
 - `schema.ts`: `games_games`, keyed by the strongest id (`rawg:…`, else `mobygames:…`, `giantbomb:…`, `wikidata:…`,
-  `steam:…`, `igdb:…`, `thegamesdb:…`, `gog:…`; a Trilium game with none is `title:<title>/<year>`), with the platforms a copy is owned on and the
+  `steam:…`, `igdb:…`, `thegamesdb:…`, `gog:…`, `steamgriddb:…`, `itchio:…`; a Trilium game with none is `title:<title>/<year>`), with the platforms a copy is owned on and the
   stores it is owned from as JSON lists and, for DLC, `base_game`: the key of the game it adds to, such as `steam:620`, or a library id, found among
   the tracked games by any id (`find_base_game` in `model.ts`); `none` once set by hand as not DLC, so the catalogues
   stop filling it in. Its `status` column still defaults to an older status, read as Backlog, since changing a default
   rebuilds the table and would drop its collection links. `games_collections` and `games_game_collections`. All of them sync.
-- `rawg.ts`, `igdb.ts`, `mobygames.ts`, `giantbomb.ts`, `thegamesdb.ts`, `gog.ts`, `steamgriddb.ts`, `wikidata.ts` and
-  `steam.ts` are the catalogues' clients, each answering in `catalog.ts`'s shape. Adding or refreshing a game asks
+- `rawg.ts`, `igdb.ts`, `mobygames.ts`, `giantbomb.ts`, `thegamesdb.ts`, `gog.ts`, `steamgriddb.ts`, `wikidata.ts`,
+  `steam.ts` and `itchio.ts` are the catalogues' clients, each answering in `catalog.ts`'s shape. Adding or refreshing a game asks
   Wikidata first, by any id known, for the ids every other catalogue gives it, then RAWG, IGDB, MobyGames, Giant Bomb
-  and TheGamesDB (each only with its key), GOG and Steam's store by their own ids, and last SteamGridDB (with its key)
+  and TheGamesDB (each only with its key), GOG, Steam's store and itch.io by their own ids, and last SteamGridDB (with its key)
   for art, by its id, the Steam app or else the title and year; words come from the richest catalogue first and box art
   from the one best at it. Adding or refreshing a game keeps the first box art that serves an image, so art a
   catalogue lists but no longer has gives way to the next catalogue's, then Steam's library art and a wide picture; the
   address of the image already kept is not asked again, and when none answers the best stays. A cover set by hand is marked `cover_by_hand` and no refresh replaces it. Search asks all but SteamGridDB at once and joins the same game into one result. Wikidata
   and MobyGames are asked one request at a time and IGDB four a second, as they ask; IGDB's Twitch access is asked for
   once and kept in memory. A GOG id is a store page's slug, as Wikidata keeps it without its `game/`, and the client
-  reads the product number from that page. The keys come from settings and never appear in an error or a log.
-- `steam.ts` also reads a profile's owned games, with playtime, and its wishlist; `schedule.ts` runs `run_steam_sync`
-  hourly on the server and the desktop, and the last import syncs, so they do not both run it. Steam is not a source
+  reads the product number from that page. An itch.io id is a page as `creator/slug`, which Wikidata keeps as its link;
+  itch.io has no search, so it answers only by that page's `data.json`. The keys come from settings and never appear in an error or a log.
+- `steam.ts` also reads a profile's owned games, with playtime, and its wishlist, and `itchio.ts` an account's owned
+  keys through itch.io's API, page by page until one is empty; `schedule.ts` runs `run_steam_sync` and then
+  `run_itchio_sync` hourly on the server and the desktop, and the last import syncs, so they do not both run it. Neither is a source
   plugin, since those import into Movies & Series.
 - `steam_collections.ts` reads the Steam client's library categories file; `import_steam_categories` gives games in a
   category mapped in `games.steam_category_statuses` its status. The desktop finds the file in Steam's folder

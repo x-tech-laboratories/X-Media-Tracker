@@ -4,7 +4,7 @@
 // ── Imports ──────────────────────────────────────────────────────────────────
 
 import { empty_game, fetch_json, list_of, text_of, user_agent, type CatalogGame, type Fetch, type Json } from "./catalog.ts";
-import type { GameIds } from "./model.ts";
+import { itchio_link, parse_itchio_id, type GameIds } from "./model.ts";
 
 // ── Requests ─────────────────────────────────────────────────────────────────
 
@@ -25,17 +25,20 @@ const id_properties: Record<Exclude<keyof GameIds, "wikidata_id">, string> = {
   thegamesdb_id: "P7622",
   gog_id: "P2725",
   steamgriddb_id: "P12561",
+  itchio_id: "P7294",
 };
 
 // Wikidata writes a GOG id as game/<slug>, or movie/<slug> for a film, which is no game.
 const gog_prefix = "game/";
 
-// An id as Wikidata writes it, and as this app keeps it.
+// An id as Wikidata writes it, and as this app keeps it; an itch.io page is kept as innersloth/among-us and written as its link.
 function wikidata_value(key: keyof typeof id_properties, value: string): string {
+  if (key === "itchio_id") return itchio_link(value);
   return key === "gog_id" ? `${gog_prefix}${value}` : value;
 }
 
 function kept_value(key: keyof typeof id_properties, value: string): string {
+  if (key === "itchio_id") return parse_itchio_id(value);
   if (key !== "gog_id") return value;
   return value.startsWith(gog_prefix) ? value.slice(gog_prefix.length) : "";
 }

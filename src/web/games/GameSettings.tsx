@@ -1,5 +1,6 @@
 // The games' settings: the catalogues' keys and IGDB's Twitch app, how new games start, collections, the Steam profile whose library and
-// wishlist come in and how often, the status each Steam category gives, and the Trilium Game Tracker's and IGDB's imports.
+// wishlist come in and how often, the status each Steam category gives, the itch.io account whose library comes in, and the Trilium
+// Game Tracker's and IGDB's imports.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -168,6 +169,44 @@ function SteamSettings(props: FeatureSettingsProps) {
   );
 }
 
+// ── itch.io ──────────────────────────────────────────────────────────────────
+
+function ItchioSettings(props: FeatureSettingsProps) {
+  const { settings, set_setting } = props;
+  const [busy, set_busy] = useState(false);
+
+  const run = () => {
+    set_busy(true);
+    const work = calls()
+      .import_itchio_library()
+      .then((report) => toast(`Imported ${report.added} new game(s) and updated ${report.updated} from itch.io. Refresh in Games fills in details for new ones.`, { tone: "good" }));
+    attempt(work.finally(() => set_busy(false)));
+  };
+
+  const last = String(settings["games.last_itchio_sync"] ?? "");
+  const result = String(settings["games.last_itchio_result"] ?? "");
+  return (
+    <>
+      <SecretRow {...props} label="itch.io API key" setting="games.itchio_api_key" placeholder="Paste your key" hint="Reads the games your account has bought or claimed. Make one at itch.io/user/settings/api-keys." />
+      <SettingRow label="Import from itch.io every" hint={`0 imports only when asked. The server and the desktop app import on this schedule.${last ? ` Last: ${last.slice(0, 16).replace("T", " ")}${result ? ` — ${result}` : ""}.` : ""}`}>
+        <NumberField
+          label="Import from itch.io every"
+          bare
+          unit="hours"
+          min={0}
+          value={Number(settings["games.itchio_sync_hours"]) || 0}
+          on_change={(hours) => attempt(set_setting("games.itchio_sync_hours", Math.max(0, Math.round(hours ?? 0))))}
+        />
+      </SettingRow>
+      <SettingRow label="Import now" hint="Adds owned games as Backlog, owned on PC or Android; a game already here gains its itch.io page. itch.io gives no playtime.">
+        <button type="button" disabled={busy} onClick={run}>
+          {busy ? "Importing…" : "Import library"}
+        </button>
+      </SettingRow>
+    </>
+  );
+}
+
 // ── Steam categories ─────────────────────────────────────────────────────────
 
 function report_categories(report: SteamCategoryReport): void {
@@ -331,6 +370,7 @@ export function game_settings(props: FeatureSettingsProps): SettingsSection[] {
       hint: "Give each category of your Steam library a status; its tracked games take that status whenever the categories are read, the furthest along winning for a game in several.",
       content: <SteamCategorySettings {...props} />,
     },
+    { id: "itchio", heading: "itch.io", content: <ItchioSettings {...props} /> },
     { id: "trilium-games", heading: "Trilium Game Tracker", content: <TriliumSettings /> },
     { id: "igdb", heading: "IGDB", hint: "IGDB's API gives only its catalogue, so your IGDB lists come in through its data export.", content: <IgdbSettings /> },
   ];

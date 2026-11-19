@@ -83,10 +83,12 @@ export interface GameIds {
   // A GOG store page's slug, such as the_witcher_3_wild_hunt.
   gog_id: string;
   steamgriddb_id: string;
+  // An itch.io game page as its creator's name and the page's slug, such as innersloth/among-us.
+  itchio_id: string;
 }
 
 // New catalogues go last, so a tracked game's id, made from the first id it has, never changes.
-export const game_id_keys = ["rawg_id", "mobygames_id", "giantbomb_id", "wikidata_id", "steam_app_id", "igdb_id", "thegamesdb_id", "gog_id", "steamgriddb_id"] as const satisfies readonly (keyof GameIds)[];
+export const game_id_keys = ["rawg_id", "mobygames_id", "giantbomb_id", "wikidata_id", "steam_app_id", "igdb_id", "thegamesdb_id", "gog_id", "steamgriddb_id", "itchio_id"] as const satisfies readonly (keyof GameIds)[];
 
 export interface Game extends GameIds {
   id: string;
@@ -181,6 +183,7 @@ const key_fields: Record<string, keyof GameIds> = {
   thegamesdb: "thegamesdb_id",
   gog: "gog_id",
   steamgriddb: "steamgriddb_id",
+  itchio: "itchio_id",
 };
 
 export function is_dlc(game: Pick<Game, "base_game">): boolean {
@@ -205,7 +208,7 @@ export function dlc_of<Item extends Game>(base: Game, games: Item[]): Item[] {
 
 // ── Links ────────────────────────────────────────────────────────────────────
 
-export type GameSource = "rawg" | "mobygames" | "giantbomb" | "wikidata" | "steam" | "igdb" | "thegamesdb" | "gog" | "steamgriddb";
+export type GameSource = "rawg" | "mobygames" | "giantbomb" | "wikidata" | "steam" | "igdb" | "thegamesdb" | "gog" | "steamgriddb" | "itchio";
 
 export interface ParsedGameLink {
   source: GameSource;
@@ -221,7 +224,19 @@ export function parse_gog_slug(input: string): string {
   return bare && !/^\d+$/.test(bare[1]!) ? bare[1]!.toLowerCase() : "";
 }
 
-// A pasted RAWG, MobyGames, Giant Bomb, Wikidata, Steam store, IGDB, TheGamesDB or GOG link.
+// An itch.io game page, such as innersloth/among-us, alone or as its link https://innersloth.itch.io/among-us.
+export function parse_itchio_id(input: string): string {
+  const text = input.trim();
+  const found = /^(?:https?:\/\/)?([a-z0-9-]+)\.itch\.io\/([\w-]+)\/?(?:[?#].*)?$/i.exec(text) ?? /^([a-z0-9-]+)\/([\w-]+)$/i.exec(text);
+  return found ? `${found[1]}/${found[2]}`.toLowerCase() : "";
+}
+
+export function itchio_link(id: string): string {
+  const [creator, slug] = id.split("/");
+  return `https://${creator}.itch.io/${slug}`;
+}
+
+// A pasted RAWG, MobyGames, Giant Bomb, Wikidata, Steam store, IGDB, TheGamesDB, GOG or itch.io link.
 export function parse_game_link(input: string): ParsedGameLink | null {
   const text = input.trim();
   const rawg = /rawg\.io\/games\/([a-z0-9-]+)/i.exec(text);
@@ -238,6 +253,7 @@ export function parse_game_link(input: string): ParsedGameLink | null {
   const thegamesdb = /thegamesdb\.net\/game\.php\?(?:[^#\s]*&)?id=(\d+)/i.exec(text);
   if (thegamesdb) return { source: "thegamesdb", id: thegamesdb[1]! };
   if (/gog\.com\//i.test(text) && parse_gog_slug(text)) return { source: "gog", id: parse_gog_slug(text) };
+  if (/\.itch\.io\//i.test(text) && parse_itchio_id(text)) return { source: "itchio", id: parse_itchio_id(text) };
   return null;
 }
 
@@ -252,6 +268,7 @@ export function game_links(game: Partial<GameIds>): { label: string; href: strin
     game.thegamesdb_id && { label: "TheGamesDB", href: `https://thegamesdb.net/game.php?id=${game.thegamesdb_id}` },
     game.gog_id && { label: "GOG", href: `https://www.gog.com/en/game/${game.gog_id}` },
     game.steamgriddb_id && { label: "SteamGridDB", href: `https://www.steamgriddb.com/game/${game.steamgriddb_id}` },
+    game.itchio_id && { label: "itch.io", href: itchio_link(game.itchio_id) },
   ].filter((link): link is { label: string; href: string } => !!link);
 }
 

@@ -1,4 +1,4 @@
-// What RAWG, MobyGames, Giant Bomb, IGDB, TheGamesDB, GOG, SteamGridDB, Wikidata and Steam say of a game, in one shape, and the rules for joining their
+// What RAWG, MobyGames, Giant Bomb, IGDB, TheGamesDB, GOG, SteamGridDB, Wikidata, Steam and itch.io say of a game, in one shape, and the rules for joining their
 // answers about the same game; each catalogue's client turns its own answers into this shape.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
@@ -17,6 +17,7 @@ export const catalog_labels: Record<GameSource, string> = {
   thegamesdb: "TheGamesDB",
   gog: "GOG",
   steamgriddb: "SteamGridDB",
+  itchio: "itch.io",
 };
 
 export interface CatalogGame extends GameIds {
@@ -157,8 +158,8 @@ export function same_game(first: CatalogGame, second: CatalogGame): boolean {
 }
 
 // Box art from the catalogue best at it: MobyGames, Giant Bomb, IGDB and TheGamesDB keep covers, Steam and GOG their
-// upright store art, and SteamGridDB its users' art.
-const cover_order: GameSource[] = ["mobygames", "giantbomb", "igdb", "thegamesdb", "steam", "gog", "steamgriddb", "rawg", "wikidata"];
+// upright store art, SteamGridDB its users' art, and itch.io a page's wide cover.
+const cover_order: GameSource[] = ["mobygames", "giantbomb", "igdb", "thegamesdb", "steam", "gog", "steamgriddb", "itchio", "rawg", "wikidata"];
 
 // Where an answer's cover stands in that order; lower is better, and no cover is last.
 export function cover_rank(game: CatalogGame): number {

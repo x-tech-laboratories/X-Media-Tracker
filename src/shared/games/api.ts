@@ -16,7 +16,7 @@ const statuses_named = game_statuses.map((status) => `${status} (${game_status_t
 
 const status: JsonSchema = { type: "string", enum: [...game_statuses], description: `A status, as IGDB has them, each in a group: ${statuses_named}.` };
 
-const source: JsonSchema = { type: "string", enum: ["rawg", "igdb", "mobygames", "giantbomb", "thegamesdb", "gog", "wikidata", "steam"], description: "Which catalogue the id is from." };
+const source: JsonSchema = { type: "string", enum: ["rawg", "igdb", "mobygames", "giantbomb", "thegamesdb", "gog", "wikidata", "steam", "itchio"], description: "Which catalogue the id is from." };
 
 // ── Calls ────────────────────────────────────────────────────────────────────
 
@@ -24,7 +24,7 @@ export const games_api = {
   list_games: {
     description:
       "Lists every tracked game, sorted by title, with its catalogue ids (RAWG slug, MobyGames, Giant Bomb guid, Wikidata item, Steam app, IGDB slug, TheGamesDB, " +
-      "GOG slug, SteamGridDB), " +
+      "GOG slug, SteamGridDB, itch.io page), " +
       "release, genres, platforms it came out on, developers, status (one of " + game_statuses.join(", ") + "), rating 1 to 10 (half stars " +
       "out of five) or null, review, the platforms a copy is owned on, the stores it is owned from, edition, playtime in minutes, the day last played, the collections it is in, " +
       "and for DLC base_game, the key or id of the game it adds to (\"none\" when set as not DLC), with base_game_title; " +
@@ -49,13 +49,14 @@ export const games_api = {
       { name: "source", schema: source },
       { name: "id", schema: text(
           "The id there: a RAWG or IGDB slug such as portal-2, a MobyGames number such as 51233, a Giant Bomb guid such as 3030-21662, a TheGamesDB number " +
-            "such as 1234, a GOG store slug such as the_witcher_3_wild_hunt, a Wikidata item such as Q279446, or a Steam app such as 620.",
+            "such as 1234, a GOG store slug such as the_witcher_3_wild_hunt, a Wikidata item such as Q279446, a Steam app such as 620, " +
+            "or an itch.io page as its creator and slug such as innersloth/among-us.",
         ) },
     ],
   },
   add_game_from_link: {
-    description: "Adds a game from a RAWG, IGDB, MobyGames, Giant Bomb, TheGamesDB, GOG, Wikidata or Steam store link. Gives back its id.",
-    params: [{ name: "link", schema: text("Such as https://rawg.io/games/portal-2 or https://store.steampowered.com/app/620/.") }],
+    description: "Adds a game from a RAWG, IGDB, MobyGames, Giant Bomb, TheGamesDB, GOG, Wikidata, Steam store or itch.io game link. Gives back its id.",
+    params: [{ name: "link", schema: text("Such as https://rawg.io/games/portal-2, https://store.steampowered.com/app/620/ or https://innersloth.itch.io/among-us.") }],
   },
   set_game_ids: {
     description:
@@ -77,6 +78,7 @@ export const games_api = {
             igdb_id: text("An IGDB slug or link, or empty to clear it."),
             thegamesdb_id: text("A TheGamesDB game number or link, or empty to clear it."),
             gog_id: text("A GOG store page's slug such as the_witcher_3_wild_hunt or its link, or empty to clear it."),
+            itchio_id: text("An itch.io game page as its creator and slug such as innersloth/among-us, or its link, or empty to clear it."),
             steamgriddb_id: text("A SteamGridDB game number or link, or empty to clear it."),
           },
         },
@@ -221,6 +223,17 @@ export const games_api = {
   },
   run_steam_sync: {
     description: "Imports the Steam library and wishlist when the hours set in Settings have passed since the last time, or now when forced. Gives what it did, or null when it was not due.",
+    params: [{ name: "force", schema: { type: "boolean", description: "True to import now whatever the schedule." } }],
+  },
+  import_itchio_library: {
+    description:
+      "Imports every game the itch.io account whose API key is set in Settings has bought or claimed, leaving out soundtracks, comics and tools: new ones " +
+      "are added as Backlog, owned from itch.io on PC (and on Android when it has an Android download); ones already here, matched by their itch.io page or " +
+      "else by a title no itch.io page names yet, gain the page, the store and those platforms and leave the Wishlist. itch.io gives no playtime. Gives the counts added and updated.",
+    params: [],
+  },
+  run_itchio_sync: {
+    description: "Imports the itch.io library when the hours set in Settings have passed since the last time, or now when forced. Gives what it did, or null when it was not due.",
     params: [{ name: "force", schema: { type: "boolean", description: "True to import now whatever the schedule." } }],
   },
   import_steam_categories: {

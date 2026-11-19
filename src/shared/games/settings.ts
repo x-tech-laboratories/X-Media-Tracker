@@ -13,6 +13,13 @@ export const games_setting_defaults = {
   // A Steam Web API key and the 64-bit id of the profile whose library and wishlist are read.
   "games.steam_api_key": "",
   "games.steam_id": "",
+  // An itch.io API key, which reads the games the account owns.
+  "games.itchio_api_key": "",
+  // The fewest hours between automatic itch.io imports; 0 turns them off.
+  "games.itchio_sync_hours": 0,
+  // When the last itch.io import ran, as an ISO timestamp, and what it did; synced like Steam's.
+  "games.last_itchio_sync": "",
+  "games.last_itchio_result": "",
   // The status a game added by hand starts with.
   "games.default_status": "backlog",
   // The fewest hours between automatic Steam imports; 0 turns them off.
@@ -35,4 +42,5 @@ export const games_secret_settings = [
   "games.steamgriddb_api_key",
   "games.igdb_client_secret",
   "games.steam_api_key",
+  "games.itchio_api_key",
 ];

@@ -12,6 +12,7 @@ import {
   game_status_of,
   no_game_filters,
   parse_game_link,
+  parse_itchio_id,
   release_day,
   sort_games,
   type LibraryGame,
@@ -33,6 +34,7 @@ function game(fields: Partial<LibraryGame>): LibraryGame {
     thegamesdb_id: "",
     gog_id: "",
     steamgriddb_id: "",
+    itchio_id: "",
     cover_file: "",
     cover_file_from: "",
     cover_by_hand: false,
@@ -81,7 +83,17 @@ describe("game ids", () => {
     expect(parse_game_link("https://thegamesdb.net/game.php?id=41")).toEqual({ source: "thegamesdb", id: "41" });
     expect(parse_game_link("https://www.gog.com/en/game/the_witcher_3_wild_hunt")).toEqual({ source: "gog", id: "the_witcher_3_wild_hunt" });
     expect(parse_game_link("https://www.gog.com/game/doom_1993")).toEqual({ source: "gog", id: "doom_1993" });
+    expect(parse_game_link("https://Innersloth.itch.io/among-us")).toEqual({ source: "itchio", id: "innersloth/among-us" });
+    expect(parse_game_link("innersloth.itch.io/among-us/")).toEqual({ source: "itchio", id: "innersloth/among-us" });
+    expect(parse_game_link("https://itch.io/games/free")).toBeNull();
     expect(parse_game_link("Portal 2")).toBeNull();
+  });
+
+  it("keys an itch.io game by its page", () => {
+    expect(game_key({ itchio_id: "innersloth/among-us" })).toBe("itchio:innersloth/among-us");
+    expect(parse_itchio_id("innersloth/among-us")).toBe("innersloth/among-us");
+    expect(parse_itchio_id("https://innersloth.itch.io/among-us?ac=1")).toBe("innersloth/among-us");
+    expect(parse_itchio_id("among-us")).toBe("");
   });
 
   it("reads a Steam profile as its id or its custom URL name", () => {
@@ -98,6 +110,7 @@ describe("game ids", () => {
       "https://www.gog.com/en/game/doom_1993",
       "https://www.steamgriddb.com/game/2460",
     ]);
+    expect(game_links({ itchio_id: "innersloth/among-us" })).toEqual([{ label: "itch.io", href: "https://innersloth.itch.io/among-us" }]);
   });
 });
 

@@ -77,7 +77,8 @@ function source_of(result: GameSearchResult): [GameSource, string] {
   if (result.steam_app_id) return ["steam", result.steam_app_id];
   if (result.igdb_id) return ["igdb", result.igdb_id];
   if (result.thegamesdb_id) return ["thegamesdb", result.thegamesdb_id];
-  return ["gog", result.gog_id];
+  if (result.gog_id) return ["gog", result.gog_id];
+  return ["itchio", result.itchio_id];
 }
 
 function result_key(result: GameSearchResult): string {

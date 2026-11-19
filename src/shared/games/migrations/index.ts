@@ -70,5 +70,12 @@ export const migrations: DrizzleMigration[] = [
     "statements": [
       "ALTER TABLE `games_games` ADD `owned_stores` text DEFAULT '[]' NOT NULL;"
     ]
+  },
+  {
+    "name": "20261119083926_itchio",
+    "statements": [
+      "ALTER TABLE `games_games` ADD `itchio_id` text DEFAULT '' NOT NULL;",
+      "CREATE INDEX `games_games_by_itchio` ON `games_games` (`itchio_id`);"
+    ]
   }
 ];
