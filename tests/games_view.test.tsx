@@ -140,3 +140,23 @@ describe("game page", () => {
     expect(await screen.findByText("That game is not in the library.")).toBeTruthy();
   });
 });
+
+describe("games settings", () => {
+  it("signs in to the Epic Games Store from the code pasted and then offers to sign out", async () => {
+    const store = fake_page();
+    store.set_setting("games.epic_client_id", "launcher-id");
+    store.set_setting("games.epic_client_secret", "launcher-secret");
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ access_token: "epic-access", refresh_token: "epic-refresh", displayName: "Player One" }), { status: 200 })));
+    render(<App />);
+    go("#/settings");
+
+    const section = (await screen.findByRole("heading", { name: "Epic Games Store" })).closest("section")!;
+    expect(within(section).getByRole("link", { name: "Open sign-in page" }).getAttribute("href")).toContain("clientId%3Dlauncher-id");
+    fireEvent.change(within(section).getByLabelText("Epic sign-in code"), { target: { value: "abcdef0123456789abcdef" } });
+    fireEvent.click(within(section).getByRole("button", { name: "Sign in" }));
+
+    await waitFor(() => expect(store.get_settings()["games.epic_account"]).toBe("Player One"));
+    expect(await within(section).findByRole("button", { name: "Sign out" })).toBeTruthy();
+    vi.unstubAllGlobals();
+  });
+});

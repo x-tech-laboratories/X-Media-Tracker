@@ -77,5 +77,12 @@ export const migrations: DrizzleMigration[] = [
       "ALTER TABLE `games_games` ADD `itchio_id` text DEFAULT '' NOT NULL;",
       "CREATE INDEX `games_games_by_itchio` ON `games_games` (`itchio_id`);"
     ]
+  },
+  {
+    "name": "20261119160241_epic",
+    "statements": [
+      "ALTER TABLE `games_games` ADD `epic_id` text DEFAULT '' NOT NULL;",
+      "CREATE INDEX `games_games_by_epic` ON `games_games` (`epic_id`);"
+    ]
   }
 ];

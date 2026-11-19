@@ -121,10 +121,12 @@ export interface GameIds {
   steamgriddb_id: string;
   // An itch.io game page as its creator's name and the page's slug, such as innersloth/among-us.
   itchio_id: string;
+  // An Epic Games Store catalogue item id, 32 letters and digits.
+  epic_id: string;
 }
 
 // New catalogues go last, so a tracked game's id, made from the first id it has, never changes.
-export const game_id_keys = ["rawg_id", "mobygames_id", "giantbomb_id", "wikidata_id", "steam_app_id", "igdb_id", "thegamesdb_id", "gog_id", "steamgriddb_id", "itchio_id"] as const satisfies readonly (keyof GameIds)[];
+export const game_id_keys = ["rawg_id", "mobygames_id", "giantbomb_id", "wikidata_id", "steam_app_id", "igdb_id", "thegamesdb_id", "gog_id", "steamgriddb_id", "itchio_id", "epic_id"] as const satisfies readonly (keyof GameIds)[];
 
 export interface Game extends GameIds {
   id: string;
@@ -218,6 +220,7 @@ const key_fields: Record<string, keyof GameIds> = {
   gog: "gog_id",
   steamgriddb: "steamgriddb_id",
   itchio: "itchio_id",
+  epic: "epic_id",
 };
 
 export function is_dlc(game: Pick<Game, "base_game">): boolean {
@@ -263,6 +266,12 @@ export function parse_itchio_id(input: string): string {
   const text = input.trim();
   const found = /^(?:https?:\/\/)?([a-z0-9-]+)\.itch\.io\/([\w-]+)\/?(?:[?#].*)?$/i.exec(text) ?? /^([a-z0-9-]+)\/([\w-]+)$/i.exec(text);
   return found ? `${found[1]}/${found[2]}`.toLowerCase() : "";
+}
+
+// An Epic Games Store catalogue item id, 32 letters and digits.
+export function parse_epic_id(input: string): string {
+  const text = input.trim();
+  return /^[0-9a-f]{32}$/i.test(text) ? text.toLowerCase() : "";
 }
 
 export function itchio_link(id: string): string {

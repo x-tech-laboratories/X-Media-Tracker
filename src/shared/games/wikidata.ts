@@ -15,8 +15,8 @@ const entities_per_request = 50;
 
 const video_game = "Q7889";
 
-// The properties holding each catalogue's id.
-const id_properties: Record<Exclude<keyof GameIds, "wikidata_id">, string> = {
+// The properties holding each catalogue's id; Wikidata keeps an Epic store page's slug, not its catalogue item id.
+const id_properties: Record<Exclude<keyof GameIds, "wikidata_id" | "epic_id">, string> = {
   rawg_id: "P9968",
   mobygames_id: "P11688",
   giantbomb_id: "P5247",
