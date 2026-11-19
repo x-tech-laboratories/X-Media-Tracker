@@ -1,13 +1,13 @@
-// The games' settings: the catalogues' keys and IGDB's Twitch app, how new games start, collections, the Steam profile whose library and
+// The games' settings: the catalogues' keys and IGDB's Twitch app, the statuses and how new games start, collections, the Steam profile whose library and
 // wishlist come in and how often, the status each Steam category gives, the itch.io account whose library comes in, and the Trilium
 // Game Tracker's and IGDB's imports.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
-import { useRef, useState, type ChangeEvent } from "react";
+import { useRef, useState, type ChangeEvent, type ReactNode } from "react";
 import { CommitInput, NumberField } from "@x-tech-laboratories/x-libs/web/react/controls";
 import { confirm_dialog } from "@x-tech-laboratories/x-libs/web/react/dialog";
-import { SettingRow, type SettingsSection } from "@x-tech-laboratories/x-libs/web/react/layout";
+import { RowActions, Section, SettingRow, type SettingsSection } from "@x-tech-laboratories/x-libs/web/react/layout";
 import { Loaded } from "@x-tech-laboratories/x-libs/web/react/states";
 import { toast } from "@x-tech-laboratories/x-libs/web/react/toasts";
 
@@ -15,7 +15,18 @@ import { calls, page, use_data } from "../api.ts";
 import { read_picked } from "../files.ts";
 import type { FeatureSettingsProps } from "../features.tsx";
 import { SecretRow, TextRow } from "../settings/rows.tsx";
-import { game_status_of, is_game_status, type GameCollection, type GameStatus } from "../../shared/games/model.ts";
+import {
+  game_status_group_labels,
+  game_status_groups,
+  game_status_of,
+  group_status,
+  is_game_status,
+  statuses_in_group,
+  type GameCollection,
+  type GameStatus,
+  type GameStatusGroup,
+  type GameStatusInfo,
+} from "../../shared/games/model.ts";
 import type { SteamCategoryReport } from "../../shared/games/store.ts";
 import { attempt } from "./actions.tsx";
 import { StatusSelect } from "./StatusPicker.tsx";
@@ -60,10 +71,102 @@ function CatalogueSettings(props: FeatureSettingsProps) {
   );
 }
 
+// ── Statuses ─────────────────────────────────────────────────────────────────
+
+// The user's statuses, loaded with the games, for the sections that pick one.
+function WithStatuses({ children }: { children: (statuses: GameStatusInfo[]) => ReactNode }) {
+  const games = use_data((api) => api.list_games());
+  return <Loaded resource={games}>{(loaded) => children(loaded.statuses)}</Loaded>;
+}
+
+function AddStatus({ group }: { group: GameStatusGroup }) {
+  const [label, set_label] = useState("");
+  return (
+    <form
+      className="add-field"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (label.trim()) attempt(calls().save_game_status({ label: label.trim(), group }).then(() => set_label("")));
+      }}
+    >
+      <input aria-label={`New status in ${game_status_group_labels[group]}`} placeholder={`New status in ${game_status_group_labels[group]}`} value={label} onChange={(event) => set_label(event.currentTarget.value)} />
+      <button type="submit">Add</button>
+    </form>
+  );
+}
+
+// Removing names the status its games move to.
+function StatusRow({ status, statuses, index, count }: { status: GameStatusInfo; statuses: GameStatusInfo[]; index: number; count: number }) {
+  const left = statuses.filter((each) => each.id !== status.id);
+  const replacement = left.find((each) => each.id === group_status(left, status.group))?.label ?? "";
+  return (
+    <li className="collection-row">
+      <CommitInput
+        aria-label={`Name of ${status.label}`}
+        value={status.label}
+        on_commit={(event) => {
+          const label = event.currentTarget.value.trim();
+          if (label && label !== status.label) attempt(calls().save_game_status({ id: status.id, label }));
+        }}
+      />
+      <RowActions
+        index={index}
+        count={count}
+        remove_label={`Remove ${status.label}`}
+        on_move={(from, to) => attempt(calls().move_game_status(status.id, to < from ? -1 : 1))}
+        on_remove={
+          count > 1
+            ? () =>
+                confirm_dialog({
+                  title: `Remove ${status.label}?`,
+                  message: `Its games move to ${replacement}.`,
+                  confirm_label: "Remove",
+                  danger: true,
+                  run: () => calls().remove_game_status(status.id),
+                })
+            : undefined
+        }
+      />
+    </li>
+  );
+}
+
+// Each group's statuses, in the order the picker and menus show them; a group keeps at least one.
+function StatusSettings() {
+  return (
+    <WithStatuses>
+      {(statuses) =>
+        game_status_groups.map((group) => {
+          const members = statuses_in_group(statuses, group);
+          return (
+            <Section key={group} title={game_status_group_labels[group]}>
+              <ul className="collection-list">
+                {members.map((status, index) => (
+                  <StatusRow key={status.id} status={status} statuses={statuses} index={index} count={members.length} />
+                ))}
+              </ul>
+              <AddStatus group={group} />
+            </Section>
+          );
+        })
+      }
+    </WithStatuses>
+  );
+}
+
 function NewGameSettings({ settings, set_setting }: FeatureSettingsProps) {
   return (
     <SettingRow label="Status for new games" hint="A game added by hand starts with this; an import takes its status from what it imports.">
-      <StatusSelect label="Status for new games" value={game_status_of(settings["games.default_status"])} on_change={(status) => attempt(set_setting("games.default_status", status))} />
+      <WithStatuses>
+        {(statuses) => (
+          <StatusSelect
+            statuses={statuses}
+            label="Status for new games"
+            value={game_status_of(statuses, settings["games.default_status"])}
+            on_change={(status) => attempt(set_setting("games.default_status", status))}
+          />
+        )}
+      </WithStatuses>
     </SettingRow>
   );
 }
@@ -221,9 +324,9 @@ function SteamCategorySettings({ settings }: FeatureSettingsProps) {
   const mapping = (settings["games.steam_category_statuses"] ?? {}) as Record<string, string>;
   const seen = (settings["games.steam_categories"] ?? []) as string[];
   const names = [...new Set([...seen, ...Object.keys(mapping)])].sort((first, second) => first.localeCompare(second));
-  const status_of = (name: string): GameStatus | "" => {
+  const status_of = (statuses: GameStatusInfo[], name: string): GameStatus | "" => {
     const status = Object.entries(mapping).find(([each]) => each.toLowerCase() === name.toLowerCase())?.[1];
-    return is_game_status(status) ? status : "";
+    return is_game_status(statuses, status) ? status : "";
   };
 
   const import_text = (text: string) => attempt(calls().import_steam_categories(text).then(report_categories));
@@ -259,11 +362,21 @@ function SteamCategorySettings({ settings }: FeatureSettingsProps) {
           </button>
         </span>
       </SettingRow>
-      {names.map((name) => (
-        <SettingRow key={name} label={name}>
-          <StatusSelect label={`Status for ${name}`} blank_label="Leave as is" value={status_of(name)} on_change={(status) => attempt(calls().set_steam_category_status(name, status))} />
-        </SettingRow>
-      ))}
+      <WithStatuses>
+        {(statuses) =>
+          names.map((name) => (
+            <SettingRow key={name} label={name}>
+              <StatusSelect
+                statuses={statuses}
+                label={`Status for ${name}`}
+                blank_label="Leave as is"
+                value={status_of(statuses, name)}
+                on_change={(status) => attempt(calls().set_steam_category_status(name, status))}
+              />
+            </SettingRow>
+          ))
+        }
+      </WithStatuses>
     </>
   );
 }
@@ -360,6 +473,12 @@ export function game_settings(props: FeatureSettingsProps): SettingsSection[] {
       heading: "Catalogues",
       hint: "Wikidata and Steam's store need no key: they link a game across the catalogues and fill in what the others lack. Each key adds that catalogue to search and details.",
       content: <CatalogueSettings {...props} />,
+    },
+    {
+      id: "game-statuses",
+      heading: "Game statuses",
+      hint: "The statuses in each group, in the order the picker and menus show them. Rename, reorder or remove any, or add your own; a removed status's games move to Backlog, Currently playing or Finished, or the group's first status once that is gone too.",
+      content: <StatusSettings />,
     },
     { id: "new-games", heading: "New games", content: <NewGameSettings {...props} /> },
     { id: "game-collections", heading: "Game collections", hint: "Your own shelves, such as Couch co-op or Backlog 2027; a game can be in several.", content: <CollectionSettings /> },

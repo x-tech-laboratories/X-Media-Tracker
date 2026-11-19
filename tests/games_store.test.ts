@@ -316,6 +316,38 @@ describe("keeping a game", () => {
     expect(() => methods.set_game_status("rawg:portal-2", "beaten" as never)).toThrow("Unknown status");
   });
 
+  it("adds, renames, moves and removes statuses, moving a removed status's games and settings on", async () => {
+    const methods = open_methods();
+    await methods.add_game("steam", "620");
+    const co_op = methods.save_game_status({ label: " Co-op ", group: "playing" });
+    expect(co_op).toMatchObject({ label: "Co-op", group: "playing" });
+    expect(() => methods.save_game_status({ label: "co-op", group: "playing" })).toThrow("already has a status named");
+    expect(() => methods.save_game_status({ label: "Nowhere", group: "later" as never })).toThrow("one of the groups");
+    methods.save_game_status({ id: "currently_playing", label: "Playing now" });
+    methods.move_game_status(co_op.id, -1);
+    methods.move_game_status("wishlist", -1);
+    const playing = () => methods.list_games().statuses.filter((each) => each.group === "playing").map((each) => each.label);
+    expect(playing()).toEqual(["Playing now", "On hold", "Endless", "Co-op", "Replaying"]);
+    expect(methods.list_games().statuses[0]!.id).toBe("wishlist");
+
+    methods.set_game_status("rawg:portal-2", co_op.id);
+    expect(methods.get_game("rawg:portal-2")).toMatchObject({ status: co_op.id, status_label: "Co-op", status_group: "playing" });
+    methods.set_setting("games.default_status", co_op.id);
+    methods.set_steam_category_status("Together", co_op.id);
+    methods.remove_game_status(co_op.id);
+    expect(methods.get_game("rawg:portal-2")).toMatchObject({ status: "currently_playing", status_label: "Playing now" });
+    expect(methods.get_settings()["games.default_status"]).toBe("currently_playing");
+    expect(methods.get_settings()["games.steam_category_statuses"]).toEqual({ Together: "currently_playing" });
+    expect(() => methods.set_game_status("rawg:portal-2", co_op.id)).toThrow("Unknown status");
+
+    methods.remove_game_status("currently_playing");
+    expect(methods.get_game("rawg:portal-2")).toMatchObject({ status: "on_hold" });
+    methods.remove_game_status("finished");
+    methods.remove_game_status("completed");
+    expect(() => methods.remove_game_status("abandoned")).toThrow("needs at least one status");
+    expect(() => methods.save_game_status({ id: "abandoned", label: "Abandoned", group: "playing" })).toThrow("needs at least one status");
+  });
+
   it("merges collections renamed to a name in use", async () => {
     const methods = open_methods();
     await methods.add_game("steam", "620");

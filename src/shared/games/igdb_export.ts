@@ -4,7 +4,7 @@
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
-import { clean_names, furthest_status, type GameStatus } from "./model.ts";
+import { built_in_statuses, clean_names, furthest_status, type GameStatus } from "./model.ts";
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
 
@@ -104,7 +104,7 @@ export function read_igdb_export(html: string): IgdbGame[] {
     return game;
   };
   // Having played a game says more than wanting to, so the furthest status of a game in several places wins.
-  const raise = (game: IgdbGame, status: GameStatus) => void (game.status = furthest_status(game.status, status));
+  const raise = (game: IgdbGame, status: GameStatus) => void (game.status = furthest_status(built_in_statuses, game.status, status));
 
   for (const section of read_sections(html)) {
     const name = section.heading.toLowerCase();

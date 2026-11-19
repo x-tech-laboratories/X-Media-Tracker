@@ -6,7 +6,7 @@ import type { MenuItem } from "@x-tech-laboratories/x-libs/web/react/menus";
 import { toast } from "@x-tech-laboratories/x-libs/web/react/toasts";
 
 import { calls } from "../api.ts";
-import { game_status_group_of, game_status_labels, game_statuses, type GameStatus, type LibraryGame } from "../../shared/games/model.ts";
+import type { GameStatus, GameStatusInfo, LibraryGame } from "../../shared/games/model.ts";
 import type { AddedGame } from "../../shared/games/store.ts";
 
 // ── Links ────────────────────────────────────────────────────────────────────
@@ -35,13 +35,13 @@ export function set_game_status(game: Pick<LibraryGame, "id">, status: GameStatu
 }
 
 // Every status, a line between one group and the next.
-export function game_status_menu_items(game: Pick<LibraryGame, "id" | "status">): MenuItem[] {
-  return game_statuses.map((status, index) => ({
-    label: game_status_labels[status],
+export function game_status_menu_items(game: Pick<LibraryGame, "id" | "status">, statuses: GameStatusInfo[]): MenuItem[] {
+  return statuses.map((status, index) => ({
+    label: status.label,
     radio: true,
-    checked: game.status === status,
-    separator_before: index > 0 && game_status_group_of[status] !== game_status_group_of[game_statuses[index - 1]!],
-    run: () => set_game_status(game, status),
+    checked: game.status === status.id,
+    separator_before: index > 0 && status.group !== statuses[index - 1]!.group,
+    run: () => set_game_status(game, status.id),
   }));
 }
 

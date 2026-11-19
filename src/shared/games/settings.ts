@@ -20,6 +20,8 @@ export const games_setting_defaults = {
   // When the last itch.io import ran, as an ISO timestamp, and what it did; synced like Steam's.
   "games.last_itchio_sync": "",
   "games.last_itchio_result": "",
+  // The user's statuses in order, each { id, label, group }; empty is the built-in ones.
+  "games.statuses": [] as { id: string; label: string; group: string }[],
   // The status a game added by hand starts with.
   "games.default_status": "backlog",
   // The fewest hours between automatic Steam imports; 0 turns them off.

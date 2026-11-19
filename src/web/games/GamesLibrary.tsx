@@ -4,6 +4,7 @@
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
+import { useMemo } from "react";
 import { MediaGrid, MediaTile } from "@x-tech-laboratories/x-libs/web/react/media";
 import { MenuButton } from "@x-tech-laboratories/x-libs/web/react/menu_button";
 import { Segmented, Select, TreeSelect } from "@x-tech-laboratories/x-libs/web/react/controls";
@@ -25,11 +26,8 @@ import {
   game_sort_keys,
   game_sort_labels,
   game_status_group_labels,
-  game_status_group_of,
   game_status_groups,
-  game_status_labels,
   game_status_text,
-  game_statuses,
   no_game_filters,
   owned_platforms_of,
   owned_stores_of,
@@ -37,7 +35,7 @@ import {
   type GameCollection,
   type GameFilters,
   type GameSortKey,
-  type GameStatus,
+  type GameStatusInfo,
   type LibraryGame,
 } from "../../shared/games/model.ts";
 import type { Games, GamesRefreshReport } from "../../shared/games/store.ts";
@@ -53,16 +51,20 @@ function is_filters(value: unknown): value is Omit<GameFilters, "search"> {
   return !!filters && typeof filters.status === "string" && typeof filters.platform === "string" && typeof filters.collection === "string";
 }
 
-const status_filters: string[] = ["all", ...game_status_groups, ...game_statuses];
+function status_filters(statuses: GameStatusInfo[]): string[] {
+  return ["all", ...game_status_groups, ...statuses.map((status) => status.id)];
+}
 
 // Each group, with its statuses under it, for the status filter.
-const status_tree = [
-  ...game_status_groups.map((group, position) => ({ id: group, parent_id: null, position })),
-  ...game_statuses.map((status, position) => ({ id: status, parent_id: game_status_group_of[status], position })),
-];
+function status_tree(statuses: GameStatusInfo[]) {
+  return [
+    ...game_status_groups.map((group, position) => ({ id: group, parent_id: null, position })),
+    ...statuses.map((status, position) => ({ id: status.id, parent_id: status.group, position })),
+  ];
+}
 
-function status_name(id: string): string {
-  return id in game_status_group_labels ? game_status_group_labels[id as keyof typeof game_status_group_labels] : game_status_labels[id as keyof typeof game_status_labels];
+function status_name(statuses: GameStatusInfo[], id: string): string {
+  return id in game_status_group_labels ? game_status_group_labels[id as keyof typeof game_status_group_labels] : (statuses.find((status) => status.id === id)?.label ?? "");
 }
 
 const game_kinds: GameFilters["kind"][] = ["games", "dlc", "all"];
@@ -73,15 +75,15 @@ type Layout = "covers" | "table";
 
 // ── Tiles ────────────────────────────────────────────────────────────────────
 
-function GameActions({ game }: { game: LibraryGame }) {
+function GameActions({ game, statuses }: { game: LibraryGame; statuses: GameStatusInfo[] }) {
   const remove = async () => {
     await calls().remove_game(game.id);
     toast(`Removed ${game.title}.`, { link: { href: "#/history", text: "History" } });
   };
-  return <MenuButton label={`${game.title} actions`} items={() => [...game_status_menu_items(game), { label: "Remove", danger: true, separator_before: true, run: () => void remove() }]} />;
+  return <MenuButton label={`${game.title} actions`} items={() => [...game_status_menu_items(game, statuses), { label: "Remove", danger: true, separator_before: true, run: () => void remove() }]} />;
 }
 
-function GameTile({ game }: { game: LibraryGame }) {
+function GameTile({ game, statuses }: { game: LibraryGame; statuses: GameStatusInfo[] }) {
   const image = use_cover(game.cover_file, game.cover_url);
   return (
     <MediaTile
@@ -89,34 +91,37 @@ function GameTile({ game }: { game: LibraryGame }) {
       href={game_href(game.id)}
       image={image}
       corner={stars_text(game.rating) || undefined}
-      lines={[[game.year, format_playtime(game.playtime_minutes)].filter(Boolean).join(" · "), game_status_labels[game.status]]}
+      lines={[[game.year, format_playtime(game.playtime_minutes)].filter(Boolean).join(" · "), game.status_label]}
       dimmed={game.status === "abandoned"}
-      actions={<GameActions game={game} />}
+      actions={<GameActions game={game} statuses={statuses} />}
     />
   );
 }
 
-const table_columns: TableColumn<LibraryGame>[] = [
-  { label: "Title", cell: (game) => <a href={game_href(game.id)}>{game.title}</a> },
-  { label: "Year", cell: (game) => game.year || "—" },
-  { label: "Status", cell: (game) => game_status_text(game.status) },
-  { label: "Rating", cell: (game) => stars_text(game.rating) || "—" },
-  { label: "Owned on", cell: (game) => game.owned_platforms.join(", ") || "—" },
-  { label: "Owned from", cell: (game) => game.owned_stores.join(", ") || "—" },
-  { label: "Playtime", cell: (game) => format_playtime(game.playtime_minutes) || "—" },
-  { label: "Last played", cell: (game) => game.last_played || "—" },
-  { label: "Added", cell: (game) => game.added_at || "—" },
-  { label: "Actions", id: "actions", header: <span className="visually-hidden">Actions</span>, class: "actions-cell", cell: (game) => <GameActions game={game} /> },
-];
-
-function GameTable({ games }: { games: LibraryGame[] }) {
-  return <DataTable caption="Games" columns={table_columns} rows={games} row_key={(game) => game.id} />;
+function table_columns(statuses: GameStatusInfo[]): TableColumn<LibraryGame>[] {
+  return [
+    { label: "Title", cell: (game) => <a href={game_href(game.id)}>{game.title}</a> },
+    { label: "Year", cell: (game) => game.year || "—" },
+    { label: "Status", cell: (game) => `${game_status_group_labels[game.status_group]} · ${game.status_label}` },
+    { label: "Rating", cell: (game) => stars_text(game.rating) || "—" },
+    { label: "Owned on", cell: (game) => game.owned_platforms.join(", ") || "—" },
+    { label: "Owned from", cell: (game) => game.owned_stores.join(", ") || "—" },
+    { label: "Playtime", cell: (game) => format_playtime(game.playtime_minutes) || "—" },
+    { label: "Last played", cell: (game) => game.last_played || "—" },
+    { label: "Added", cell: (game) => game.added_at || "—" },
+    { label: "Actions", id: "actions", header: <span className="visually-hidden">Actions</span>, class: "actions-cell", cell: (game) => <GameActions game={game} statuses={statuses} /> },
+  ];
 }
 
-function GameList({ games, grouping, layout }: { games: LibraryGame[]; grouping: Grouping<LibraryGame> | undefined; layout: Layout }) {
-  const tile = (game: LibraryGame) => <GameTile key={game.id} game={game} />;
-  if (grouping) return <GroupedList items={games} grouping={grouping} as_table={layout === "table"} tile={tile} table={(members) => <GameTable games={members} />} />;
-  if (layout === "table") return <GameTable games={games} />;
+function GameTable({ games, statuses }: { games: LibraryGame[]; statuses: GameStatusInfo[] }) {
+  const columns = useMemo(() => table_columns(statuses), [statuses]);
+  return <DataTable caption="Games" columns={columns} rows={games} row_key={(game) => game.id} />;
+}
+
+function GameList({ games, statuses, grouping, layout }: { games: LibraryGame[]; statuses: GameStatusInfo[]; grouping: Grouping<LibraryGame> | undefined; layout: Layout }) {
+  const tile = (game: LibraryGame) => <GameTile key={game.id} game={game} statuses={statuses} />;
+  if (grouping) return <GroupedList items={games} grouping={grouping} as_table={layout === "table"} tile={tile} table={(members) => <GameTable games={members} statuses={statuses} />} />;
+  if (layout === "table") return <GameTable games={games} statuses={statuses} />;
   return <MediaGrid label="Games">{games.map(tile)}</MediaGrid>;
 }
 
@@ -127,11 +132,11 @@ const group_keys = ["none", "status_group", "status", "platform", "store", "coll
 type GroupKey = (typeof group_keys)[number];
 
 // The ways the games can be grouped, the collections named by the library's own.
-function game_groupings(collections: GameCollection[]): Record<Exclude<GroupKey, "none">, Grouping<LibraryGame>> {
+function game_groupings(collections: GameCollection[], statuses: GameStatusInfo[]): Record<Exclude<GroupKey, "none">, Grouping<LibraryGame>> {
   const collection_names = new Map(collections.map((collection) => [collection.id, collection.name]));
   return {
-    status_group: { label: "Status group", keys_of: (game) => game_status_group_of[game.status], order: game_status_groups, name_of: (key) => status_name(key ?? "") },
-    status: { label: "Status", keys_of: (game) => game.status, order: game_statuses, name_of: (key) => (key ? game_status_text(key as GameStatus) : "") },
+    status_group: { label: "Status group", keys_of: (game) => game.status_group, order: game_status_groups, name_of: (key) => status_name(statuses, key ?? "") },
+    status: { label: "Status", keys_of: (game) => game.status, order: statuses.map((status) => status.id), name_of: (key) => (key ? game_status_text(statuses, key) : "") },
     platform: { label: "Owned on", keys_of: (game) => game.owned_platforms, name_of: (key) => key ?? "Not owned" },
     store: { label: "Owned from", keys_of: (game) => game.owned_stores, name_of: (key) => key ?? "No store" },
     collection: {
@@ -176,12 +181,12 @@ function LibraryPage({ library }: { library: Games }) {
   const store = remembered.store === "all" || remembered.store === "none" || stores.includes(remembered.store) ? remembered.store : "all";
   const collection = remembered.collection === "all" || remembered.collection === "none" || library.collections.some((each) => each.id === remembered.collection) ? remembered.collection : "all";
   // A remembered status from before IGDB's statuses stops applying too.
-  const status = status_filters.includes(remembered.status) ? remembered.status : "all";
+  const status = status_filters(library.statuses).includes(remembered.status) ? remembered.status : "all";
   const filters: GameFilters = { ...remembered_defaults, ...remembered, search: "", status, platform, store, collection };
   const set_filter = (change: Partial<GameFilters>) => set_remembered({ ...remembered, ...change });
   const counts = game_facet_counts(library.games, filters);
   const shown = sort_games(filter_games(library.games, filters), sort_key, descending);
-  const groupings = game_groupings(library.collections);
+  const groupings = game_groupings(library.collections, library.statuses);
 
   return (
     <Stack>
@@ -204,8 +209,8 @@ function LibraryPage({ library }: { library: Games }) {
         />
         <TreeSelect
           label="Status"
-          items={status_tree}
-          name_of={(item) => with_count(status_name(item.id), counts.status[item.id])}
+          items={status_tree(library.statuses)}
+          name_of={(item) => with_count(status_name(library.statuses, item.id), counts.status[item.id])}
           blank_label={with_count("Any status", counts.status.all)}
           value={filters.status === "all" ? "" : filters.status}
           on_change={(chosen) => set_filter({ status: (chosen || "all") as GameFilters["status"] })}
@@ -262,7 +267,7 @@ function LibraryPage({ library }: { library: Games }) {
       ) : shown.length === 0 ? (
         <Empty title="No games match these filters." />
       ) : (
-        <GameList games={shown} grouping={group_by === "none" ? undefined : groupings[group_by]} layout={layout} />
+        <GameList games={shown} statuses={library.statuses} grouping={group_by === "none" ? undefined : groupings[group_by]} layout={layout} />
       )}
     </Stack>
   );
