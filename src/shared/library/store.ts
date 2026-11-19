@@ -179,6 +179,11 @@ function metadata_of(details: TmdbDetails) {
   };
 }
 
+// What TMDB says replaces what was there; a value it no longer gives is kept.
+function keep_known<Fields extends Record<string, string | number>>(row: Record<keyof Fields, string | number>, fields: Fields): Fields {
+  return Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, value === "" || value === 0 ? row[key] : value])) as Fields;
+}
+
 // A title already tracked keeps its status, rating and progress; only what TMDB says of it is refreshed.
 function add_details(database: SqlDatabase, details: TmdbDetails): Added {
   const db = drizzle_of(database);
@@ -186,7 +191,7 @@ function add_details(database: SqlDatabase, details: TmdbDetails): Added {
   if (existing) {
     const row = db.select().from(library_titles).where(eq(library_titles.id, existing)).get()!;
     db.update(library_titles)
-      .set({ ...metadata_of(details), imdb_id: details.imdb_id || row.imdb_id, total_episodes: details.total_episodes || row.total_episodes })
+      .set({ ...keep_known(row, metadata_of(details)), imdb_id: details.imdb_id || row.imdb_id, total_episodes: details.total_episodes || row.total_episodes })
       .where(eq(library_titles.id, existing))
       .run();
     return { id: existing, name: details.name, existed: true };
@@ -329,10 +334,8 @@ async function run_refresh(database: SqlDatabase, refresh: LibraryRefresh): Prom
         try {
           const details = await resolve_details(tmdb, title.media_type, title.tmdb_id, title.imdb_id);
           const fields = {
-            ...metadata_of(details),
+            ...keep_known(title, metadata_of(details)),
             imdb_id: details.imdb_id || title.imdb_id,
-            name: details.name || title.name,
-            poster_path: details.poster_path || title.poster_path,
             total_episodes: details.total_episodes || title.total_episodes,
           };
           const changed = (Object.keys(fields) as (keyof typeof fields)[]).some((key) => fields[key] !== title[key]);
