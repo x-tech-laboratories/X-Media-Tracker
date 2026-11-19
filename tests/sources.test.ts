@@ -7,7 +7,7 @@ import { stremio_links } from "../src/shared/sources/stremio/links.ts";
 import { items_from_stremio } from "../src/shared/sources/stremio/mapping.ts";
 import { history_rows, items_from_ratings, items_from_watched } from "../src/shared/sources/trakt/mapping.ts";
 import { bind_methods, open_store } from "../src/shared/store.ts";
-import { trilium_database } from "./trilium_sample.ts";
+import { seed_library } from "./library_sample.ts";
 
 // ── Services stand-in ────────────────────────────────────────────────────────
 
@@ -75,7 +75,7 @@ const watched_movie = { last_watched_at: "2026-09-01T20:00:00.000Z", movie: { ti
 describe("the import engine", () => {
   it("matches on any id, merges episodes, and fills a rating only where there is none unless told to overwrite", async () => {
     const { database, store } = open_methods();
-    store.import_trilium_media(trilium_database, "");
+    seed_library(database);
     store.set_title_rating("tmdb:95396", 7);
 
     const report = await apply_import(database, [

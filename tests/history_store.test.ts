@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 
 import { prune_history } from "../src/shared/history/store.ts";
 import { bind_methods, open_store, sync_engine } from "../src/shared/store.ts";
-import { trilium_database } from "./trilium_sample.ts";
+import { seed_library } from "./library_sample.ts";
 
 function open_methods() {
   const database = new DatabaseSync(":memory:");
@@ -14,8 +14,8 @@ function open_methods() {
 
 describe("history", () => {
   it("keeps a version of a title for every change, its episodes included, and brings a removed one back whole", () => {
-    const { store } = open_methods();
-    store.import_trilium_media(trilium_database, "");
+    const { database, store } = open_methods();
+    seed_library(database);
     store.set_episodes_watched("tmdb:95396", [{ season: 2, from: 2, to: 9 }], true, 19);
 
     const versions = store.list_item_history("title", "tmdb:95396");

@@ -11,12 +11,13 @@ import { bind_methods, open_store, type MediaMethods } from "../src/shared/store
 import { set_page_api } from "../src/web/api.ts";
 import { App } from "../src/web/App.tsx";
 import { forget_page_plugins } from "../src/web/sources/plugins.tsx";
-import { trilium_database } from "./trilium_sample.ts";
+import { seed_library } from "./library_sample.ts";
 
 // The page's calls answered by a real store on a throwaway database, as the desktop app would.
-function fake_page(): MediaMethods {
+function fake_page(seed: (database: DatabaseSync) => void = () => undefined): MediaMethods {
   const database = new DatabaseSync(":memory:");
   open_store(database);
+  seed(database);
   const methods = bind_methods(() => database, () => undefined);
   const calls = Object.fromEntries(Object.entries(methods).map(([name, call]) => [name, async (...args: unknown[]) => (call as (...args: unknown[]) => unknown)(...args)]));
   set_page_api({ host: "desktop", calls: calls as unknown as Client<MediaMethods>, device: null, cover_src: async () => "", on_change: () => () => undefined });
@@ -45,8 +46,7 @@ afterEach(() => {
 
 describe("notes box", () => {
   it("shows each kind's own notes on its page", async () => {
-    const store = fake_page();
-    store.import_trilium_media(trilium_database, "");
+    const store = fake_page(seed_library);
     store.import_trilium_games(JSON.stringify({ games: { a: { title: "Portal 2" } } }), "");
     const [game] = store.list_games().games;
     store.set_title_notes("tmdb:95396", "Rewatch with subtitles");

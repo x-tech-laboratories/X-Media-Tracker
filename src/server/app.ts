@@ -62,7 +62,7 @@ function without_secrets(method: string, result: unknown): unknown {
 
 // ── App ──────────────────────────────────────────────────────────────────────
 
-// An import, such as the Trilium Media Tracker's library, arrives as one call's argument.
+// An import, such as a StoryGraph export, arrives as one call's argument.
 const import_body_limit = 32 * 1024 * 1024;
 
 export async function build_app(options: AppOptions): Promise<FastifyInstance> {

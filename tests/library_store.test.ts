@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { refresh_concurrency, type LibraryRefresh } from "../src/shared/library/store.ts";
 import { bind_methods, open_store } from "../src/shared/store.ts";
-import { trilium_database, trilium_groups } from "./trilium_sample.ts";
+import { seed_library, seed_movies } from "./library_sample.ts";
 
 // ── TMDB stand-in ────────────────────────────────────────────────────────────
 
@@ -54,9 +54,10 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function open_methods(on_change: () => void = () => undefined) {
+function open_methods(on_change: () => void = () => undefined, seed: (database: DatabaseSync) => void = () => undefined) {
   const database = new DatabaseSync(":memory:");
   open_store(database);
+  seed(database);
   const store = bind_methods(() => database, on_change);
   store.set_setting("library.tmdb_api_key", "test-key");
   return store;
@@ -87,8 +88,7 @@ describe("adding titles", () => {
   });
 
   it("finds a title already tracked by its IMDb id and refreshes it, keeping the user's own fields", async () => {
-    const store = open_methods();
-    store.import_trilium_media(trilium_database, "");
+    const store = open_methods(undefined, seed_library);
     store.set_episodes_watched("imdb:tt0903747", [{ season: 1, from: 1, to: 2 }], true, 0);
 
     const added = await store.add_title_from_link("https://www.imdb.com/title/tt0903747/");
@@ -99,8 +99,7 @@ describe("adding titles", () => {
   });
 
   it("marks search results already tracked, leaving out people", async () => {
-    const store = open_methods();
-    store.import_trilium_media(trilium_database, "");
+    const store = open_methods(undefined, seed_library);
 
     const results = await store.search_tmdb("dune", "all");
 
@@ -131,8 +130,7 @@ describe("adding titles", () => {
 
 describe("watching", () => {
   it("marks runs of episodes in one change and sets the show's status from its progress", () => {
-    const store = open_methods();
-    store.import_trilium_media(trilium_database, "");
+    const store = open_methods(undefined, seed_library);
 
     let severance = store.set_episodes_watched("tmdb:95396", [{ season: 2, from: 2, to: 10 }], true, 19);
     expect(severance).toMatchObject({ watched_episodes: "s01e01-e09,s02e01-e10", watched_count: 19, status: "watched", last_watched: "2026-11-12" });
@@ -158,8 +156,7 @@ describe("watching", () => {
   });
 
   it("sets status and rating, watched marking today, and refuses what is not one", () => {
-    const store = open_methods();
-    store.import_trilium_media(trilium_database, "");
+    const store = open_methods(undefined, seed_library);
 
     store.set_title_status("imdb:tt0903747", "watched");
     store.set_title_rating("imdb:tt0903747", 8);
@@ -173,8 +170,7 @@ describe("watching", () => {
   });
 
   it("refreshes every title from TMDB and settles each show's status, never touching a rating", async () => {
-    const store = open_methods();
-    store.import_trilium_media(trilium_database, "");
+    const store = open_methods(undefined, seed_library);
     store.set_episodes_watched("imdb:tt0903747", [{ season: 1, from: 1, to: 7 }], true, 0);
 
     const refresh = await refreshed(store);
@@ -185,9 +181,8 @@ describe("watching", () => {
   });
 
   it("refreshes several titles at once, never more than its limit", async () => {
-    const store = open_methods();
     const ids = Array.from({ length: refresh_concurrency * 3 }, (_, index) => String(index + 1));
-    store.import_trilium_media(JSON.stringify({ titles: Object.fromEntries(ids.map((id) => [`tmdb:${id}`, { tmdbId: id, mediaType: "movie", title: `Movie ${id}`, status: "planned" }])) }), "");
+    const store = open_methods(undefined, (database) => seed_movies(database, ids));
     let in_flight = 0;
     let most_in_flight = 0;
     vi.stubGlobal("fetch", async (address: string) => {
@@ -206,8 +201,7 @@ describe("watching", () => {
 
   it("answers a refresh at once, joins the one running, and tells other pages once it ends", async () => {
     const on_change = vi.fn();
-    const store = open_methods(on_change);
-    store.import_trilium_media(trilium_database, "");
+    const store = open_methods(on_change, seed_library);
     let answer_tmdb = (): void => undefined;
     const answered = new Promise<void>((resolve) => (answer_tmdb = resolve));
     vi.stubGlobal("fetch", async (address: string) => {
@@ -235,8 +229,7 @@ describe("watching", () => {
 
 describe("collections", () => {
   it("merges a collection renamed onto a name in use, whatever its case", () => {
-    const store = open_methods();
-    store.import_trilium_media(trilium_database, "");
+    const store = open_methods(undefined, seed_library);
     const { collections } = store.list_library();
     const apple = collections.find((collection) => collection.name === "Apple")!;
 
@@ -249,8 +242,7 @@ describe("collections", () => {
   });
 
   it("keeps a group's collections when it is removed, and its titles when a collection is", () => {
-    const store = open_methods();
-    store.import_trilium_media(trilium_database, trilium_groups);
+    const store = open_methods(undefined, (database) => seed_library(database, { groups: true }));
     const { groups, collections } = store.list_library();
     const mood = groups.find((group) => group.name === "Mood")!;
 
@@ -262,60 +254,13 @@ describe("collections", () => {
   });
 
   it("moves a group earlier or later, and not past either end", () => {
-    const store = open_methods();
-    store.import_trilium_media(trilium_database, trilium_groups);
+    const store = open_methods(undefined, (database) => seed_library(database, { groups: true }));
     const [mood, franchise] = store.list_library().groups;
 
     store.move_collection_group(franchise!.id, -1);
     store.move_collection_group(franchise!.id, -1);
     expect(store.list_library().groups.map((group) => group.name)).toEqual(["Franchise", "Mood"]);
     expect(mood!.name).toBe("Mood");
-  });
-});
-
-// ── Trilium ──────────────────────────────────────────────────────────────────
-
-describe("the Trilium library", () => {
-  it("imports titles, episodes and collections in their groups, the poster kept as its path", () => {
-    const store = open_methods();
-
-    expect(store.import_trilium_media(trilium_database, trilium_groups)).toEqual({ added: 3, updated: 0 });
-
-    const library = store.list_library();
-    const group_of = (name: string) => library.groups.find((group) => group.id === library.collections.find((collection) => collection.name === name)!.group_id)?.name ?? null;
-    expect(library.groups.map((group) => group.name)).toEqual(["Mood", "Franchise"]);
-    expect([group_of("Comfort"), group_of("Dune"), group_of("Crime")]).toEqual(["Mood", "Franchise", null]);
-    expect(store.get_title("tmdb:693134")).toMatchObject({ poster_path: "/dune.jpg", rating: 9, status: "watched", last_watched: "2026-07-20" });
-    expect(store.get_title("tmdb:95396")).toMatchObject({ watched_episodes: "s01e01-e09,s02e01", watched_count: 10, total_episodes: 19 });
-  });
-
-  it("merges a second import, keeping status and rating set here and adding its episodes", () => {
-    const store = open_methods();
-    store.import_trilium_media(trilium_database, "");
-    store.set_episodes_watched("tmdb:95396", [{ season: 1, from: 1, to: 9 }], false, 0);
-    store.set_title_status("tmdb:95396", "dropped");
-    store.set_title_rating("tmdb:95396", 6);
-
-    expect(store.import_trilium_media(trilium_database, "")).toEqual({ added: 0, updated: 3 });
-    expect(store.get_title("tmdb:95396")).toMatchObject({ status: "dropped", rating: 6, watched_episodes: "s01e01-e09,s02e01" });
-    expect(store.list_library().titles).toHaveLength(3);
-  });
-
-  it("exports what it imports", () => {
-    const store = open_methods();
-    store.import_trilium_media(trilium_database, "");
-    const copy = open_methods();
-
-    copy.import_trilium_media(store.export_library(), "");
-
-    expect(copy.list_library().titles).toEqual(store.list_library().titles.map((title) => ({ ...title, collection_ids: expect.any(Array) })));
-    expect(copy.get_title("tmdb:95396")!.collection_ids).toHaveLength(2);
-  });
-
-  it("refuses a file that is not the Database note", () => {
-    const store = open_methods();
-    expect(() => store.import_trilium_media("not json", "")).toThrow(/not JSON/);
-    expect(() => store.import_trilium_media("{}", "")).toThrow(/has no "titles"/);
   });
 });
 
@@ -328,7 +273,7 @@ describe("merging titles", () => {
     open_store(database);
     const store = bind_methods(() => database, () => undefined);
     store.set_setting("library.tmdb_api_key", "test-key");
-    store.import_trilium_media(trilium_database, "");
+    seed_library(database);
     database.prepare("INSERT INTO library_titles (id, tmdb_id, media_type, name, status, rating) VALUES ('tmdb:1396', '1396', 'show', 'Breaking Bad', 'watching', 8)").run();
     store.set_episodes_watched("tmdb:1396", [{ season: 1, from: 1, to: 3 }], true, 0);
     return store;
