@@ -122,7 +122,7 @@ Trakt and Stremio are bundled X-Libs plugins, each named once by a manifest in `
   `run_due_imports` go through it.
 - Each source is also a feature, `src/shared/sources/<source>/`, with its calls and their specs, its settings (its keys
   and tokens listed as secret settings) and, for Trakt, its archive table. Its calls refuse while its plugin is off.
-- The page's side (`src/web/sources/plugins.tsx`) fills the `import_panel` slot in Settings' Sources category, beside
+- The page's side (`src/web/sources/plugins.tsx`) fills the `import_panel` slot in the Movies & Series settings, beside
   `PluginSettings` and the automatic imports' schedule (`src/web/sources/SourceSettings.tsx`). Both hosts keep on or
   off and each plugin's settings in the synced `plugins` setting.
 - Every source imports through `apply_import` (`src/shared/library/importing.ts`): TMDB is asked first, then one

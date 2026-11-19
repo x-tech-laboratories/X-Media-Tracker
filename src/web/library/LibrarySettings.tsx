@@ -14,6 +14,7 @@ import { calls, use_data } from "../api.ts";
 import type { FeatureSettingsProps } from "../features.tsx";
 import { list_genres, poster_sizes, saved_poster_sizes, status_labels, statuses, type Collection, type CollectionGroup } from "../../shared/library/model.ts";
 import type { Library } from "../../shared/library/store.ts";
+import { source_settings } from "../sources/SourceSettings.tsx";
 
 // ── General ──────────────────────────────────────────────────────────────────
 
@@ -249,5 +250,6 @@ export function library_settings(props: FeatureSettingsProps): SettingsSection[]
       hint: "Collections are yours: a title can be in several. Each group, such as Mood or Franchise, becomes its own filter on the Library.",
       content: <CollectionSettings />,
     },
+    ...source_settings(props),
   ];
 }
