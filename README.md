@@ -76,6 +76,7 @@ search, series in order and new books in the series you follow. Make the key wit
 - **Steam:** your library, with playtime and the day last played, and your wishlist, imported by hand or on a schedule,
   and your library's categories, each mapped to a status.
 - **itch.io:** the games you have bought or claimed, imported by hand or on a schedule.
+- **Epic Games Store:** the games your account owns, imported by hand or on a schedule.
 
 Wikidata, Steam's store and GOG need no key; GOG is read through the answers its own store uses, which it does not
 publish as an API, so they may change. Wikidata matters most: its items name a game's RAWG, MobyGames, Giant Bomb,
@@ -115,6 +116,19 @@ already here, by its itch.io page or else by its title when no itch.io page name
 those platforms and leaves the Wishlist. With **Import from itch.io every** set to some hours, the server and the desktop app import on that
 schedule, as for Steam. A game's itch.io page is kept as its creator and slug, such as `innersloth/among-us`; its title,
 creators, tags and cover are read from the page's `data.json`, which itch.io does not publish as an API, so it may change.
+
+## Epic Games Store
+
+Epic offers no API for a player's library, so the app reads it the way the
+[Legendary](https://github.com/derrod/legendary) and Heroic launchers do, through the Epic Games launcher's own sign-in,
+and it may stop working whenever Epic changes it. Under **Settings → Games → Epic Games Store**, set the launcher's
+client id and secret, found in Legendary's `legendary/api/egs.py`; then **Open sign-in page**, sign in to Epic, and
+paste the `authorizationCode` the page shows, or its whole answer, into **Sign in**. **Import library** adds every game
+the account owns, leaving out DLC, add-ons and Unreal Engine assets, as Backlog, owned from the Epic Games Store on PC;
+Epic gives no playtime. A game already here, by its Epic catalogue item id or else by its title when no Epic id names it
+yet, gains the id, the store and PC and leaves the Wishlist. With **Import from Epic every** set to some hours, the server
+and the desktop app import on that schedule, as for Steam. Each import renews the sign-in; one left unused for long runs
+out, and then you sign in again, so keep the schedule to a few hours.
 
 EA's games cannot come in: EA offers no API for a player's library.
 
@@ -349,6 +363,7 @@ X-Media-Tracker is built on these services and the people who keep them:
   catalogues, under CC0.
 - [Steam](https://store.steampowered.com/): game details, library art, and your library, playtime and wishlist.
 - [itch.io](https://itch.io/): a game page's details and cover, and your library, through its API.
+- [Epic Games Store](https://store.epicgames.com/): your library, its titles and box art, through the launcher's sign-in.
 
 None of them endorse this app. The names are their owners' trademarks.
 

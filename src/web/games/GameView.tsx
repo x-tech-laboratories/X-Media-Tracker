@@ -99,6 +99,7 @@ const id_fields: [keyof GameIds, string, string][] = [
   ["gog_id", "GOG", "A store page's slug, such as the_witcher_3_wild_hunt, or its link"],
   ["steamgriddb_id", "SteamGridDB", "A game's number, such as 21207, or its link"],
   ["itchio_id", "itch.io", "A page's creator and slug, such as innersloth/among-us, or its link"],
+  ["epic_id", "Epic Games Store", "A catalogue item id, 32 letters and digits"],
 ];
 
 function IdsDialog({ game, close }: { game: LibraryGame; close: () => void }) {
@@ -113,6 +114,7 @@ function IdsDialog({ game, close }: { game: LibraryGame; close: () => void }) {
     gog_id: game.gog_id,
     steamgriddb_id: game.steamgriddb_id,
     itchio_id: game.itchio_id,
+    epic_id: game.epic_id,
   });
   const [busy, set_busy] = useState(false);
   return (

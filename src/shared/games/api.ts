@@ -85,6 +85,7 @@ export const games_api = {
             gog_id: text("A GOG store page's slug such as the_witcher_3_wild_hunt or its link, or empty to clear it."),
             itchio_id: text("An itch.io game page as its creator and slug such as innersloth/among-us, or its link, or empty to clear it."),
             steamgriddb_id: text("A SteamGridDB game number or link, or empty to clear it."),
+            epic_id: text("An Epic Games Store catalogue item id, 32 letters and digits, or empty to clear it."),
           },
         },
       },
@@ -267,6 +268,27 @@ export const games_api = {
   },
   run_itchio_sync: {
     description: "Imports the itch.io library when the hours set in Settings have passed since the last time, or now when forced. Gives what it did, or null when it was not due.",
+    params: [{ name: "force", schema: { type: "boolean", description: "True to import now whatever the schedule." } }],
+  },
+  sign_in_epic: {
+    description:
+      "Signs in to the Epic Games Store with the one-time code its sign-in page shows, using the launcher's client id and secret set in Settings, " +
+      "and keeps the sign-in for imports. Gives the account's name.",
+    params: [{ name: "code", schema: text("The authorizationCode from Epic's page, or the whole answer it shows.") }],
+  },
+  sign_out_epic: {
+    description: "Forgets the Epic Games Store sign-in.",
+    params: [],
+  },
+  import_epic_library: {
+    description:
+      "Imports every game the signed-in Epic Games Store account owns, leaving out DLC, add-ons and Unreal Engine assets: new ones are added as Backlog, " +
+      "owned from the Epic Games Store on PC; ones already here, matched by their Epic catalogue item id or else by a title no Epic id names yet, gain the id, " +
+      "the store and PC and leave the Wishlist. Epic gives no playtime. Gives the counts added and updated.",
+    params: [],
+  },
+  run_epic_sync: {
+    description: "Imports the Epic Games Store library when the hours set in Settings have passed since the last time, or now when forced. Gives what it did, or null when it was not due.",
     params: [{ name: "force", schema: { type: "boolean", description: "True to import now whatever the schedule." } }],
   },
   import_steam_categories: {

@@ -20,6 +20,17 @@ export const games_setting_defaults = {
   // When the last itch.io import ran, as an ISO timestamp, and what it did; synced like Steam's.
   "games.last_itchio_sync": "",
   "games.last_itchio_result": "",
+  // The Epic Games launcher's client id and secret, which the Epic library is read with.
+  "games.epic_client_id": "",
+  "games.epic_client_secret": "",
+  // The Epic sign-in, renewed by every import, and the name of the account it belongs to.
+  "games.epic_refresh_token": "",
+  "games.epic_account": "",
+  // The fewest hours between automatic Epic imports; 0 turns them off.
+  "games.epic_sync_hours": 0,
+  // When the last Epic import ran, as an ISO timestamp, and what it did; synced like Steam's.
+  "games.last_epic_sync": "",
+  "games.last_epic_result": "",
   // The user's statuses in order, each { id, label, group }; empty is the built-in ones.
   "games.statuses": [] as { id: string; label: string; group: string }[],
   // The status a game added by hand starts with.
@@ -45,4 +56,6 @@ export const games_secret_settings = [
   "games.igdb_client_secret",
   "games.steam_api_key",
   "games.itchio_api_key",
+  "games.epic_client_secret",
+  "games.epic_refresh_token",
 ];

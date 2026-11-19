@@ -32,6 +32,7 @@ const catalog_fields: MergeFieldSpec[] = [
   { id: "gog_id", label: "GOG", columns: ["gog_id"] },
   { id: "steamgriddb_id", label: "SteamGridDB", columns: ["steamgriddb_id"] },
   { id: "itchio_id", label: "itch.io", columns: ["itchio_id"] },
+  { id: "epic_id", label: "Epic Games Store", columns: ["epic_id"] },
 ];
 
 // What is yours to set, after its status.

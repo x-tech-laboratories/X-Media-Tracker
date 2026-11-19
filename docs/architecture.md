@@ -86,7 +86,7 @@ on the Settings page.
   older or removed ones read as their nearest, which ids name one game, pasted links, platforms, playtime, sorting and the Games library's filters with
   counts.
 - `schema.ts`: `games_games`, keyed by the strongest id (`rawg:…`, else `mobygames:…`, `giantbomb:…`, `wikidata:…`,
-  `steam:…`, `igdb:…`, `thegamesdb:…`, `gog:…`, `steamgriddb:…`, `itchio:…`; an IGDB game with none is `title:<title>`), with the platforms a copy is owned on and the
+  `steam:…`, `igdb:…`, `thegamesdb:…`, `gog:…`, `steamgriddb:…`, `itchio:…`, `epic:…`; an IGDB game with none is `title:<title>`), with the platforms a copy is owned on and the
   stores it is owned from as JSON lists and, for DLC, `base_game`: the key of the game it adds to, such as `steam:620`, or a library id, found among
   the tracked games by any id (`find_base_game` in `model.ts`); `none` once set by hand as not DLC, so the catalogues
   stop filling it in. Its `status` column still defaults to an older status, read as Backlog, since changing a default
@@ -104,8 +104,10 @@ on the Settings page.
   reads the product number from that page. An itch.io id is a page as `creator/slug`, which Wikidata keeps as its link;
   itch.io has no search, so it answers only by that page's `data.json`. The keys come from settings and never appear in an error or a log.
 - `steam.ts` also reads a profile's owned games, with playtime, and its wishlist, and `itchio.ts` an account's owned
-  keys through itch.io's API, page by page until one is empty; `schedule.ts` runs `run_steam_sync` and then
-  `run_itchio_sync` hourly on the server and the desktop, and the last import syncs, so they do not both run it. Neither is a source
+  keys through itch.io's API, page by page until one is empty, and `epic.ts` an Epic Games Store account's library
+  through the launcher's sign-in, with the launcher's client id and secret from settings, renewing the kept sign-in on
+  every import and asking the catalogue only about games not yet tracked by their Epic id; `schedule.ts` runs
+  `run_steam_sync`, `run_itchio_sync` and then `run_epic_sync` hourly on the server and the desktop, and the last import syncs, so they do not both run it. Neither is a source
   plugin, since those import into Movies & Series.
 - `steam_collections.ts` reads the Steam client's library categories file; `import_steam_categories` gives games in a
   category mapped in `games.steam_category_statuses` its status. The desktop finds the file in Steam's folder

@@ -26,6 +26,7 @@ export const games_games = sqliteTable(
     gog_id: text().notNull().default(""),
     steamgriddb_id: text().notNull().default(""),
     itchio_id: text().notNull().default(""),
+    epic_id: text().notNull().default(""),
     title: text().notNull(),
     year: text().notNull().default(""),
     release_date: text().notNull().default(""),
@@ -67,6 +68,7 @@ export const games_games = sqliteTable(
     index("games_games_by_thegamesdb").on(table.thegamesdb_id),
     index("games_games_by_gog").on(table.gog_id),
     index("games_games_by_itchio").on(table.itchio_id),
+    index("games_games_by_epic").on(table.epic_id),
   ],
 );
 

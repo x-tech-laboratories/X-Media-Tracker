@@ -44,6 +44,7 @@ function game(fields: Partial<LibraryGame>): LibraryGame {
     gog_id: "",
     steamgriddb_id: "",
     itchio_id: "",
+    epic_id: "",
     cover_file: "",
     cover_file_from: "",
     cover_by_hand: false,

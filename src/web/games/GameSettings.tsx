@@ -1,6 +1,6 @@
 // The games' settings: the catalogues' keys and IGDB's Twitch app, the statuses and how new games start, collections, the Steam profile whose library and
-// wishlist come in and how often, the status each Steam category gives, the itch.io account whose library comes in, and
-// IGDB's import.
+// wishlist come in and how often, the status each Steam category gives, the itch.io and Epic Games Store accounts whose
+// libraries come in, and IGDB's import.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -27,6 +27,7 @@ import {
   type GameStatusGroup,
   type GameStatusInfo,
 } from "../../shared/games/model.ts";
+import { epic_sign_in_link } from "../../shared/games/epic.ts";
 import type { SteamCategoryReport } from "../../shared/games/store.ts";
 import { attempt } from "./actions.tsx";
 import { StatusSelect } from "./StatusPicker.tsx";
@@ -310,6 +311,86 @@ function ItchioSettings(props: FeatureSettingsProps) {
   );
 }
 
+// ── Epic Games Store ─────────────────────────────────────────────────────────
+
+function EpicSettings(props: FeatureSettingsProps) {
+  const { settings, set_setting } = props;
+  const [code, set_code] = useState("");
+  const [busy, set_busy] = useState(false);
+
+  const sign_in = () => {
+    set_busy(true);
+    const work = calls()
+      .sign_in_epic(code)
+      .then((name) => {
+        set_code("");
+        toast(`Signed in to the Epic Games Store${name ? ` as ${name}` : ""}.`, { tone: "good" });
+      });
+    attempt(work.finally(() => set_busy(false)));
+  };
+  const run = () => {
+    set_busy(true);
+    const work = calls()
+      .import_epic_library()
+      .then((report) => toast(`Imported ${report.added} new game(s) and updated ${report.updated} from the Epic Games Store. Refresh in Games fills in details for new ones.`, { tone: "good" }));
+    attempt(work.finally(() => set_busy(false)));
+  };
+
+  const client_id = String(settings["games.epic_client_id"] ?? "").trim();
+  const signed_in = String(settings["games.epic_refresh_token"] ?? "") !== "";
+  const account = String(settings["games.epic_account"] ?? "");
+  const last = String(settings["games.last_epic_sync"] ?? "");
+  const result = String(settings["games.last_epic_result"] ?? "");
+  return (
+    <>
+      <TextRow {...props} label="Launcher client id" setting="games.epic_client_id" placeholder="Paste the client id" hint="Epic lets only its own launcher read a library. Copy the launcher's client id from the Legendary launcher's source, legendary/api/egs.py." />
+      <SecretRow {...props} label="Launcher client secret" setting="games.epic_client_secret" placeholder="Paste the client secret" hint="The secret beside that client id in the same file." />
+      {signed_in ? (
+        <SettingRow label="Account" hint={`Signed in${account ? ` as ${account}` : ""}. Each import renews the sign-in; one left unused for long runs out, and then you sign in again.`}>
+          <button type="button" onClick={() => attempt(calls().sign_out_epic())}>
+            Sign out
+          </button>
+        </SettingRow>
+      ) : (
+        <SettingRow label="Sign in" hint={client_id ? "Open Epic's sign-in page, sign in, and paste the authorizationCode it then shows, or the whole answer." : "Set the client id first."}>
+          <form
+            className="key-field"
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (code.trim()) sign_in();
+            }}
+          >
+            {client_id && (
+              <a href={epic_sign_in_link(client_id)} target="_blank" rel="noreferrer">
+                Open sign-in page
+              </a>
+            )}
+            <input aria-label="Epic sign-in code" autoComplete="off" spellCheck={false} placeholder="Paste the code" value={code} onChange={(event) => set_code(event.currentTarget.value)} />
+            <button type="submit" disabled={busy || !client_id || !code.trim()}>
+              Sign in
+            </button>
+          </form>
+        </SettingRow>
+      )}
+      <SettingRow label="Import from Epic every" hint={`0 imports only when asked. The server and the desktop app import on this schedule.${last ? ` Last: ${last.slice(0, 16).replace("T", " ")}${result ? ` — ${result}` : ""}.` : ""}`}>
+        <NumberField
+          label="Import from Epic every"
+          bare
+          unit="hours"
+          min={0}
+          value={Number(settings["games.epic_sync_hours"]) || 0}
+          on_change={(hours) => attempt(set_setting("games.epic_sync_hours", Math.max(0, Math.round(hours ?? 0))))}
+        />
+      </SettingRow>
+      <SettingRow label="Import now" hint="Adds owned games as Backlog, owned on PC; a game already here gains its Epic id. DLC and add-ons are left out, and Epic gives no playtime.">
+        <button type="button" disabled={busy || !signed_in} onClick={run}>
+          {busy ? "Importing…" : "Import library"}
+        </button>
+      </SettingRow>
+    </>
+  );
+}
+
 // ── Steam categories ─────────────────────────────────────────────────────────
 
 function report_categories(report: SteamCategoryReport): void {
@@ -436,6 +517,12 @@ export function game_settings(props: FeatureSettingsProps): SettingsSection[] {
       content: <SteamCategorySettings {...props} />,
     },
     { id: "itchio", heading: "itch.io", content: <ItchioSettings {...props} /> },
+    {
+      id: "epic",
+      heading: "Epic Games Store",
+      hint: "Reads your Epic library the way the Legendary and Heroic launchers do; Epic publishes no API for it, so it may stop working.",
+      content: <EpicSettings {...props} />,
+    },
     { id: "igdb", heading: "IGDB", hint: "IGDB's API gives only its catalogue, so your IGDB lists come in through its data export.", content: <IgdbSettings /> },
   ];
 }

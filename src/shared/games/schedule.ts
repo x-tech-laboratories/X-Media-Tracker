@@ -1,4 +1,4 @@
-// Imports the Steam library and wishlist and the itch.io library on the schedules set in Settings, and on the desktop the
+// Imports the Steam library and wishlist and the itch.io and Epic libraries on the schedules set in Settings, and on the desktop the
 // Steam client's categories, checked hourly, the first three minutes after start, wherever a database runs for long: the
 // server and the desktop app. A phone, which the system may close at any moment, leaves it to them.
 
@@ -31,7 +31,12 @@ export function keep_syncing_stores(methods: () => MediaMethods, on_ran: () => v
       .then((ran) => {
         if (ran) on_ran();
       })
-      .catch((error: unknown) => console.warn("itch.io import:", error));
+      .catch((error: unknown) => console.warn("itch.io import:", error))
+      .then(() => methods().run_epic_sync(false))
+      .then((ran) => {
+        if (ran) on_ran();
+      })
+      .catch((error: unknown) => console.warn("Epic import:", error));
   };
   const first = setTimeout(check, first_check_in_milliseconds);
   const every = setInterval(check, check_every_in_milliseconds);

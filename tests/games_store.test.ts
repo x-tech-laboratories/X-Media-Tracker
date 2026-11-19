@@ -27,6 +27,9 @@ let owned: unknown[] = [];
 let wished: unknown[] = [];
 // itch.io's owned keys, a page each.
 let itch_pages: unknown[][] = [];
+// Epic's library records, a page each, and whether its sign-in refuses.
+let epic_pages: unknown[][] = [];
+let epic_refuses = false;
 let store_down = false;
 
 // Older games keep their art as portrait.png, newer ones in a folder named by a hash.
@@ -71,6 +74,11 @@ function answer_of(url: URL): unknown {
   if (url.pathname === "/IPlayerService/GetOwnedGames/v1/") return { response: { game_count: owned.length, games: owned } };
   if (url.pathname === "/IWishlistService/GetWishlist/v1/") return { response: { items: wished } };
   if (url.host === "api.itch.io" && url.pathname === "/profile/owned-keys") return { owned_keys: itch_pages[Number(url.searchParams.get("page")) - 1] ?? [] };
+  if (url.host === "account-public-service-prod03.ol.epicgames.com") return epic_refuses ? undefined : { access_token: "epic-access", refresh_token: `refresh-${fetch_stub.mock.calls.length}`, displayName: "Player One" };
+  if (url.host === "library-service.live.use1a.on.epicgames.com") {
+    const page = Number(url.searchParams.get("cursor") ?? 0);
+    return { records: epic_pages[page] ?? [], responseMetadata: page + 1 < epic_pages.length ? { nextCursor: String(page + 1) } : {} };
+  }
   if (url.pathname === "/IStoreBrowseService/GetItems/v1/") {
     if (store_down) return undefined;
     const ids = (JSON.parse(url.searchParams.get("input_json")!) as { ids: { appid: number }[] }).ids;
@@ -93,6 +101,8 @@ beforeEach(() => {
   owned = [];
   wished = [];
   itch_pages = [];
+  epic_pages = [];
+  epic_refuses = false;
   store_down = false;
   fetch_stub.mockClear();
   vi.stubGlobal("fetch", fetch_stub);
@@ -452,6 +462,125 @@ describe("itch.io", () => {
   });
 });
 
+// ── Epic Games Store ─────────────────────────────────────────────────────────
+
+function epic_id(number: number): string {
+  return String(number).padStart(32, "0");
+}
+
+function epic_record(number: number, fields: Record<string, unknown> = {}) {
+  return { namespace: `ns${number}`, catalogItemId: epic_id(number), appName: `App${number}`, sandboxType: "PUBLIC", ...fields };
+}
+
+// The catalogue's answer for an item, keyed by its id as Epic gives it.
+function epic_catalog(number: number, title: string, fields: Record<string, unknown> = {}) {
+  answers[`catalog-public-service-prod06.ol.epicgames.com/catalog/api/shared/namespace/ns${number}/bulk/items`] = {
+    [epic_id(number)]: {
+      title,
+      developer: "Some Studio",
+      categories: [{ path: "games" }, { path: "applications" }],
+      keyImages: [
+        { type: "DieselGameBox", url: `https://epic/${number}-wide.jpg` },
+        { type: "DieselGameBoxTall", url: `https://epic/${number}-tall.jpg` },
+      ],
+      ...fields,
+    },
+  };
+}
+
+describe("the Epic Games Store", () => {
+  function with_client() {
+    const methods = open_methods();
+    methods.set_setting("games.epic_client_id", "launcher-id");
+    methods.set_setting("games.epic_client_secret", "launcher-secret");
+    return methods;
+  }
+
+  async function signed_in() {
+    const methods = with_client();
+    await methods.sign_in_epic('{"redirectUrl":"https://localhost/","authorizationCode":"abcdef0123456789abcdef","sid":null}');
+    return methods;
+  }
+
+  it("asks for the client and a sign-in first", async () => {
+    await expect(open_methods().sign_in_epic("abcdef0123456789abcdef")).rejects.toThrow("client id and secret");
+    await expect(with_client().import_epic_library()).rejects.toThrow("Sign in to the Epic Games Store");
+    await expect(with_client().sign_in_epic("not a code")).rejects.toThrow("Paste the authorizationCode");
+  });
+
+  it("signs in with the code from Epic's answer and keeps the sign-in", async () => {
+    const methods = await signed_in();
+    expect(methods.get_settings()).toMatchObject({ "games.epic_account": "Player One", "games.epic_refresh_token": "refresh-1" });
+    const [address, init] = fetch_stub.mock.calls[0] as unknown as [string, RequestInit];
+    expect(address).not.toContain("abcdef0123456789abcdef");
+    expect(String(init.body)).toContain("grant_type=authorization_code");
+    expect((init.headers as Record<string, string>).Authorization).toBe(`Basic ${btoa("launcher-id:launcher-secret")}`);
+    methods.sign_out_epic();
+    expect(methods.get_settings()).toMatchObject({ "games.epic_account": "", "games.epic_refresh_token": "" });
+  });
+
+  it("imports owned games from every page, leaving out DLC and Unreal assets, and renews the sign-in", async () => {
+    const methods = await signed_in();
+    epic_pages = [[epic_record(1), epic_record(2), epic_record(3, { namespace: "ue" })], [epic_record(1), epic_record(4, { sandboxType: "PRIVATE" }), epic_record(5)]];
+    epic_catalog(1, "Hades");
+    epic_catalog(2, "Hades Soundtrack", { mainGameItem: { id: epic_id(1) } });
+    epic_catalog(5, "Celeste", { categories: [{ path: "games" }] });
+    expect(await methods.import_epic_library()).toEqual({ added: 2, updated: 0 });
+    expect(methods.get_game(`epic:${epic_id(1)}`)).toMatchObject({
+      title: "Hades",
+      epic_id: epic_id(1),
+      status: "backlog",
+      owned_platforms: ["PC"],
+      owned_stores: ["Epic Games Store"],
+      cover_url: "https://epic/1-tall.jpg",
+      developers: "Some Studio",
+    });
+    expect(methods.get_game(`epic:${epic_id(5)}`)).toMatchObject({ title: "Celeste" });
+    expect(requested("/bulk/items")).toHaveLength(3);
+    expect(methods.get_settings()["games.epic_refresh_token"]).not.toBe("refresh-1");
+
+    // Games already tracked by their Epic id are not looked up again.
+    fetch_stub.mockClear();
+    expect(await methods.import_epic_library()).toEqual({ added: 0, updated: 2 });
+    expect(requested("/bulk/items")).toHaveLength(1);
+  });
+
+  it("gives a game already here its Epic id, matched by title", async () => {
+    const methods = await signed_in();
+    await methods.add_game("steam", "620");
+    methods.set_game_status("rawg:portal-2", "wishlist");
+    epic_pages = [[epic_record(7)]];
+    epic_catalog(7, "Portal 2");
+    expect(await methods.import_epic_library()).toEqual({ added: 0, updated: 1 });
+    expect(methods.get_game("rawg:portal-2")).toMatchObject({ epic_id: epic_id(7), status: "backlog", owned_platforms: ["PC"], owned_stores: ["Epic Games Store"] });
+  });
+
+  it("says to sign in again once the sign-in has run out", async () => {
+    const methods = await signed_in();
+    epic_refuses = true;
+    await expect(methods.import_epic_library()).rejects.toThrow("sign in again");
+  });
+
+  it("imports on its schedule only when one is set and due", async () => {
+    const methods = await signed_in();
+    epic_pages = [[epic_record(1)]];
+    epic_catalog(1, "Hades");
+    expect(await methods.run_epic_sync(false)).toBeNull();
+    methods.set_setting("games.epic_sync_hours", 6);
+    expect(await methods.run_epic_sync(false)).toMatchObject({ library: { added: 1, updated: 0 }, failures: [] });
+    expect(await methods.run_epic_sync(false)).toBeNull();
+    expect(methods.get_settings()["games.last_epic_result"]).toBe("library 1 added, 0 updated");
+  });
+
+  it("takes an Epic id typed by hand", async () => {
+    const methods = await signed_in();
+    epic_pages = [[epic_record(1)]];
+    epic_catalog(1, "Hades");
+    await methods.import_epic_library();
+    await expect(methods.set_game_ids(`epic:${epic_id(1)}`, { epic_id: "nope" })).rejects.toThrow("Epic Games Store catalogue item id");
+  });
+});
+
 // ── Steam ────────────────────────────────────────────────────────────────────
 
 describe("Steam", () => {
@@ -581,6 +710,8 @@ describe("Steam", () => {
         "games.thegamesdb_api_key",
         "games.steamgriddb_api_key",
         "games.itchio_api_key",
+        "games.epic_client_secret",
+        "games.epic_refresh_token",
         "games.igdb_client_secret",
         "games.steam_api_key",
       ]),

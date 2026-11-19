@@ -25,7 +25,7 @@ server. Read `README.md` first, then `docs/architecture.md`. It follows the
 - TMDB is reached only through `src/shared/library/tmdb.ts`, with the key from settings; never put the key in an error or a log.
 - BookBrainz, Open Library and Hardcover are reached only through their clients in `src/shared/books/`; the Hardcover key
   comes from settings and never goes in an error or a log.
-- RAWG, IGDB, MobyGames, Giant Bomb, TheGamesDB, GOG, SteamGridDB, Wikidata, Steam and itch.io are reached only through
+- RAWG, IGDB, MobyGames, Giant Bomb, TheGamesDB, GOG, SteamGridDB, Wikidata, Steam, itch.io and the Epic Games Store are reached only through
   their clients in `src/shared/games/`; their keys come from settings and never go in an error or a log.
 - Use X-Libs widgets and Halon classes; `app.css` holds layout only and never a colour. A widget two apps could use goes into X-Libs.
 - Tests use a throwaway database (`:memory:` or a temp file), never `dev-data/` or a real profile.

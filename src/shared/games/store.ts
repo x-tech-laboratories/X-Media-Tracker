@@ -1,7 +1,7 @@
 // The games: every game tracked, with its status, rating, review, owned platforms, edition, playtime and collections.
 // RAWG, IGDB, MobyGames, Giant Bomb, TheGamesDB, GOG, Wikidata, Steam and itch.io fill in what games are, with Wikidata
-// linking their ids, and SteamGridDB adds art; a Steam profile's library and wishlist and an itch.io account's library
-// come in by hand or on a schedule, and IGDB's lists by its export file.
+// linking their ids, and SteamGridDB adds art; a Steam profile's library and wishlist and an itch.io and an Epic Games
+// Store account's library come in by hand or on a schedule, and IGDB's lists by its export file.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -14,6 +14,7 @@ import { Background, define_feature, drizzle_of, new_id } from "../feature.ts";
 import { merge_columns, merge_ids, type SourceAnswers } from "../merging.ts";
 import { games_api } from "./api.ts";
 import { catalog_labels, cover_rank, empty_game, join_results, merge_games, same_game, title_words, type CatalogGame } from "./catalog.ts";
+import { create_epic, parse_epic_code, type EpicItem, type OwnedEpicGame } from "./epic.ts";
 import { create_giantbomb } from "./giantbomb.ts";
 import { create_gog } from "./gog.ts";
 import { create_igdb } from "./igdb.ts";
@@ -35,6 +36,7 @@ import {
   is_game_status,
   is_unplayed,
   not_dlc,
+  parse_epic_id,
   parse_game_link,
   parse_giantbomb_id,
   parse_gog_slug,
@@ -100,6 +102,8 @@ export interface ItchioSync {
   library: GameImportReport | null;
   failures: string[];
 }
+
+export type EpicSync = ItchioSync;
 
 export interface SteamCategoryReport {
   // Categories read, games whose status changed, and games in a mapped category that are not tracked.
@@ -186,6 +190,8 @@ const pc_platform = "PC";
 const steam_store = "Steam";
 
 const itchio_store = "itch.io";
+
+const epic_store = "Epic Games Store";
 
 // ── Reading ──────────────────────────────────────────────────────────────────
 
@@ -652,6 +658,95 @@ async function sync_itchio(database: SqlDatabase): Promise<ItchioSync> {
   return sync;
 }
 
+// ── Epic Games Store ─────────────────────────────────────────────────────────
+
+function epic_of(database: SqlDatabase) {
+  const id = String(games_setting(database, "games.epic_client_id")).trim();
+  const secret = String(games_setting(database, "games.epic_client_secret")).trim();
+  if (!id || !secret) throw new Error("Set the Epic Games launcher's client id and secret in Settings → Games first.");
+  return create_epic({ id, secret });
+}
+
+// The tracked game with the Epic id, else one of the same title that no Epic id names yet.
+function find_epic_game(database: SqlDatabase, game: OwnedEpicGame): string {
+  const by_id = find_game(database, { epic_id: game.epic_id });
+  if (by_id || !game.title) return by_id;
+  const by_title = find_by_title(database, game.title, "");
+  const row = by_title ? drizzle_of(database).select({ epic_id: games_games.epic_id }).from(games_games).where(eq(games_games.id, by_title)).get() : undefined;
+  return row && !row.epic_id ? by_title : "";
+}
+
+// Every game owned is owned on PC from the Epic Games Store and leaves the Wishlist; Epic gives no playtime, so a new one is Backlog.
+function import_epic_owned(database: SqlDatabase, owned: OwnedEpicGame[]): GameImportReport {
+  const db = drizzle_of(database);
+  const report: GameImportReport = { added: 0, updated: 0 };
+  for (const game of owned) {
+    const existing = find_epic_game(database, game);
+    if (existing) {
+      const row = db.select().from(games_games).where(eq(games_games.id, existing)).get()!;
+      db.update(games_games)
+        .set({
+          epic_id: row.epic_id || game.epic_id,
+          status: owned_status(statuses_of(database), row.status, 0),
+          owned_platforms: with_name(row.owned_platforms, pc_platform),
+          owned_stores: with_name(row.owned_stores, epic_store),
+          cover_url: row.cover_url || game.cover_url,
+        })
+        .where(eq(games_games.id, existing))
+        .run();
+      report.updated++;
+      continue;
+    }
+    db.insert(games_games)
+      .values({
+        id: game_key({ epic_id: game.epic_id }),
+        epic_id: game.epic_id,
+        title: game.title || game.epic_id,
+        cover_url: game.cover_url,
+        developers: game.developers,
+        status: game_status_of(statuses_of(database), "backlog"),
+        owned_platforms: JSON.stringify([pc_platform]),
+        owned_stores: JSON.stringify([epic_store]),
+        added_at: today(),
+      })
+      .run();
+    report.added++;
+  }
+  return report;
+}
+
+// The sign-in is renewed first and kept at once, since the old one is spent; only games not yet tracked by their Epic id are looked up.
+async function import_epic_library(database: SqlDatabase): Promise<GameImportReport> {
+  const epic = epic_of(database);
+  const refresh_token = String(games_setting(database, "games.epic_refresh_token")).trim();
+  if (!refresh_token) throw new Error("Sign in to the Epic Games Store in Settings → Games first.");
+  const session = await epic.refresh(refresh_token);
+  set_games_setting(database, "games.epic_refresh_token", session.refresh_token);
+  const items: EpicItem[] = await epic.library(session.access_token);
+  const owned: OwnedEpicGame[] = [];
+  for (const item of items) {
+    if (find_game(database, { epic_id: item.catalog_item_id })) owned.push({ epic_id: item.catalog_item_id, title: "", cover_url: "", developers: "" });
+    else {
+      const game = await epic.game(session.access_token, item);
+      if (game) owned.push(game);
+    }
+  }
+  return in_transaction(database, () => import_epic_owned(database, owned));
+}
+
+async function sync_epic(database: SqlDatabase): Promise<EpicSync> {
+  const sync: EpicSync = { ran_at: new Date().toISOString(), library: null, failures: [] };
+  try {
+    sync.library = await import_epic_library(database);
+  } catch (error) {
+    sync.failures.push(`Library: ${(error as Error).message}`);
+  }
+  const said = [sync.library && `library ${sync.library.added} added, ${sync.library.updated} updated`, ...sync.failures].filter(Boolean);
+  set_games_setting(database, "games.last_epic_sync", sync.ran_at);
+  set_games_setting(database, "games.last_epic_result", said.join("; "));
+  return sync;
+}
+
 // ── Steam categories ─────────────────────────────────────────────────────────
 
 // The mapping as set, by each category's name in lower case; a status no longer known is left out.
@@ -736,6 +831,7 @@ const id_labels: Record<keyof GameIds, string> = {
   gog_id: "GOG id",
   steamgriddb_id: "SteamGridDB id",
   itchio_id: "itch.io page",
+  epic_id: "Epic Games Store catalogue item id",
 };
 
 // Each id typed or pasted as its catalogue writes it, or as a link; empty clears it.
@@ -762,6 +858,7 @@ function clean_ids(ids: Partial<GameIds>): Partial<GameIds> {
   clean("gog_id", parse_gog_slug, "the_witcher_3_wild_hunt");
   clean("steamgriddb_id", (input) => /steamgriddb\.com\/game\/(\d+)/i.exec(input)?.[1] ?? (/^\d+$/.test(input) ? input : ""), "21207");
   clean("itchio_id", parse_itchio_id, "innersloth/among-us");
+  clean("epic_id", parse_epic_id, "c4763f236d08423eb47b4c3008779c84");
   return cleaned;
 }
 
@@ -1128,6 +1225,34 @@ export const games_feature = define_feature({
       if (!force && Number.isFinite(last) && Date.now() - last < hours * hour_in_milliseconds) return null;
       if (!force && !String(games_setting(database, "games.itchio_api_key")).trim()) return null;
       return sync_itchio(database);
+    },
+
+    // Trades the one-time code from Epic's sign-in page for a sign-in kept in settings; gives the account's name.
+    sign_in_epic: async (database: SqlDatabase, code: string): Promise<string> => {
+      const parsed = parse_epic_code(code);
+      if (!parsed) throw new Error("Paste the authorizationCode from Epic's page, or the whole answer it shows.");
+      const session = await epic_of(database).sign_in(parsed);
+      set_games_setting(database, "games.epic_refresh_token", session.refresh_token);
+      set_games_setting(database, "games.epic_account", session.display_name);
+      return session.display_name;
+    },
+
+    sign_out_epic: (database: SqlDatabase): void => {
+      set_games_setting(database, "games.epic_refresh_token", "");
+      set_games_setting(database, "games.epic_account", "");
+    },
+
+    import_epic_library: (database: SqlDatabase): Promise<GameImportReport> => import_epic_library(database),
+
+    // Imports the Epic library when the hours set have passed, or now when forced; gives what it did, or null when it
+    // was not due or no one is signed in.
+    run_epic_sync: async (database: SqlDatabase, force: boolean): Promise<EpicSync | null> => {
+      const hours = Number(games_setting(database, "games.epic_sync_hours"));
+      if (!force && !(hours > 0)) return null;
+      const last = Date.parse(String(games_setting(database, "games.last_epic_sync")));
+      if (!force && Number.isFinite(last) && Date.now() - last < hours * hour_in_milliseconds) return null;
+      if (!force && !String(games_setting(database, "games.epic_refresh_token")).trim()) return null;
+      return sync_epic(database);
     },
 
     // The Steam client's categories file; games in a category mapped in Settings take its status.
