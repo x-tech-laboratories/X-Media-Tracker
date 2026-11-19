@@ -30,6 +30,7 @@ const fields: MergeFieldSpec[] = [
   { id: "thegamesdb_id", label: "TheGamesDB", columns: ["thegamesdb_id"] },
   { id: "gog_id", label: "GOG", columns: ["gog_id"] },
   { id: "steamgriddb_id", label: "SteamGridDB", columns: ["steamgriddb_id"] },
+  { id: "itchio_id", label: "itch.io", columns: ["itchio_id"] },
   { id: "status", label: "Status", columns: ["status"], personal: true, text: (value) => (is_game_status(value) ? game_status_text(value) : "") },
   { id: "rating", label: "Rating", columns: ["rating"], personal: true, text: (value) => stars_text(value as number | null) },
   { id: "review", label: "Review", columns: ["review"], personal: true },

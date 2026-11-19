@@ -1,6 +1,6 @@
-// Imports the Steam library and wishlist on the schedule set in Settings, and on the desktop the Steam client's categories,
-// checked hourly, the first three minutes after start, wherever a database runs for long: the server and the desktop
-// app. A phone, which the system may close at any moment, leaves it to them.
+// Imports the Steam library and wishlist and the itch.io library on the schedules set in Settings, and on the desktop the
+// Steam client's categories, checked hourly, the first three minutes after start, wherever a database runs for long: the
+// server and the desktop app. A phone, which the system may close at any moment, leaves it to them.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -18,14 +18,20 @@ function import_categories(methods: () => MediaMethods, read_categories: () => s
 }
 
 // Returns the function that stops checking; on_ran is told only when an import ran or a category changed a game.
-export function keep_syncing_steam(methods: () => MediaMethods, on_ran: () => void, read_categories?: () => string): () => void {
+export function keep_syncing_stores(methods: () => MediaMethods, on_ran: () => void, read_categories?: () => string): () => void {
   const check = (): void => {
-    void Promise.resolve(methods().run_steam_sync(false))
+    const steam = Promise.resolve(methods().run_steam_sync(false))
       .then((ran) => {
         const changed = read_categories ? import_categories(methods, read_categories) : false;
         if (ran || changed) on_ran();
       })
       .catch((error: unknown) => console.warn("steam import:", error));
+    void steam
+      .then(() => methods().run_itchio_sync(false))
+      .then((ran) => {
+        if (ran) on_ran();
+      })
+      .catch((error: unknown) => console.warn("itch.io import:", error));
   };
   const first = setTimeout(check, first_check_in_milliseconds);
   const every = setInterval(check, check_every_in_milliseconds);

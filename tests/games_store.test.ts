@@ -24,6 +24,8 @@ const portal_item = {
 let answers: Record<string, unknown> = {};
 let owned: unknown[] = [];
 let wished: unknown[] = [];
+// itch.io's owned keys, a page each.
+let itch_pages: unknown[][] = [];
 let store_down = false;
 
 // Older games keep their art as portrait.png, newer ones in a folder named by a hash.
@@ -67,6 +69,7 @@ function answer_of(url: URL): unknown {
   }
   if (url.pathname === "/IPlayerService/GetOwnedGames/v1/") return { response: { game_count: owned.length, games: owned } };
   if (url.pathname === "/IWishlistService/GetWishlist/v1/") return { response: { items: wished } };
+  if (url.host === "api.itch.io" && url.pathname === "/profile/owned-keys") return { owned_keys: itch_pages[Number(url.searchParams.get("page")) - 1] ?? [] };
   if (url.pathname === "/IStoreBrowseService/GetItems/v1/") {
     if (store_down) return undefined;
     const ids = (JSON.parse(url.searchParams.get("input_json")!) as { ids: { appid: number }[] }).ids;
@@ -88,6 +91,7 @@ beforeEach(() => {
   answers = base_answers();
   owned = [];
   wished = [];
+  itch_pages = [];
   store_down = false;
   fetch_stub.mockClear();
   vi.stubGlobal("fetch", fetch_stub);
@@ -340,6 +344,81 @@ describe("keeping a game", () => {
   });
 });
 
+// ── itch.io ──────────────────────────────────────────────────────────────────
+
+function itch_key(id: number, url: string, title: string, fields: Record<string, unknown> = {}) {
+  return { id: id * 10, game_id: id, game: { id, url, title, cover_url: `https://img.itch.zone/${id}.png`, classification: "game", traits: ["p_windows", "p_linux"], published_at: "2019-01-03T17:28:47Z", ...fields } };
+}
+
+describe("itch.io", () => {
+  function with_key() {
+    const methods = open_methods();
+    methods.set_setting("games.itchio_api_key", "itch-key");
+    return methods;
+  }
+
+  it("asks for a key before importing", async () => {
+    await expect(open_methods().import_itchio_library()).rejects.toThrow("Set an itch.io API key");
+  });
+
+  it("imports owned games from every page, once each, and only games", async () => {
+    const methods = with_key();
+    itch_pages = [
+      [itch_key(1, "https://devolverdigital.itch.io/pikuniku", "Pikuniku"), itch_key(2, "https://someone.itch.io/a-soundtrack", "A Soundtrack", { classification: "soundtrack" })],
+      [itch_key(1, "https://devolverdigital.itch.io/pikuniku", "Pikuniku"), itch_key(3, "https://maker.itch.io/pocket-game", "Pocket Game", { traits: ["p_android"] })],
+    ];
+    expect(await methods.import_itchio_library()).toEqual({ added: 2, updated: 0 });
+    expect(methods.get_game("itchio:devolverdigital/pikuniku")).toMatchObject({
+      title: "Pikuniku",
+      itchio_id: "devolverdigital/pikuniku",
+      status: "backlog",
+      owned_platforms: ["PC"],
+      owned_stores: ["itch.io"],
+      platforms: "Windows, Linux",
+      release_date: "2019-01-03",
+      cover_url: "https://img.itch.zone/1.png",
+    });
+    expect(methods.get_game("itchio:maker/pocket-game")).toMatchObject({ owned_platforms: ["Android"] });
+    expect(requested("owned-keys")).toHaveLength(3);
+    // The key goes only in the header, never in an address.
+    expect(requested("itch-key")).toEqual([]);
+    const headers = fetch_stub.mock.calls.map((call) => (call as unknown as [string, RequestInit])[1]?.headers as Record<string, string> | undefined);
+    expect(headers.some((each) => each?.Authorization === "Bearer itch-key")).toBe(true);
+  });
+
+  it("gives a game already here its page and platforms, matched by title", async () => {
+    const methods = with_key();
+    await methods.add_game("steam", "620");
+    methods.set_game_status("rawg:portal-2", "wishlist");
+    itch_pages = [[itch_key(9, "https://valve.itch.io/portal-2", "Portal 2")]];
+    expect(await methods.import_itchio_library()).toEqual({ added: 0, updated: 1 });
+    expect(methods.get_game("rawg:portal-2")).toMatchObject({ itchio_id: "valve/portal-2", status: "backlog", owned_platforms: ["PC"], owned_stores: ["itch.io"] });
+    expect(await methods.import_itchio_library()).toEqual({ added: 0, updated: 1 });
+  });
+
+  it("imports on its schedule only when one is set and due", async () => {
+    const methods = with_key();
+    itch_pages = [[itch_key(1, "https://devolverdigital.itch.io/pikuniku", "Pikuniku")]];
+    expect(await methods.run_itchio_sync(false)).toBeNull();
+    methods.set_setting("games.itchio_sync_hours", 6);
+    expect(await methods.run_itchio_sync(false)).toMatchObject({ library: { added: 1, updated: 0 }, failures: [] });
+    expect(await methods.run_itchio_sync(false)).toBeNull();
+    expect(methods.get_settings()["games.last_itchio_result"]).toBe("library 1 added, 0 updated");
+  });
+
+  it("adds a game from its page's link", async () => {
+    const methods = open_methods();
+    answers["innersloth.itch.io/among-us/data.json"] = {
+      title: "Among Us",
+      cover_image: "https://img.itch.zone/among.png",
+      tags: ["party-game", "space"],
+      authors: [{ name: "Innersloth", url: "https://innersloth.itch.io" }],
+    };
+    expect(await methods.add_game_from_link("https://innersloth.itch.io/among-us")).toEqual({ id: "itchio:innersloth/among-us", title: "Among Us", existed: false });
+    expect(methods.get_game("itchio:innersloth/among-us")).toMatchObject({ cover_url: "https://img.itch.zone/among.png", genres: "party-game, space", developers: "Innersloth" });
+  });
+});
+
 // ── Steam ────────────────────────────────────────────────────────────────────
 
 describe("Steam", () => {
@@ -468,6 +547,7 @@ describe("Steam", () => {
         "games.giantbomb_api_key",
         "games.thegamesdb_api_key",
         "games.steamgriddb_api_key",
+        "games.itchio_api_key",
         "games.igdb_client_secret",
         "games.steam_api_key",
       ]),

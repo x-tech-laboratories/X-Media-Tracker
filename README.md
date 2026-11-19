@@ -68,9 +68,10 @@ search, series in order and new books in the series you follow. Make the key wit
   hand, or marks a game as not DLC.
 - **Search:** the bar at the top, in Games, searches your games, RAWG, IGDB, MobyGames, Giant Bomb, TheGamesDB,
   Steam's store, GOG and Wikidata at once, the same game from several catalogues shown once; a pasted RAWG, IGDB,
-  MobyGames, Giant Bomb, TheGamesDB, Wikidata, Steam store or GOG store link is added at once.
+  MobyGames, Giant Bomb, TheGamesDB, Wikidata, Steam store, GOG store or itch.io game link is added at once.
 - **Steam:** your library, with playtime and the day last played, and your wishlist, imported by hand or on a schedule,
   and your library's categories, each mapped to a status.
+- **itch.io:** the games you have bought or claimed, imported by hand or on a schedule.
 
 Wikidata, Steam's store and GOG need no key; GOG is read through the answers its own store uses, which it does not
 publish as an API, so they may change. Wikidata matters most: its items name a game's RAWG, MobyGames, Giant Bomb,
@@ -100,6 +101,18 @@ the Steam client's own file, `userdata/<account>/config/cloudstorage/cloud-stora
 the desktop app with **Read from this computer**, and every hour on its own, or any device with **Pick file…**. Each
 category read is listed with a status to give its games, or **Leave as is**; every tracked game in a mapped category
 then takes that status, the one furthest along when it is in several. Nothing is written back to Steam.
+
+## itch.io
+
+Make an [itch.io API key](https://itch.io/user/settings/api-keys) and set it under **Settings → Games → itch.io**.
+**Import library** adds every game your account has bought or claimed, leaving out soundtracks, comics and tools, as
+Backlog, owned from itch.io on PC, and on Android when it has an Android download; itch.io gives no playtime. A game
+already here, by its itch.io page or else by its title when no itch.io page names it yet, gains the page, the store and
+those platforms and leaves the Wishlist. With **Import from itch.io every** set to some hours, the server and the desktop app import on that
+schedule, as for Steam. A game's itch.io page is kept as its creator and slug, such as `innersloth/among-us`; its title,
+creators, tags and cover are read from the page's `data.json`, which itch.io does not publish as an API, so it may change.
+
+EA's games cannot come in: EA offers no API for a player's library.
 
 ## Coming from StoryGraph
 
@@ -345,6 +358,7 @@ X-Media-Tracker is built on these services and the people who keep them:
 - [Wikidata](https://www.wikidata.org/), of the Wikimedia Foundation: game details and the ids that link the other
   catalogues, under CC0.
 - [Steam](https://store.steampowered.com/): game details, library art, and your library, playtime and wishlist.
+- [itch.io](https://itch.io/): a game page's details and cover, and your library, through its API.
 
 None of them endorse this app. The names are their owners' trademarks.
 

@@ -1,8 +1,7 @@
 // The games: every game tracked, with its status, rating, review, owned platforms, edition, playtime and collections.
-// RAWG, IGDB, MobyGames, Giant Bomb, TheGamesDB, GOG, Wikidata and Steam fill in what games are, with Wikidata linking
-// their ids, and SteamGridDB adds art; a Steam
-// profile's library and wishlist come in by hand or on a schedule, and the Trilium Game Tracker's library and IGDB's
-// lists by their files.
+// RAWG, IGDB, MobyGames, Giant Bomb, TheGamesDB, GOG, Wikidata, Steam and itch.io fill in what games are, with Wikidata
+// linking their ids, and SteamGridDB adds art; a Steam profile's library and wishlist and an itch.io account's library
+// come in by hand or on a schedule, and the Trilium Game Tracker's library and IGDB's lists by their files.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -19,6 +18,7 @@ import { create_giantbomb } from "./giantbomb.ts";
 import { create_gog } from "./gog.ts";
 import { create_igdb } from "./igdb.ts";
 import { read_igdb_export, type IgdbGame } from "./igdb_export.ts";
+import { create_itchio, type OwnedItchGame } from "./itchio.ts";
 import { migrations } from "./migrations/index.ts";
 import { create_mobygames } from "./mobygames.ts";
 import {
@@ -33,6 +33,7 @@ import {
   parse_game_link,
   parse_giantbomb_id,
   parse_gog_slug,
+  parse_itchio_id,
   parse_wikidata_id,
   type GameCollection,
   type GameIds,
@@ -86,6 +87,12 @@ export interface SteamSync {
   failures: string[];
 }
 
+export interface ItchioSync {
+  ran_at: string;
+  library: GameImportReport | null;
+  failures: string[];
+}
+
 export interface SteamCategoryReport {
   // Categories read, games whose status changed, and games in a mapped category that are not tracked.
   categories: number;
@@ -122,7 +129,7 @@ function set_games_setting(database: SqlDatabase, key: GamesSetting, value: unkn
   database.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value").run(key, JSON.stringify(value));
 }
 
-// The catalogues with a key set; Wikidata, Steam's store and GOG always.
+// The catalogues with a key set; Wikidata, Steam's store, GOG and itch.io's pages always.
 function catalogs_of(database: SqlDatabase) {
   const key = (setting: GamesSetting) => String(games_setting(database, setting)).trim();
   return {
@@ -135,6 +142,7 @@ function catalogs_of(database: SqlDatabase) {
     gog: create_gog(),
     wikidata: create_wikidata(),
     steam: create_steam(),
+    itchio: create_itchio(),
   };
 }
 
@@ -160,9 +168,11 @@ const refresh_concurrency = 4;
 
 const hour_in_milliseconds = 60 * 60 * 1000;
 
-const steam_platform = "PC";
+const pc_platform = "PC";
 
 const steam_store = "Steam";
+
+const itchio_store = "itch.io";
 
 // ── Reading ──────────────────────────────────────────────────────────────────
 
@@ -215,7 +225,7 @@ function find_by_title(database: SqlDatabase, title: string, year: string): stri
 // ── Catalogues ───────────────────────────────────────────────────────────────
 
 // Text and pictures come from the richest catalogue first; Wikidata, asked first for its links, is the last resort.
-const detail_order: GameSource[] = ["rawg", "igdb", "mobygames", "giantbomb", "thegamesdb", "gog", "steam", "steamgriddb", "wikidata"];
+const detail_order: GameSource[] = ["rawg", "igdb", "mobygames", "giantbomb", "thegamesdb", "gog", "steam", "itchio", "steamgriddb", "wikidata"];
 
 function ids_only(game: CatalogGame): CatalogGame {
   const ids = Object.fromEntries(game_id_keys.map((key) => [key, game[key]]));
@@ -247,7 +257,7 @@ async function gather(database: SqlDatabase, start: CatalogGame, heard: Heard = 
     if (item) ids.wikidata_id = item;
   }
   if (ids.wikidata_id) await ask("wikidata", () => catalogs.wikidata.game(ids.wikidata_id));
-  const { rawg, igdb, mobygames, giantbomb, thegamesdb, gog, steam, steamgriddb } = catalogs;
+  const { rawg, igdb, mobygames, giantbomb, thegamesdb, gog, steam, itchio, steamgriddb } = catalogs;
   await Promise.all([
     rawg && ids.rawg_id ? ask("rawg", () => rawg.game(ids.rawg_id)) : undefined,
     igdb && ids.igdb_id ? ask("igdb", () => igdb.game(ids.igdb_id)) : undefined,
@@ -256,6 +266,7 @@ async function gather(database: SqlDatabase, start: CatalogGame, heard: Heard = 
     thegamesdb && ids.thegamesdb_id ? ask("thegamesdb", () => thegamesdb.game(ids.thegamesdb_id)) : undefined,
     ids.gog_id ? ask("gog", () => gog.game(ids.gog_id)) : undefined,
     ids.steam_app_id ? ask("steam", () => steam.game(ids.steam_app_id)) : undefined,
+    ids.itchio_id ? ask("itchio", () => itchio.game(ids.itchio_id)) : undefined,
   ]);
   const heard_of = () => detail_order.flatMap((source) => (answers[source] ? [answers[source]!] : []));
   if (steamgriddb) {
@@ -364,6 +375,7 @@ function start_from(source: GameSource, id: string): CatalogGame {
   else if (source === "thegamesdb") start.thegamesdb_id = /^\d+$/.test(id) ? id : "";
   else if (source === "gog") start.gog_id = parse_gog_slug(id);
   else if (source === "steamgriddb") start.steamgriddb_id = /^\d+$/.test(id) ? id : "";
+  else if (source === "itchio") start.itchio_id = parse_itchio_id(id);
   else start.steam_app_id = /^\d+$/.test(id) ? id : "";
   if (!game_key(start)) throw new Error(`${id} is not a ${catalog_labels[source]} id.`);
   return start;
@@ -441,7 +453,7 @@ function import_owned(database: SqlDatabase, owned: OwnedGame[]): GameImportRepo
           playtime_minutes: Math.max(row.playtime_minutes, game.playtime_minutes),
           last_played: later_day(row.last_played, game.last_played),
           status: owned_status(game_status_of(row.status), game.playtime_minutes),
-          owned_platforms: with_name(row.owned_platforms, steam_platform),
+          owned_platforms: with_name(row.owned_platforms, pc_platform),
           owned_stores: with_name(row.owned_stores, steam_store),
           cover_url: steam_art(row.cover_url, game),
         })
@@ -457,7 +469,7 @@ function import_owned(database: SqlDatabase, owned: OwnedGame[]): GameImportRepo
         title: game.title || `Steam app ${game.app_id}`,
         cover_url: game.cover_url,
         status: owned_status("backlog", game.playtime_minutes),
-        owned_platforms: JSON.stringify([steam_platform]),
+        owned_platforms: JSON.stringify([pc_platform]),
         owned_stores: JSON.stringify([steam_store]),
         playtime_minutes: game.playtime_minutes,
         last_played: game.last_played,
@@ -537,6 +549,90 @@ async function sync_steam(database: SqlDatabase): Promise<SteamSync> {
   return sync;
 }
 
+// ── itch.io ──────────────────────────────────────────────────────────────────
+
+function itchio_key(database: SqlDatabase): string {
+  const key = String(games_setting(database, "games.itchio_api_key")).trim();
+  if (!key) throw new Error("Set an itch.io API key in Settings → Games first.");
+  return key;
+}
+
+// A copy for Windows, macOS or Linux, or one that plays in the browser, is owned on PC; one for Android on Android too.
+function itchio_platforms(game: OwnedItchGame): string[] {
+  const systems = game.platforms.split(", ").filter(Boolean);
+  const android = systems.includes("Android");
+  return [...(systems.some((system) => system !== "Android") || !android ? [pc_platform] : []), ...(android ? ["Android"] : [])];
+}
+
+// The tracked game with the page, else one of the same title that no itch.io page names yet.
+function find_itchio_game(database: SqlDatabase, game: OwnedItchGame): string {
+  const by_page = find_game(database, { itchio_id: game.itchio_id });
+  if (by_page) return by_page;
+  const by_title = find_by_title(database, game.title, "");
+  const row = by_title ? drizzle_of(database).select({ itchio_id: games_games.itchio_id }).from(games_games).where(eq(games_games.id, by_title)).get() : undefined;
+  return row && !row.itchio_id ? by_title : "";
+}
+
+// Every game owned is owned on its platforms from itch.io and leaves the Wishlist; itch.io gives no playtime, so a new one is Backlog.
+function import_itchio_owned(database: SqlDatabase, owned: OwnedItchGame[]): GameImportReport {
+  const db = drizzle_of(database);
+  const report: GameImportReport = { added: 0, updated: 0 };
+  for (const game of owned) {
+    const platforms = itchio_platforms(game);
+    const existing = find_itchio_game(database, game);
+    if (existing) {
+      const row = db.select().from(games_games).where(eq(games_games.id, existing)).get()!;
+      db.update(games_games)
+        .set({
+          itchio_id: row.itchio_id || game.itchio_id,
+          status: owned_status(game_status_of(row.status), 0),
+          owned_platforms: JSON.stringify(clean_names([...parse_list(row.owned_platforms), ...platforms])),
+          owned_stores: with_name(row.owned_stores, itchio_store),
+          cover_url: row.cover_url || game.cover_url,
+        })
+        .where(eq(games_games.id, existing))
+        .run();
+      report.updated++;
+      continue;
+    }
+    db.insert(games_games)
+      .values({
+        id: game_key({ itchio_id: game.itchio_id }),
+        itchio_id: game.itchio_id,
+        title: game.title || game.itchio_id,
+        year: game.published.slice(0, 4),
+        release_date: game.published,
+        cover_url: game.cover_url,
+        platforms: game.platforms,
+        status: "backlog",
+        owned_platforms: JSON.stringify(platforms),
+        owned_stores: JSON.stringify([itchio_store]),
+        added_at: today(),
+      })
+      .run();
+    report.added++;
+  }
+  return report;
+}
+
+async function import_itchio_library(database: SqlDatabase): Promise<GameImportReport> {
+  const owned = await create_itchio().owned(itchio_key(database));
+  return in_transaction(database, () => import_itchio_owned(database, owned));
+}
+
+async function sync_itchio(database: SqlDatabase): Promise<ItchioSync> {
+  const sync: ItchioSync = { ran_at: new Date().toISOString(), library: null, failures: [] };
+  try {
+    sync.library = await import_itchio_library(database);
+  } catch (error) {
+    sync.failures.push(`Library: ${(error as Error).message}`);
+  }
+  const said = [sync.library && `library ${sync.library.added} added, ${sync.library.updated} updated`, ...sync.failures].filter(Boolean);
+  set_games_setting(database, "games.last_itchio_sync", sync.ran_at);
+  set_games_setting(database, "games.last_itchio_result", said.join("; "));
+  return sync;
+}
+
 // ── Steam categories ─────────────────────────────────────────────────────────
 
 // The mapping as set, by each category's name in lower case; a status no longer known is left out.
@@ -607,7 +703,7 @@ function import_trilium_game(database: SqlDatabase, game: ImportedGame): "added"
         platforms: game.platforms,
         status: game.status,
         rating: game.rating,
-        owned_platforms: game.steam_app_id ? JSON.stringify([steam_platform]) : "[]",
+        owned_platforms: game.steam_app_id ? JSON.stringify([pc_platform]) : "[]",
         playtime_minutes: game.playtime_minutes,
         last_played: game.last_played,
         added_at: game.added_at || today(),
@@ -659,6 +755,7 @@ const id_labels: Record<keyof GameIds, string> = {
   thegamesdb_id: "TheGamesDB id",
   gog_id: "GOG id",
   steamgriddb_id: "SteamGridDB id",
+  itchio_id: "itch.io page",
 };
 
 // Each id typed or pasted as its catalogue writes it, or as a link; empty clears it.
@@ -684,6 +781,7 @@ function clean_ids(ids: Partial<GameIds>): Partial<GameIds> {
   clean("thegamesdb_id", (input) => link_id("thegamesdb")(input) || (/^\d+$/.test(input) ? input : ""), "1234");
   clean("gog_id", parse_gog_slug, "the_witcher_3_wild_hunt");
   clean("steamgriddb_id", (input) => /steamgriddb\.com\/game\/(\d+)/i.exec(input)?.[1] ?? (/^\d+$/.test(input) ? input : ""), "21207");
+  clean("itchio_id", parse_itchio_id, "innersloth/among-us");
   return cleaned;
 }
 
@@ -862,7 +960,7 @@ export const games_feature = define_feature({
 
     add_game_from_link: (database: SqlDatabase, link: string): Promise<AddedGame> => {
       const parsed = parse_game_link(link);
-      if (!parsed) throw new Error("Not a RAWG, IGDB, MobyGames, Giant Bomb, TheGamesDB, GOG, Wikidata or Steam store link, such as https://rawg.io/games/portal-2 or https://store.steampowered.com/app/620/.");
+      if (!parsed) throw new Error("Not a RAWG, IGDB, MobyGames, Giant Bomb, TheGamesDB, GOG, Wikidata, Steam store or itch.io link, such as https://rawg.io/games/portal-2 or https://store.steampowered.com/app/620/.");
       return add_from(database, parsed.source, parsed.id);
     },
 
@@ -982,6 +1080,19 @@ export const games_feature = define_feature({
         }
       }
       return sync_steam(database);
+    },
+
+    import_itchio_library: (database: SqlDatabase): Promise<GameImportReport> => import_itchio_library(database),
+
+    // Imports the itch.io library when the hours set have passed, or now when forced; gives what it did, or null when it
+    // was not due or no key is set.
+    run_itchio_sync: async (database: SqlDatabase, force: boolean): Promise<ItchioSync | null> => {
+      const hours = Number(games_setting(database, "games.itchio_sync_hours"));
+      if (!force && !(hours > 0)) return null;
+      const last = Date.parse(String(games_setting(database, "games.last_itchio_sync")));
+      if (!force && Number.isFinite(last) && Date.now() - last < hours * hour_in_milliseconds) return null;
+      if (!force && !String(games_setting(database, "games.itchio_api_key")).trim()) return null;
+      return sync_itchio(database);
     },
 
     // The Steam client's categories file; games in a category mapped in Settings take its status.
