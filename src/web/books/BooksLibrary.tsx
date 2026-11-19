@@ -1,5 +1,5 @@
 // The Books library: every tracked book as a cover or a table row, narrowed by status, format, owned and collection, each
-// choice showing how many books it would leave, and sorted.
+// choice showing how many books it would leave, sorted, and optionally grouped under headings such as their status.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -28,13 +28,17 @@ import {
   no_book_filters,
   progress_share,
   sort_books,
+  type BookCollection,
   type BookFilters,
+  type BookFormat,
   type BookSortKey,
+  type BookStatus,
   type LibraryBook,
 } from "../../shared/books/model.ts";
 import type { Books, BooksRefreshReport } from "../../shared/books/store.ts";
 import { book_href, book_status_menu_items, stars_text } from "./actions.tsx";
 import { use_cover } from "../covers.tsx";
+import { GroupedList, parts_of, rating_key, type Grouping } from "../grouping.tsx";
 
 // ── Remembered view ──────────────────────────────────────────────────────────
 
@@ -91,15 +95,39 @@ const table_columns: TableColumn<LibraryBook>[] = [
   { label: "Actions", id: "actions", header: <span className="visually-hidden">Actions</span>, class: "actions-cell", cell: (book) => <BookActions book={book} /> },
 ];
 
-function BookList({ books, layout }: { books: LibraryBook[]; layout: Layout }) {
-  if (layout === "table") return <DataTable caption="Books" columns={table_columns} rows={books} row_key={(book) => book.id} />;
-  return (
-    <MediaGrid label="Books">
-      {books.map((book) => (
-        <BookTile key={book.id} book={book} />
-      ))}
-    </MediaGrid>
-  );
+function BookTable({ books }: { books: LibraryBook[] }) {
+  return <DataTable caption="Books" columns={table_columns} rows={books} row_key={(book) => book.id} />;
+}
+
+function BookList({ books, grouping, layout }: { books: LibraryBook[]; grouping: Grouping<LibraryBook> | undefined; layout: Layout }) {
+  const tile = (book: LibraryBook) => <BookTile key={book.id} book={book} />;
+  if (grouping) return <GroupedList items={books} grouping={grouping} as_table={layout === "table"} tile={tile} table={(members) => <BookTable books={members} />} />;
+  if (layout === "table") return <BookTable books={books} />;
+  return <MediaGrid label="Books">{books.map(tile)}</MediaGrid>;
+}
+
+// ── Groups ───────────────────────────────────────────────────────────────────
+
+const group_keys = ["none", "status", "format", "author", "series", "collection", "year", "rating"] as const;
+
+type GroupKey = (typeof group_keys)[number];
+
+// The ways the books can be grouped, the collections named by the library's own.
+function book_groupings(collections: BookCollection[]): Record<Exclude<GroupKey, "none">, Grouping<LibraryBook>> {
+  const collection_names = new Map(collections.map((collection) => [collection.id, collection.name]));
+  return {
+    status: { label: "Status", keys_of: (book) => book.status, order: book_statuses, name_of: (key) => book_status_labels[key as BookStatus] ?? key ?? "" },
+    format: { label: "Format", keys_of: (book) => book.format || null, order: book_formats, name_of: (key) => (key ? book_format_labels[key as BookFormat] ?? key : "No format") },
+    author: { label: "Author", keys_of: (book) => parts_of(book.authors), name_of: (key) => key ?? "No author" },
+    series: { label: "Series", keys_of: (book) => book.series || null, name_of: (key) => key ?? "In no series" },
+    collection: {
+      label: "Collection",
+      keys_of: (book) => book.collection_ids.flatMap((id) => collection_names.get(id) ?? []),
+      name_of: (key) => key ?? "In no collection",
+    },
+    year: { label: "Year", keys_of: (book) => book.year || null, descending: true, name_of: (key) => key ?? "No year" },
+    rating: { label: "Rating", keys_of: (book) => rating_key(book.rating), descending: true, name_of: (key) => (key ? `★ ${key}` : "Unrated") },
+  };
 }
 
 function with_count(label: string, count: number | undefined): string {
@@ -123,6 +151,7 @@ function LibraryPage({ library }: { library: Books }) {
   const [sort_key, set_sort_key] = use_pref<BookSortKey>("x-media-tracker-books-sort", "title", one_of(...book_sort_keys));
   const [descending, set_descending] = use_pref("x-media-tracker-books-descending", false, is_boolean);
   const [layout, set_layout] = use_pref<Layout>("x-media-tracker-books-layout", "covers", one_of("covers", "table"));
+  const [group_by, set_group_by] = use_pref<GroupKey>("x-media-tracker-books-group-by", "none", one_of(...group_keys));
   const { refresh, start: start_refresh } = use_books_refresh();
   const refreshing = refresh?.state === "running";
 
@@ -132,6 +161,7 @@ function LibraryPage({ library }: { library: Books }) {
   const set_filter = (change: Partial<BookFilters>) => set_remembered({ ...remembered, ...change });
   const counts = book_facet_counts(library.books, filters);
   const shown = sort_books(filter_books(library.books, filters), sort_key, descending);
+  const groupings = book_groupings(library.collections);
 
   return (
     <Stack>
@@ -188,6 +218,7 @@ function LibraryPage({ library }: { library: Books }) {
         <button type="button" className="icon" aria-label={descending ? "Sort ascending" : "Sort descending"} onClick={() => set_descending(!descending)}>
           {descending ? "↓" : "↑"}
         </button>
+        <Select label="Group by" options={group_keys.map((key) => [key, key === "none" ? "Nothing" : groupings[key].label] as [GroupKey, string])} value={group_by} on_change={set_group_by} />
         <Segmented
           label="Layout"
           choices={[
@@ -203,7 +234,7 @@ function LibraryPage({ library }: { library: Books }) {
       ) : shown.length === 0 ? (
         <Empty title="No books match these filters." />
       ) : (
-        <BookList books={shown} layout={layout} />
+        <BookList books={shown} grouping={group_by === "none" ? undefined : groupings[group_by]} layout={layout} />
       )}
     </Stack>
   );

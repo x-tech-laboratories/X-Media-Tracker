@@ -361,17 +361,3 @@ export function facet_counts(titles: LibraryTitle[], filters: LibraryFilters, co
   }
   return counts;
 }
-
-// Titles under each collection's name, a title in several under each, and those in none last.
-export function group_by_collection<Item extends LibraryTitle>(titles: Item[], collections: Collection[]): [heading: string, titles: Item[]][] {
-  const names = new Map(collections.map((collection) => [collection.id, collection.name]));
-  const groups = new Map<string, Item[]>();
-  const untagged: Item[] = [];
-  for (const title of titles) {
-    const in_named = title.collection_ids.filter((id) => names.has(id));
-    if (in_named.length === 0) untagged.push(title);
-    for (const id of in_named) groups.set(names.get(id)!, [...(groups.get(names.get(id)!) ?? []), title]);
-  }
-  const named = [...groups.entries()].sort(([first], [second]) => first.localeCompare(second));
-  return untagged.length ? [...named, ["In no collection", untagged]] : named;
-}

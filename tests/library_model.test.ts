@@ -5,7 +5,6 @@ import {
   facet_counts,
   filter_titles,
   format_episodes,
-  group_by_collection,
   image_path_of,
   next_unwatched,
   no_filters,
@@ -132,14 +131,5 @@ describe("filters", () => {
     expect(counts.groups.mood).toEqual({ all: 2, comfort: 2 });
     expect(counts.groups.franchise).toEqual({ all: 2, mcu: 1, none: 1 });
     expect(counts.genre).toEqual({ all: 2, action: 1, comedy: 1 });
-  });
-
-  it("groups titles under each of their collections, those in none last", () => {
-    const groups = group_by_collection([...titles, title({ id: "4", name: "Heat" })], collections);
-    expect(groups.map(([heading, members]) => [heading, members.map((each) => each.id)])).toEqual([
-      ["Comfort", ["1", "3"]],
-      ["MCU", ["1", "2"]],
-      ["In no collection", ["4"]],
-    ]);
   });
 });

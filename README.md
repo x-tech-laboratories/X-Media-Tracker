@@ -16,7 +16,7 @@ the top bar and settings.
 
 - **Library:** every title as a poster or a table row, narrowed by type, status, genre and each collection group, each
   choice showing how many titles it would leave; sorted by name, last watched, release, rating, when added or progress,
-  and optionally grouped under its collections.
+  and optionally grouped under headings by status, type, collection, genre, year or rating.
 - **A title's page:** status, rating, collections, your notes in rich text, TMDB's overview and cast, and for a show every season's episodes to
   tick off one at a time, the rest of a season, or the whole show at once. A show's status follows its episodes.
 - **Search:** the bar at the top searches your library and TMDB at once, each TMDB result added with a button; a pasted
@@ -34,7 +34,8 @@ TMDB supplies search, posters, episode lists and details, and needs a free API k
 ### Books
 
 - **Library:** every book as a cover or a table row, narrowed by status (Want to read, Reading, Paused, Read, Did not
-  finish), format, owned and collection, each choice showing how many books it would leave, and sorted.
+  finish), format, owned and collection, each choice showing how many books it would leave, sorted, and optionally
+  grouped under headings by status, format, author, series, collection, year or rating.
 - **A book's page:** status, rating, format, owned, progress in pages, percent or audiobook minutes, collections, the
   review and your notes in rich text, every read with its start and finish days (a book read twice has two), a reading journal of dated notes, and
   the series in order with what you have read and a button to add the rest.
@@ -60,7 +61,8 @@ search, series in order and new books in the series you follow. Make the key wit
   Endless, Replaying) and Played (Finished, Completed, Abandoned).
 - **Library:** every game as its box art or a table row, narrowed to games, DLC or both, by a status or a whole group,
   the platform you own it on and collection, each choice showing how many games it would leave, and sorted by title,
-  last played, release, rating, playtime or when added.
+  last played, release, rating, playtime or when added, and optionally grouped under headings by status group, status,
+  platform, store, collection, year or rating.
 - **A game's page:** status, picked by group and then within it, rating, playtime and the day last played, edition, the platforms you own it on,
   collections, the review and your notes in rich text, with what the catalogues say of it and a link to each.
 - **DLC:** a DLC or expansion names the game it adds to, linked from its page, and a game's page lists its DLC. Steam,

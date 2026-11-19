@@ -1,13 +1,13 @@
 // The Library: every tracked title as a poster, narrowed by type, status, genre and each collection group, each choice
-// showing how many titles it would leave, sorted, shown as posters or a table, and optionally grouped under its
-// collections.
+// showing how many titles it would leave, sorted, shown as posters or a table, and optionally grouped under headings such
+// as their status or collections.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
 import { MediaGrid, MediaTile } from "@x-tech-laboratories/x-libs/web/react/media";
 import { MenuButton } from "@x-tech-laboratories/x-libs/web/react/menu_button";
 import { Segmented, Select } from "@x-tech-laboratories/x-libs/web/react/controls";
-import { PageHeading, Section, Stack, Toolbar } from "@x-tech-laboratories/x-libs/web/react/layout";
+import { PageHeading, Stack, Toolbar } from "@x-tech-laboratories/x-libs/web/react/layout";
 import { ProgressBar } from "@x-tech-laboratories/x-libs/web/react/progress";
 import { Empty, Loaded } from "@x-tech-laboratories/x-libs/web/react/states";
 import { DataTable, type TableColumn } from "@x-tech-laboratories/x-libs/web/react/table";
@@ -20,7 +20,6 @@ import { use_refresh } from "../refresh.ts";
 import {
   facet_counts,
   filter_titles,
-  group_by_collection,
   image_url,
   list_genres,
   no_filters,
@@ -38,6 +37,7 @@ import {
 import type { Library, RefreshReport } from "../../shared/library/store.ts";
 import { status_menu_items } from "./status.tsx";
 import { use_cover } from "../covers.tsx";
+import { GroupedList, parts_of, rating_key, type Grouping } from "../grouping.tsx";
 
 // ── Remembered view ──────────────────────────────────────────────────────────
 
@@ -99,18 +99,41 @@ const table_columns: TableColumn<LibraryTitle>[] = [
   { label: "Actions", id: "actions", header: <span className="visually-hidden">Actions</span>, class: "actions-cell", cell: (title) => <TitleActions title={title} /> },
 ];
 
-function Titles({ titles, poster_size, layout }: { titles: LibraryTitle[]; poster_size: string; layout: Layout }) {
-  if (layout === "table") return <DataTable caption="Titles" columns={table_columns} rows={titles} row_key={(title) => title.id} />;
-  return (
-    <MediaGrid label="Titles">
-      {titles.map((title) => (
-        <TitleTile key={title.id} title={title} poster_size={poster_size} />
-      ))}
-    </MediaGrid>
-  );
+function TitleTable({ titles }: { titles: LibraryTitle[] }) {
+  return <DataTable caption="Titles" columns={table_columns} rows={titles} row_key={(title) => title.id} />;
+}
+
+function Titles({ titles, grouping, poster_size, layout }: { titles: LibraryTitle[]; grouping: Grouping<LibraryTitle> | undefined; poster_size: string; layout: Layout }) {
+  const tile = (title: LibraryTitle) => <TitleTile key={title.id} title={title} poster_size={poster_size} />;
+  if (grouping) return <GroupedList items={titles} grouping={grouping} as_table={layout === "table"} tile={tile} table={(members) => <TitleTable titles={members} />} />;
+  if (layout === "table") return <TitleTable titles={titles} />;
+  return <MediaGrid label="Titles">{titles.map(tile)}</MediaGrid>;
 }
 
 type Layout = "posters" | "table";
+
+// ── Groups ───────────────────────────────────────────────────────────────────
+
+const group_keys = ["none", "status", "type", "collection", "genre", "year", "rating"] as const;
+
+type GroupKey = (typeof group_keys)[number];
+
+// The ways the titles can be grouped, the collections named by the Library's own.
+function title_groupings(collections: Collection[]): Record<Exclude<GroupKey, "none">, Grouping<LibraryTitle>> {
+  const collection_names = new Map(collections.map((collection) => [collection.id, collection.name]));
+  return {
+    status: { label: "Status", keys_of: (title) => title.status, order: statuses, name_of: (key) => status_labels[key as keyof typeof status_labels] ?? key ?? "" },
+    type: { label: "Type", keys_of: (title) => title.media_type, order: ["movie", "show"], name_of: (key) => (key === "show" ? "TV" : "Movies") },
+    collection: {
+      label: "Collection",
+      keys_of: (title) => title.collection_ids.flatMap((id) => collection_names.get(id) ?? []),
+      name_of: (key) => key ?? "In no collection",
+    },
+    genre: { label: "Genre", keys_of: (title) => parts_of(title.genres), name_of: (key) => key ?? "No genre" },
+    year: { label: "Year", keys_of: (title) => title.year || null, descending: true, name_of: (key) => key ?? "No year" },
+    rating: { label: "Rating", keys_of: (title) => rating_key(title.rating), descending: true, name_of: (key) => (key ? `★ ${key}` : "Unrated") },
+  };
+}
 
 // ── Filters ──────────────────────────────────────────────────────────────────
 
@@ -144,7 +167,7 @@ function LibraryPage({ library, settings }: { library: Library; settings: Record
   const [remembered, set_remembered] = use_pref("x-media-tracker-library-filters", remembered_defaults, is_filters);
   const [sort_key, set_sort_key] = use_pref<SortKey>("x-media-tracker-library-sort", "name", one_of(...sort_keys));
   const [descending, set_descending] = use_pref("x-media-tracker-library-descending", false, is_boolean);
-  const [grouped, set_grouped] = use_pref("x-media-tracker-library-grouped", false, is_boolean);
+  const [group_by, set_group_by] = use_pref<GroupKey>("x-media-tracker-library-group-by", "none", one_of(...group_keys));
   const [layout, set_layout] = use_pref<Layout>("x-media-tracker-library-layout", "posters", one_of("posters", "table"));
   const { refresh, start: start_refresh } = use_library_refresh();
   const refreshing = refresh?.state === "running";
@@ -164,6 +187,7 @@ function LibraryPage({ library, settings }: { library: Library; settings: Record
   const counts = facet_counts(library.titles, filters, library.collections, shown_groups.map((group) => group.id));
   const shown = sort_titles(filter_titles(library.titles, filters, library.collections), sort_key, descending);
   const poster_size = String(settings["library.poster_size"]);
+  const groupings = title_groupings(library.collections);
 
   return (
     <Stack>
@@ -222,15 +246,7 @@ function LibraryPage({ library, settings }: { library: Library; settings: Record
         <button type="button" className="icon" aria-label={descending ? "Sort ascending" : "Sort descending"} onClick={() => set_descending(!descending)}>
           {descending ? "↓" : "↑"}
         </button>
-        <Segmented
-          label="Grouping"
-          choices={[
-            { value: "flat", label: "All together" },
-            { value: "grouped", label: "By collection" },
-          ]}
-          value={grouped ? "grouped" : "flat"}
-          on_change={(choice) => set_grouped(choice === "grouped")}
-        />
+        <Select label="Group by" options={group_keys.map((key) => [key, key === "none" ? "Nothing" : groupings[key].label] as [GroupKey, string])} value={group_by} on_change={set_group_by} />
         <Segmented
           label="Layout"
           choices={[
@@ -245,14 +261,8 @@ function LibraryPage({ library, settings }: { library: Library; settings: Record
         <Empty title="Nothing tracked yet." hint="Search for a movie or show in the bar at the top to add it." />
       ) : shown.length === 0 ? (
         <Empty title="No titles match these filters." />
-      ) : grouped ? (
-        group_by_collection(shown, library.collections).map(([heading, titles]) => (
-          <Section key={heading} title={`${heading} (${titles.length})`}>
-            <Titles titles={titles} poster_size={poster_size} layout={layout} />
-          </Section>
-        ))
       ) : (
-        <Titles titles={shown} poster_size={poster_size} layout={layout} />
+        <Titles titles={shown} grouping={group_by === "none" ? undefined : groupings[group_by]} poster_size={poster_size} layout={layout} />
       )}
     </Stack>
   );

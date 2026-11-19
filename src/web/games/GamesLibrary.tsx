@@ -34,13 +34,16 @@ import {
   owned_platforms_of,
   owned_stores_of,
   sort_games,
+  type GameCollection,
   type GameFilters,
   type GameSortKey,
+  type GameStatus,
   type LibraryGame,
 } from "../../shared/games/model.ts";
 import type { Games, GamesRefreshReport } from "../../shared/games/store.ts";
 import { game_href, game_status_menu_items, stars_text } from "./actions.tsx";
 import { use_cover } from "../covers.tsx";
+import { GroupedList, rating_key, type Grouping } from "../grouping.tsx";
 
 // ── Remembered view ──────────────────────────────────────────────────────────
 
@@ -106,15 +109,39 @@ const table_columns: TableColumn<LibraryGame>[] = [
   { label: "Actions", id: "actions", header: <span className="visually-hidden">Actions</span>, class: "actions-cell", cell: (game) => <GameActions game={game} /> },
 ];
 
-function GameList({ games, layout }: { games: LibraryGame[]; layout: Layout }) {
-  if (layout === "table") return <DataTable caption="Games" columns={table_columns} rows={games} row_key={(game) => game.id} />;
-  return (
-    <MediaGrid label="Games">
-      {games.map((game) => (
-        <GameTile key={game.id} game={game} />
-      ))}
-    </MediaGrid>
-  );
+function GameTable({ games }: { games: LibraryGame[] }) {
+  return <DataTable caption="Games" columns={table_columns} rows={games} row_key={(game) => game.id} />;
+}
+
+function GameList({ games, grouping, layout }: { games: LibraryGame[]; grouping: Grouping<LibraryGame> | undefined; layout: Layout }) {
+  const tile = (game: LibraryGame) => <GameTile key={game.id} game={game} />;
+  if (grouping) return <GroupedList items={games} grouping={grouping} as_table={layout === "table"} tile={tile} table={(members) => <GameTable games={members} />} />;
+  if (layout === "table") return <GameTable games={games} />;
+  return <MediaGrid label="Games">{games.map(tile)}</MediaGrid>;
+}
+
+// ── Groups ───────────────────────────────────────────────────────────────────
+
+const group_keys = ["none", "status_group", "status", "platform", "store", "collection", "year", "rating"] as const;
+
+type GroupKey = (typeof group_keys)[number];
+
+// The ways the games can be grouped, the collections named by the library's own.
+function game_groupings(collections: GameCollection[]): Record<Exclude<GroupKey, "none">, Grouping<LibraryGame>> {
+  const collection_names = new Map(collections.map((collection) => [collection.id, collection.name]));
+  return {
+    status_group: { label: "Status group", keys_of: (game) => game_status_group_of[game.status], order: game_status_groups, name_of: (key) => status_name(key ?? "") },
+    status: { label: "Status", keys_of: (game) => game.status, order: game_statuses, name_of: (key) => (key ? game_status_text(key as GameStatus) : "") },
+    platform: { label: "Owned on", keys_of: (game) => game.owned_platforms, name_of: (key) => key ?? "Not owned" },
+    store: { label: "Owned from", keys_of: (game) => game.owned_stores, name_of: (key) => key ?? "No store" },
+    collection: {
+      label: "Collection",
+      keys_of: (game) => game.collection_ids.flatMap((id) => collection_names.get(id) ?? []),
+      name_of: (key) => key ?? "In no collection",
+    },
+    year: { label: "Year", keys_of: (game) => game.year || null, descending: true, name_of: (key) => key ?? "No year" },
+    rating: { label: "Rating", keys_of: (game) => rating_key(game.rating), descending: true, name_of: (key) => (key ? `★ ${key}` : "Unrated") },
+  };
 }
 
 function with_count(label: string, count: number | undefined): string {
@@ -138,6 +165,7 @@ function LibraryPage({ library }: { library: Games }) {
   const [sort_key, set_sort_key] = use_pref<GameSortKey>("x-media-tracker-games-sort", "title", one_of(...game_sort_keys));
   const [descending, set_descending] = use_pref("x-media-tracker-games-descending", false, is_boolean);
   const [layout, set_layout] = use_pref<Layout>("x-media-tracker-games-layout", "covers", one_of("covers", "table"));
+  const [group_by, set_group_by] = use_pref<GroupKey>("x-media-tracker-games-group-by", "none", one_of(...group_keys));
   const { refresh, start: start_refresh } = use_games_refresh();
   const refreshing = refresh?.state === "running";
 
@@ -153,6 +181,7 @@ function LibraryPage({ library }: { library: Games }) {
   const set_filter = (change: Partial<GameFilters>) => set_remembered({ ...remembered, ...change });
   const counts = game_facet_counts(library.games, filters);
   const shown = sort_games(filter_games(library.games, filters), sort_key, descending);
+  const groupings = game_groupings(library.collections);
 
   return (
     <Stack>
@@ -217,6 +246,7 @@ function LibraryPage({ library }: { library: Games }) {
         <button type="button" className="icon" aria-label={descending ? "Sort ascending" : "Sort descending"} onClick={() => set_descending(!descending)}>
           {descending ? "↓" : "↑"}
         </button>
+        <Select label="Group by" options={group_keys.map((key) => [key, key === "none" ? "Nothing" : groupings[key].label] as [GroupKey, string])} value={group_by} on_change={set_group_by} />
         <Segmented
           label="Layout"
           choices={[
@@ -232,7 +262,7 @@ function LibraryPage({ library }: { library: Games }) {
       ) : shown.length === 0 ? (
         <Empty title="No games match these filters." />
       ) : (
-        <GameList games={shown} layout={layout} />
+        <GameList games={shown} grouping={group_by === "none" ? undefined : groupings[group_by]} layout={layout} />
       )}
     </Stack>
   );
