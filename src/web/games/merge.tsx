@@ -35,6 +35,7 @@ const fields: MergeFieldSpec[] = [
   { id: "review", label: "Review", columns: ["review"], personal: true },
   { id: "notes", label: "Notes", columns: ["notes"], personal: true },
   { id: "owned_platforms", label: "Owned on", columns: ["owned_platforms"], personal: true, combine: combine_arrays },
+  { id: "owned_stores", label: "Owned from", columns: ["owned_stores"], personal: true, combine: combine_arrays },
   { id: "edition", label: "Edition", columns: ["edition"], personal: true },
   { id: "playtime_minutes", label: "Playtime", columns: ["playtime_minutes"], personal: true, text: (value) => format_playtime(Number(value) || 0) },
   { id: "last_played", label: "Last played", columns: ["last_played"], personal: true },

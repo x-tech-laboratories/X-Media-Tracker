@@ -1,4 +1,5 @@
-// The Games library: every tracked game as a cover or a table row, narrowed by status, platform owned on and collection,
+// The Games library: every tracked game as a cover or a table row, narrowed by status, platform owned on, store owned
+// from and collection,
 // each choice showing how many games it would leave, and sorted.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
@@ -31,6 +32,7 @@ import {
   game_statuses,
   no_game_filters,
   owned_platforms_of,
+  owned_stores_of,
   sort_games,
   type GameFilters,
   type GameSortKey,
@@ -97,6 +99,7 @@ const table_columns: TableColumn<LibraryGame>[] = [
   { label: "Status", cell: (game) => game_status_text(game.status) },
   { label: "Rating", cell: (game) => stars_text(game.rating) || "—" },
   { label: "Owned on", cell: (game) => game.owned_platforms.join(", ") || "—" },
+  { label: "Owned from", cell: (game) => game.owned_stores.join(", ") || "—" },
   { label: "Playtime", cell: (game) => format_playtime(game.playtime_minutes) || "—" },
   { label: "Last played", cell: (game) => game.last_played || "—" },
   { label: "Added", cell: (game) => game.added_at || "—" },
@@ -139,12 +142,14 @@ function LibraryPage({ library }: { library: Games }) {
   const refreshing = refresh?.state === "running";
 
   const platforms = owned_platforms_of(library.games);
-  // A remembered platform or collection that is gone stops applying.
+  const stores = owned_stores_of(library.games);
+  // A remembered platform, store or collection that is gone stops applying.
   const platform = remembered.platform === "all" || remembered.platform === "none" || platforms.includes(remembered.platform) ? remembered.platform : "all";
+  const store = remembered.store === "all" || remembered.store === "none" || stores.includes(remembered.store) ? remembered.store : "all";
   const collection = remembered.collection === "all" || remembered.collection === "none" || library.collections.some((each) => each.id === remembered.collection) ? remembered.collection : "all";
   // A remembered status from before IGDB's statuses stops applying too.
   const status = status_filters.includes(remembered.status) ? remembered.status : "all";
-  const filters: GameFilters = { ...remembered_defaults, ...remembered, search: "", status, platform, collection };
+  const filters: GameFilters = { ...remembered_defaults, ...remembered, search: "", status, platform, store, collection };
   const set_filter = (change: Partial<GameFilters>) => set_remembered({ ...remembered, ...change });
   const counts = game_facet_counts(library.games, filters);
   const shown = sort_games(filter_games(library.games, filters), sort_key, descending);
@@ -185,6 +190,16 @@ function LibraryPage({ library }: { library: Games }) {
           ]}
           value={filters.platform}
           on_change={(chosen) => set_filter({ platform: chosen })}
+        />
+        <Select
+          label="Owned from"
+          options={[
+            ["all", with_count("Any store", counts.store.all)],
+            ...stores.map((each) => [each, with_count(each, counts.store[each])] as [string, string]),
+            ["none", with_count("No store", counts.store.none)],
+          ]}
+          value={filters.store}
+          on_change={(chosen) => set_filter({ store: chosen })}
         />
         {library.collections.length > 0 && (
           <Select

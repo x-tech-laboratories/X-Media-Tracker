@@ -162,6 +162,8 @@ const hour_in_milliseconds = 60 * 60 * 1000;
 
 const steam_platform = "PC";
 
+const steam_store = "Steam";
+
 // ── Reading ──────────────────────────────────────────────────────────────────
 
 function parse_list(text: string): string[] {
@@ -182,6 +184,7 @@ export function list_games(database: SqlDatabase, ids?: string[]): LibraryGame[]
     ...row,
     status: game_status_of(row.status),
     owned_platforms: parse_list(row.owned_platforms),
+    owned_stores: parse_list(row.owned_stores),
     collection_ids: collections_of.get(row.id) ?? [],
   }));
 }
@@ -419,12 +422,12 @@ function owned_status(status: GameStatus, playtime_minutes: number): GameStatus 
   return status === "wishlist" ? "backlog" : status;
 }
 
-function with_platform(text: string, platform: string): string {
-  return JSON.stringify(clean_names([...parse_list(text), platform]));
+function with_name(text: string, name: string): string {
+  return JSON.stringify(clean_names([...parse_list(text), name]));
 }
 
 // Steam's playtime and last day played replace older ones, a game owned leaves the Wishlist, a game played moves on
-// from Want to play, and every game it lists is owned on PC.
+// from Want to play, and every game it lists is owned on PC from Steam.
 function import_owned(database: SqlDatabase, owned: OwnedGame[]): GameImportReport {
   const db = drizzle_of(database);
   const report: GameImportReport = { added: 0, updated: 0 };
@@ -438,7 +441,8 @@ function import_owned(database: SqlDatabase, owned: OwnedGame[]): GameImportRepo
           playtime_minutes: Math.max(row.playtime_minutes, game.playtime_minutes),
           last_played: later_day(row.last_played, game.last_played),
           status: owned_status(game_status_of(row.status), game.playtime_minutes),
-          owned_platforms: with_platform(row.owned_platforms, steam_platform),
+          owned_platforms: with_name(row.owned_platforms, steam_platform),
+          owned_stores: with_name(row.owned_stores, steam_store),
           cover_url: steam_art(row.cover_url, game),
         })
         .where(eq(games_games.id, existing))
@@ -454,6 +458,7 @@ function import_owned(database: SqlDatabase, owned: OwnedGame[]): GameImportRepo
         cover_url: game.cover_url,
         status: owned_status("backlog", game.playtime_minutes),
         owned_platforms: JSON.stringify([steam_platform]),
+        owned_stores: JSON.stringify([steam_store]),
         playtime_minutes: game.playtime_minutes,
         last_played: game.last_played,
         added_at: today(),
@@ -768,7 +773,7 @@ async function run_refresh(database: SqlDatabase, refresh: GamesRefresh): Promis
 const game_merge_columns = {
   ...Object.fromEntries(game_id_keys.map((key) => [key, "text"])),
   ...Object.fromEntries(
-    ["title", "year", "release_date", "overview", "cover_url", "cover_file", "cover_file_from", "genres", "platforms", "developers", "publishers", "status", "review", "notes", "owned_platforms", "edition", "last_played", "added_at", "base_game", "base_game_title"].map((key) => [
+    ["title", "year", "release_date", "overview", "cover_url", "cover_file", "cover_file_from", "genres", "platforms", "developers", "publishers", "status", "review", "notes", "owned_platforms", "owned_stores", "edition", "last_played", "added_at", "base_game", "base_game_title"].map((key) => [
       key,
       "text",
     ]),
@@ -797,7 +802,9 @@ function merge_into(database: SqlDatabase, ids: string[], keep: string, values: 
   const merged = merge_ids(ids, keep);
   for (const id of merged) require_game(database, id);
   const stored = { ...values };
-  if ("owned_platforms" in stored && typeof stored.owned_platforms !== "string") stored.owned_platforms = JSON.stringify(clean_names(stored.owned_platforms as string[]));
+  for (const key of ["owned_platforms", "owned_stores"]) {
+    if (key in stored && typeof stored[key] !== "string") stored[key] = JSON.stringify(clean_names(stored[key] as string[]));
+  }
   const fields = merge_columns(stored, game_merge_columns);
   if (fields.status !== undefined && !is_game_status(fields.status)) throw new Error(`Unknown status: ${String(fields.status)}.`);
   const db = drizzle_of(database);
@@ -902,6 +909,11 @@ export const games_feature = define_feature({
     set_game_platforms: (database: SqlDatabase, id: string, platforms: string[]): void => {
       if (!Array.isArray(platforms)) throw new Error("Platforms are a list of names, such as PC or Nintendo Switch.");
       update_game(database, id, { owned_platforms: JSON.stringify(clean_names(platforms.map(String))) });
+    },
+
+    set_game_stores: (database: SqlDatabase, id: string, stores: string[]): void => {
+      if (!Array.isArray(stores)) throw new Error("Stores are a list of names, such as Steam or GOG.");
+      update_game(database, id, { owned_stores: JSON.stringify(clean_names(stores.map(String))) });
     },
 
     set_game_edition: (database: SqlDatabase, id: string, edition: string): void => update_game(database, id, { edition: edition.trim() }),

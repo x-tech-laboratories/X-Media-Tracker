@@ -47,6 +47,8 @@ export const games_games = sqliteTable(
     notes: text().notNull().default(""),
     // The platforms a copy is owned on, as a JSON list.
     owned_platforms: text().notNull().default("[]"),
+    // The stores a copy is owned from, as a JSON list.
+    owned_stores: text().notNull().default("[]"),
     edition: text().notNull().default(""),
     playtime_minutes: integer().notNull().default(0),
     last_played: text().notNull().default(""),

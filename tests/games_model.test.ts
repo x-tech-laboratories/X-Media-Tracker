@@ -50,6 +50,7 @@ function game(fields: Partial<LibraryGame>): LibraryGame {
     review: "",
     notes: "",
     owned_platforms: [],
+    owned_stores: [],
     edition: "",
     playtime_minutes: 0,
     last_played: "",
@@ -131,17 +132,19 @@ describe("joining catalogue answers", () => {
 
 describe("the Games library", () => {
   const games = [
-    game({ id: "a", title: "Hades", status: "currently_playing", owned_platforms: ["PC", "Nintendo Switch"], collection_ids: ["c1"], playtime_minutes: 600, rating: 9 }),
-    game({ id: "b", title: "Celeste", status: "completed", owned_platforms: ["PC"], playtime_minutes: 300 }),
+    game({ id: "a", title: "Hades", status: "currently_playing", owned_platforms: ["PC", "Nintendo Switch"], owned_stores: ["Steam", "Nintendo eShop"], collection_ids: ["c1"], playtime_minutes: 600, rating: 9 }),
+    game({ id: "b", title: "Celeste", status: "completed", owned_platforms: ["PC"], owned_stores: ["GOG"], playtime_minutes: 300 }),
     game({ id: "c", title: "Outer Wilds", status: "wishlist" }),
   ];
 
-  it("filters by status, platform and collection", () => {
+  it("filters by status, platform, store and collection", () => {
     expect(filter_games(games, { ...no_game_filters, status: "completed" }).map((each) => each.id)).toEqual(["b"]);
     expect(filter_games(games, { ...no_game_filters, status: "played" }).map((each) => each.id)).toEqual(["b"]);
     expect(filter_games(games, { ...no_game_filters, status: "want_to_play" }).map((each) => each.id)).toEqual(["c"]);
     expect(filter_games(games, { ...no_game_filters, platform: "PC" }).map((each) => each.id)).toEqual(["a", "b"]);
     expect(filter_games(games, { ...no_game_filters, platform: "none" }).map((each) => each.id)).toEqual(["c"]);
+    expect(filter_games(games, { ...no_game_filters, store: "GOG" }).map((each) => each.id)).toEqual(["b"]);
+    expect(filter_games(games, { ...no_game_filters, store: "none" }).map((each) => each.id)).toEqual(["c"]);
     expect(filter_games(games, { ...no_game_filters, collection: "c1" }).map((each) => each.id)).toEqual(["a"]);
     expect(filter_games(games, { ...no_game_filters, search: "wild" }).map((each) => each.id)).toEqual(["c"]);
   });
@@ -150,6 +153,7 @@ describe("the Games library", () => {
     const counts = game_facet_counts(games, { ...no_game_filters, status: "playing" });
     expect(counts.status).toEqual({ all: 3, playing: 1, currently_playing: 1, played: 1, completed: 1, want_to_play: 1, wishlist: 1 });
     expect(counts.platform).toEqual({ all: 1, PC: 1, "Nintendo Switch": 1 });
+    expect(counts.store).toEqual({ all: 1, Steam: 1, "Nintendo eShop": 1 });
   });
 
   it("keeps DLC out of the games until asked for, and finds its base game by any id", () => {
