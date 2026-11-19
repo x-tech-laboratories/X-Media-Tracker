@@ -13,7 +13,7 @@ import { games_feature } from "./games/store.ts";
 import { forget_synced_changes, history_feature, install_history, record_history } from "./history/store.ts";
 import { is_read_only } from "./page_api.ts";
 import { library_feature } from "./library/store.ts";
-import { settings_feature } from "./settings.ts";
+import { know_secret_settings, settings_feature } from "./settings.ts";
 import { sources_feature } from "./sources/store.ts";
 import { stremio_feature } from "./sources/stremio/store.ts";
 import { trakt_feature } from "./sources/trakt/store.ts";
@@ -26,6 +26,7 @@ export const sync_engine = create_sync_engine({ tables: features.flatMap((featur
 
 // Settings holding another service's key or token, left out of what other programs read.
 export const secret_settings = features.flatMap((feature) => feature.secret_settings ?? []);
+know_secret_settings(secret_settings);
 
 export const setting_defaults = Object.assign({}, ...features.map((feature) => feature.setting_defaults ?? {})) as Record<string, unknown>;
 

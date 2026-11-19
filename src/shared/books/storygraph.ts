@@ -3,7 +3,8 @@
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
-import { csv_records, write_csv } from "./csv.ts";
+import { csv_records, write_csv } from "@x-tech-laboratories/x-libs/csv";
+
 import { clean_isbn, type BookFormat, type BookStatus, type LibraryBook } from "./model.ts";
 
 // ── Reading ──────────────────────────────────────────────────────────────────

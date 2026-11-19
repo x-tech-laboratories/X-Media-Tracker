@@ -9,6 +9,7 @@ import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sq
 
 import { Background, define_feature, drizzle_of, new_id } from "../feature.ts";
 import { merge_columns, merge_ids, type SourceAnswers } from "../merging.ts";
+import type { TransferFile, TransferInput, TransferReport } from "../transfer.ts";
 import { library_api } from "./api.ts";
 import { migrations } from "./migrations/index.ts";
 import {
@@ -30,6 +31,7 @@ import {
 } from "./model.ts";
 import { library_collection_groups, library_collections, library_episodes, library_tables, library_title_collections, library_titles } from "./schema.ts";
 import { library_secret_settings, library_setting_defaults } from "./settings.ts";
+import { export_library_csv, export_library_json, import_library_file } from "./transfer.ts";
 import { create_tmdb, resolve_details, type Tmdb, type TmdbDetails, type TmdbFullDetails, type TmdbTitle } from "./tmdb.ts";
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
@@ -481,6 +483,10 @@ export const library_feature = define_feature({
     },
 
     get_library_refresh: (database: SqlDatabase): LibraryRefresh => snapshot_of(refreshes.get(database) ?? no_refresh),
+
+    export_library_json: (database: SqlDatabase): TransferFile => export_library_json(database),
+    export_library_csv: (database: SqlDatabase): Record<string, string> => export_library_csv(database),
+    import_library_file: (database: SqlDatabase, input: TransferInput): TransferReport => import_library_file(database, input),
   },
   api: library_api,
 });

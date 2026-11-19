@@ -24,7 +24,9 @@ import { send_book_alerts } from "./book_alerts.ts";
 import { keep_checking_releases } from "../shared/books/schedule.ts";
 import { keep_syncing_stores } from "../shared/games/schedule.ts";
 import { keep_importing } from "../shared/sources/schedule.ts";
-import { bind_methods, media_api, is_read_only, secret_settings, sync_engine, type MediaMethods } from "../shared/store.ts";
+import { bind_methods, media_api, is_read_only, sync_engine, type MediaMethods } from "../shared/store.ts";
+import { without_secret_settings } from "../shared/settings.ts";
+import type { SettingsFile } from "../shared/transfer.ts";
 
 // ── Options ──────────────────────────────────────────────────────────────────
 
@@ -56,8 +58,9 @@ const instructions = [
 // Settings that hold another service's key, which stay on the server and in the page's own settings.
 
 function without_secrets(method: string, result: unknown): unknown {
+  if (method === "export_settings") return { ...(result as SettingsFile), settings: without_secret_settings((result as SettingsFile).settings) };
   if (method !== "get_settings") return result;
-  return Object.fromEntries(Object.entries(result as Record<string, unknown>).filter(([key]) => !secret_settings.includes(key)));
+  return without_secret_settings(result as Record<string, unknown>);
 }
 
 // ── App ──────────────────────────────────────────────────────────────────────

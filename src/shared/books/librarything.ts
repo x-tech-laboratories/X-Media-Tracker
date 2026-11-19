@@ -3,7 +3,8 @@
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
-import { csv_records, tsv_records } from "./csv.ts";
+import { csv_records, tsv_records } from "@x-tech-laboratories/x-libs/csv";
+
 import { clean_isbn, type BookFormat, type BookStatus } from "./model.ts";
 import { column, day_of, rating_of, type ImportedBook, type ImportedRead } from "./storygraph.ts";
 

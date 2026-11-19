@@ -1,6 +1,6 @@
 // The games' settings: the catalogues' keys and IGDB's Twitch app, the statuses and how new games start, collections, the Steam profile whose library and
 // wishlist come in and how often, the status each Steam category gives, the itch.io and Epic Games Store accounts whose
-// libraries come in, and IGDB's import.
+// libraries come in, IGDB's import, and the games' own import and export.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -15,6 +15,8 @@ import { calls, page, use_data } from "../api.ts";
 import { read_picked } from "../files.ts";
 import type { FeatureSettingsProps } from "../features.tsx";
 import { SecretRow, TextRow } from "../settings/rows.tsx";
+import { transfer_section } from "../transfer.tsx";
+import { game_merge } from "./merge.tsx";
 import {
   game_status_group_labels,
   game_status_groups,
@@ -524,5 +526,17 @@ export function game_settings(props: FeatureSettingsProps): SettingsSection[] {
       content: <EpicSettings {...props} />,
     },
     { id: "igdb", heading: "IGDB", hint: "IGDB's API gives only its catalogue, so your IGDB lists come in through its data export.", content: <IgdbSettings /> },
+    transfer_section({
+      name: "games",
+      noun: "game",
+      holds: "Every game with its status, rating, review, notes, owned platforms and stores, edition, playtime and ids, and the collections.",
+      export_json: () => calls().export_games_json(),
+      export_csv: () => calls().export_games_csv(),
+      import_file: (input) => calls().import_games_file(input),
+      merging: async () => {
+        const games = await calls().list_games();
+        return { kind: game_merge(games.statuses), items: games.games };
+      },
+    }),
   ];
 }

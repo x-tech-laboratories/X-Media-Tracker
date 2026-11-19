@@ -30,5 +30,15 @@ export const categories: JsonSchema = {
 
 export const json_file: JsonSchema = { type: "string", description: "The whole file's text." };
 
+// A file read for an import: a JSON export, or one CSV file per table.
+export const transfer_input: JsonSchema = {
+  type: "object",
+  description: 'The file read: { "json": <the JSON export> }, or { "csv": { "<table>.csv": "<its text>", … } } with one CSV file per table, as the matching export gives them.',
+  properties: {
+    json: { description: "The JSON export, as an object or its text." },
+    csv: { type: "object", additionalProperties: { type: "string" }, description: "Each CSV file's whole text by its name, such as titles.csv." },
+  },
+};
+
 // One step through a list: -1 moves it up, 1 down.
 export const step: JsonSchema = { type: "integer", enum: [-1, 1], description: "-1 moves it one place earlier, 1 one place later." };

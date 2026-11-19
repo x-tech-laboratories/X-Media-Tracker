@@ -70,8 +70,8 @@ on the Settings page.
   and joins the same book into one result. Hardcover is reached only with the user's key from settings, which never
   appears in an error or a log.
 - `storygraph.ts` reads StoryGraph's export CSV and writes the Goodreads library CSV StoryGraph and LibraryThing
-  import; `librarything.ts` reads LibraryThing's tab-separated or CSV export into the same shape; `csv.ts` reads and
-  writes CSV and reads LibraryThing's unquoted TSV.
+  import; `librarything.ts` reads LibraryThing's tab-separated or CSV export into the same shape, both through X-Libs'
+  `csv`.
 - `schedule.ts` runs `run_release_check` hourly on the server and the desktop; the check's last run syncs, so they do
   not both run it. A follow's first check stores what it finds as already alerted. The server's
   `src/server/book_alerts.ts` then sends one alert per book still unalerted through X-Libs' `server/notify` channels,
@@ -138,6 +138,18 @@ before a merge writes. Each feature's store has `lookup_<kind>_sources`, each ca
 lookups as adding, and `merge_<kind>s`, which writes the values picked onto the copy kept, moves the others' reads,
 journal, episodes and collections to it, points DLC at it and removes them, in one transaction. The page's window is
 `src/web/merging.tsx` on X-Libs' `MergeGrid`, with each feature's fields in `src/web/<feature>/merge.tsx`.
+
+## Import and export
+
+`src/shared/transfer.ts` moves a section in and out as tables: `transfer_file` writes them as one JSON export,
+`transfer_csv` as one CSV file per table through X-Libs' `csv`, and `read_transfer` reads either back into rows typed
+by each column, refusing another section's export. `meet_row` fills what a tracked item lacks and calls a different
+value of a column the user keeps a conflict. Each feature's `transfer.ts` names its tables and the columns the user
+keeps, and its `import_<kind>_file` matches items by any id, maps collections by name, adds episodes, reads and journal
+entries without repeats, and answers the conflicts with the file's values. The page (`src/web/transfer.tsx`) zips and
+unzips the CSV files through X-Libs' `zip`, and `settle_imported` opens the merge window for each conflict with the
+file as a column. Settings travel on their own as `export_settings` and `import_settings`, which leave out the secret
+settings each feature names unless asked.
 
 ## History
 

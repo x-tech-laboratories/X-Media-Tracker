@@ -131,6 +131,11 @@ describe("server", () => {
     expect(values).not.toHaveProperty("library.tmdb_api_key");
     expect(values).not.toHaveProperty("trakt.access_token");
     expect(values).toHaveProperty("trakt.client_id");
+
+    const exported = await mcp("tools/call", { name: "export_settings", arguments: { include_secrets: true } });
+    const file = JSON.parse((exported.content as { text: string }[])[0]!.text) as { kind: string; settings: Record<string, unknown> };
+    expect(file.kind).toBe("settings");
+    expect(file.settings).not.toHaveProperty("library.tmdb_api_key");
   });
 
   it("serves sync to devices", async () => {

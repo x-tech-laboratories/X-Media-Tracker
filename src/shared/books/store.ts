@@ -10,6 +10,7 @@ import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sq
 
 import { Background, define_feature, drizzle_of, new_id } from "../feature.ts";
 import { merge_columns, merge_ids, type SourceAnswers } from "../merging.ts";
+import type { TransferFile, TransferInput, TransferReport } from "../transfer.ts";
 import { books_api } from "./api.ts";
 import { create_bookbrainz } from "./bookbrainz.ts";
 import { catalog_labels, empty_book, join_results, merge_books, merge_refs, same_book, title_words, type CatalogBook, type CatalogRelease, type CatalogSeries, type CatalogSource } from "./catalog.ts";
@@ -46,6 +47,7 @@ import { create_openlibrary } from "./openlibrary.ts";
 import { books_book_collections, books_books, books_collections, books_follows, books_goals, books_journal, books_reads, books_releases, books_tables } from "./schema.ts";
 import { books_secret_settings, books_setting_defaults } from "./settings.ts";
 import { read_librarything_export } from "./librarything.ts";
+import { export_books_csv, export_books_json, import_books_file } from "./transfer.ts";
 import { read_storygraph_csv, write_goodreads_csv, type ImportedBook } from "./storygraph.ts";
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
@@ -201,7 +203,7 @@ export function find_book(database: SqlDatabase, ids: Partial<BookIds>): string 
 }
 
 // A book with no catalogue id, such as one imported from StoryGraph or LibraryThing without an ISBN, found by its title and first author.
-function find_by_title(database: SqlDatabase, title: string, authors: string): string {
+export function find_by_title(database: SqlDatabase, title: string, authors: string): string {
   const words = title_words(title);
   const author = authors.split(",")[0]!.trim().toLowerCase();
   const rows = drizzle_of(database).select({ id: books_books.id, title: books_books.title, authors: books_books.authors }).from(books_books).all();
@@ -218,7 +220,7 @@ function open_read(database: SqlDatabase, book_id: string): typeof books_reads.$
 }
 
 // The day last finished follows the reads, so editing or removing one keeps it right.
-function settle_last_read(database: SqlDatabase, book_id: string): void {
+export function settle_last_read(database: SqlDatabase, book_id: string): void {
   const db = drizzle_of(database);
   const finished = db
     .select({ finished_on: books_reads.finished_on })
@@ -1014,6 +1016,10 @@ export const books_feature = define_feature({
       const names = new Map(drizzle_of(database).select().from(books_collections).all().map((collection) => [collection.id, collection.name]));
       return write_goodreads_csv(list_books(database), names);
     },
+
+    export_books_json: (database: SqlDatabase): TransferFile => export_books_json(database),
+    export_books_csv: (database: SqlDatabase): Record<string, string> => export_books_csv(database),
+    import_books_file: (database: SqlDatabase, input: TransferInput): TransferReport => import_books_file(database, input),
 
     // Starts fetching every book's details again in the background, or answers with the refresh already running.
     refresh_books: (database: SqlDatabase): Background<BooksRefresh> => {

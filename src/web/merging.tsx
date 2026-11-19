@@ -1,5 +1,6 @@
 // The merge window: one movie, show, book or game as each tracked copy of it and each catalogue knows it, side by side,
-// one row per field, so the value each field keeps is picked from any of them; tracked copies merged become one.
+// one row per field, so the value each field keeps is picked from any of them; tracked copies merged become one. After
+// an import it settles, one item at a time, each tracked item the file said otherwise of.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -17,6 +18,7 @@ import { plural } from "@x-tech-laboratories/x-libs/web/format";
 import { is_boolean } from "@x-tech-laboratories/x-libs/web/prefs";
 
 import type { SourceAnswers } from "../shared/merging.ts";
+import type { ImportConflict } from "../shared/transfer.ts";
 import { use_cover } from "./covers.tsx";
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
@@ -60,6 +62,18 @@ export interface MergeKind<Item extends Tracked> {
   // Where the kept item's page is, opened when another one than the open one is kept.
   href: (id: string) => string;
 }
+
+// The item as an imported file has it, settled against the tracked one, with where it stands among the others to settle.
+export interface ImportedCopy {
+  values: Record<string, unknown>;
+  // Such as "2 of 5".
+  place: string;
+  skip_rest: () => void;
+}
+
+const file_key = "file";
+
+const no_sources: SourceAnswers = { answers: [], failures: [] };
 
 // ── Picking ──────────────────────────────────────────────────────────────────
 
@@ -152,11 +166,13 @@ function AddDuplicates<Item extends Tracked>({ kind, items, picked, start, on_ad
 
 // ── Window ───────────────────────────────────────────────────────────────────
 
-function MergeWindow<Item extends Tracked>({ kind, start, items, close }: { kind: MergeKind<Item>; start: Item; items: Item[]; close: () => void }) {
+function MergeWindow<Item extends Tracked>({ kind, start, items, close, imported }: { kind: MergeKind<Item>; start: Item; items: Item[]; close: () => void; imported?: ImportedCopy }) {
   const [picked, set_picked] = useState<string[]>([start.id]);
-  const sources = use_resource(() => kind.lookup_sources(start.id), [start.id]);
-  const [preferred, set_preferred] = useState(start.id);
+  // An import settles against the file alone, without asking the catalogues.
+  const sources = use_resource(() => (imported ? Promise.resolve(no_sources) : kind.lookup_sources(start.id)), [start.id]);
+  const [preferred, set_preferred] = useState(imported ? file_key : start.id);
   const [keep, set_keep] = useState(start.id);
+  const [personal_preferred, set_personal_preferred] = useState(file_key);
   const [detail_choices, set_detail_choices] = useState<MergeChoices>({});
   const [personal_choices, set_personal_choices] = useState<MergeChoices>({});
   const [only_differences, set_only_differences] = use_pref("x-media-tracker-merge-only-differences", false, is_boolean);
@@ -165,15 +181,19 @@ function MergeWindow<Item extends Tracked>({ kind, start, items, close }: { kind
   const tracked = picked.flatMap((id) => items.filter((item) => item.id === id));
   const tracked_columns: MergeColumn[] = tracked.map((item, index) => ({ key: item.id, label: tracked.length > 1 ? `Tracked ${index + 1}` : "Tracked", tracked: true, values: item as unknown as Record<string, unknown> }));
   const source_columns: MergeColumn[] = (sources.data?.answers ?? []).map((answer) => ({ key: `source:${answer.source}`, label: answer.label, tracked: false, values: answer.values }));
-  const detail_columns = [...tracked_columns, ...source_columns];
+  const file_columns: MergeColumn[] = imported ? [{ key: file_key, label: "From the file", tracked: false, values: imported.values }] : [];
+  const detail_columns = [...tracked_columns, ...file_columns, ...source_columns];
+  const personal_columns = [...tracked_columns, ...file_columns];
+  const shows_personal = tracked.length > 1 || imported !== undefined;
+  const personal_survivor = imported ? personal_preferred : keep;
   const detail_specs = kind.fields.filter((spec) => !spec.personal);
   const personal_specs = kind.fields.filter((spec) => spec.personal);
   const detail_fields = detail_specs.map(grid_field);
   const personal_fields = personal_specs.map(grid_field);
   const detail_effective = fill_empty_choices(detail_fields, detail_columns, preferred, detail_choices, false);
-  const personal_effective = fill_empty_choices(personal_fields, tracked_columns, keep, personal_choices, true);
+  const personal_effective = fill_empty_choices(personal_fields, personal_columns, personal_survivor, personal_choices, true);
 
-  const differences = detail_fields.filter((field) => is_conflict(field, detail_columns)).length + (tracked.length > 1 ? personal_fields.filter((field) => is_conflict(field, tracked_columns)).length : 0);
+  const differences = detail_fields.filter((field) => is_conflict(field, detail_columns)).length + (shows_personal ? personal_fields.filter((field) => is_conflict(field, personal_columns)).length : 0);
 
   const heading = (column: MergeColumn) => (
     <span className="merge-heading">
@@ -181,10 +201,10 @@ function MergeWindow<Item extends Tracked>({ kind, start, items, close }: { kind
       <span>{column.label}</span>
     </span>
   );
-  const detail_of = (column: MergeColumn) => (column.tracked ? column.key : "From the catalogue");
+  const detail_of = (column: MergeColumn) => (column.tracked ? column.key : column.key === file_key ? "From the file" : "From the catalogue");
 
   const merge = async () => {
-    const values = { ...picked_values(detail_specs, detail_columns, preferred, detail_effective), ...(tracked.length > 1 ? picked_values(personal_specs, tracked_columns, keep, personal_effective) : {}) };
+    const values = { ...picked_values(detail_specs, detail_columns, preferred, detail_effective), ...(shows_personal ? picked_values(personal_specs, personal_columns, personal_survivor, personal_effective) : {}) };
     set_busy(true);
     try {
       await kind.merge(picked, keep, values);
@@ -203,15 +223,27 @@ function MergeWindow<Item extends Tracked>({ kind, start, items, close }: { kind
     if (preferred === id) set_preferred(start.id);
   };
 
+  const title = imported ? `Settle ${kind.name(start)} from the file (${imported.place})` : tracked.length > 1 ? `Merge ${plural(tracked.length, kind.noun)}` : `Pick ${kind.name(start)}'s details`;
+
   return (
     <PageView
-      title={tracked.length > 1 ? `Merge ${plural(tracked.length, kind.noun)}` : `Pick ${kind.name(start)}'s details`}
+      title={title}
       subtitle={differences > 0 ? `${plural(differences, "field")} disagree; click the value to keep in each row` : "Every field agrees"}
       on_close={close}
       class_name="merge-window"
       actions={
         <>
           <Switch label="Only differences" show_label checked={only_differences} on_change={set_only_differences} />
+          {imported && (
+            <>
+              <button type="button" onClick={imported.skip_rest}>
+                Skip the rest
+              </button>
+              <button type="button" onClick={close}>
+                Skip
+              </button>
+            </>
+          )}
           <button type="button" className="accent solid" disabled={busy || differences === 0} onClick={() => void merge()}>
             {busy ? "Saving…" : tracked.length > 1 ? "Merge" : "Save"}
           </button>
@@ -240,19 +272,23 @@ function MergeWindow<Item extends Tracked>({ kind, start, items, close }: { kind
             />
           </Stack>
         </Section>
-        {tracked.length > 1 && (
+        {shows_personal && (
           <Section title="Yours">
             <Stack>
-              <p className="muted small">The copy marked Keep stays and the others are removed into it, with every read, episode, journal entry and collection; History can bring them back.</p>
+              <p className="muted small">
+                {imported
+                  ? `The file's episodes, reads, journal entries and collections are already added; pick what the ${kind.noun} keeps of the rest. History can bring back what it had.`
+                  : "The copy marked Keep stays and the others are removed into it, with every read, episode, journal entry and collection; History can bring them back."}
+              </p>
               <MergeGrid
                 label={`Your tracking of the ${kind.noun}`}
-                items={tracked_columns}
+                items={personal_columns}
                 item_key={(column) => column.key}
                 item_heading={heading}
                 item_detail={(column) => (
                   <span className="merge-heading">
                     <span>{detail_of(column)}</span>
-                    {column.key !== start.id && (
+                    {column.tracked && column.key !== start.id && (
                       <button type="button" className="link" onClick={() => remove(column.key)}>
                         Leave out
                       </button>
@@ -260,17 +296,17 @@ function MergeWindow<Item extends Tracked>({ kind, start, items, close }: { kind
                   </span>
                 )}
                 fields={personal_fields}
-                survivor={keep}
-                on_survivor_change={set_keep}
+                survivor={personal_survivor}
+                on_survivor_change={imported ? set_personal_preferred : set_keep}
                 choices={personal_effective}
                 on_choices_change={set_personal_choices}
                 only_differences={only_differences}
-                labels={{ survivor: "Keep" }}
+                labels={{ survivor: imported ? "Prefer" : "Keep" }}
               />
             </Stack>
           </Section>
         )}
-        <AddDuplicates kind={kind} items={items} picked={picked} start={start} on_add={(id) => set_picked([...picked, id])} />
+        {!imported && <AddDuplicates kind={kind} items={items} picked={picked} start={start} on_add={(id) => set_picked([...picked, id])} />}
       </Stack>
     </PageView>
   );
@@ -280,6 +316,31 @@ function MergeWindow<Item extends Tracked>({ kind, start, items, close }: { kind
 
 export function open_merge<Item extends Tracked>(kind: MergeKind<Item>, start: Item, items: Item[]): void {
   open_dialog((close) => <MergeWindow kind={kind} start={start} items={items} close={close} />);
+}
+
+// Opens the window for each conflict an import found, one after another, until all are saved or skipped.
+export function settle_imported<Item extends Tracked>(kind: MergeKind<Item>, conflicts: ImportConflict[], items: Item[]): void {
+  const queue = conflicts.flatMap((conflict) => {
+    const start = items.find((item) => item.id === conflict.id);
+    return start ? [{ start, values: conflict.values }] : [];
+  });
+  let stopped = false;
+  const open_next = (index: number): void => {
+    const next = queue[index];
+    if (stopped || !next) return;
+    open_dialog((close) => {
+      const finish = () => {
+        close();
+        open_next(index + 1);
+      };
+      const skip_rest = () => {
+        stopped = true;
+        close();
+      };
+      return <MergeWindow kind={kind} start={next.start} items={items} close={finish} imported={{ values: next.values, place: `${index + 1} of ${queue.length}`, skip_rest }} />;
+    });
+  };
+  open_next(0);
 }
 
 export function MergeButton<Item extends Tracked>({ kind, start, items, children = "Merge…" }: { kind: MergeKind<Item>; start: Item; items: Item[]; children?: ReactNode }) {

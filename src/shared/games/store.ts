@@ -12,6 +12,7 @@ import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sq
 import { custom_cover, serves_image } from "../covers.ts";
 import { Background, define_feature, drizzle_of, new_id } from "../feature.ts";
 import { merge_columns, merge_ids, type SourceAnswers } from "../merging.ts";
+import type { TransferFile, TransferInput, TransferReport } from "../transfer.ts";
 import { games_api } from "./api.ts";
 import { catalog_labels, cover_rank, empty_game, join_results, merge_games, same_game, title_words, type CatalogGame } from "./catalog.ts";
 import { create_epic, parse_epic_code, type EpicItem, type OwnedEpicGame } from "./epic.ts";
@@ -53,6 +54,7 @@ import {
 import { create_rawg } from "./rawg.ts";
 import { games_collections, games_game_collections, games_games, games_tables } from "./schema.ts";
 import { games_secret_settings, games_setting_defaults } from "./settings.ts";
+import { export_games_csv, export_games_json, import_games_file } from "./transfer.ts";
 import { create_thegamesdb } from "./thegamesdb.ts";
 import { read_steam_categories, type SteamCategory } from "./steam_collections.ts";
 import { create_steamgriddb, type SteamGridDb } from "./steamgriddb.ts";
@@ -241,7 +243,7 @@ export function find_game(database: SqlDatabase, ids: Partial<GameIds>): string 
 }
 
 // A game with no catalogue id, such as one imported by title alone, found by its title and year.
-function find_by_title(database: SqlDatabase, title: string, year: string): string {
+export function find_by_title(database: SqlDatabase, title: string, year: string): string {
   const words = title_words(title);
   const rows = drizzle_of(database).select({ id: games_games.id, title: games_games.title, year: games_games.year }).from(games_games).all();
   return rows.find((row) => title_words(row.title) === words && (!year || !row.year || row.year === year))?.id ?? "";
@@ -1294,6 +1296,10 @@ export const games_feature = define_feature({
     },
 
     get_games_refresh: (database: SqlDatabase): GamesRefresh => snapshot_of(refreshes.get(database) ?? no_refresh),
+
+    export_games_json: (database: SqlDatabase): TransferFile => export_games_json(database),
+    export_games_csv: (database: SqlDatabase): Record<string, string> => export_games_csv(database),
+    import_games_file: (database: SqlDatabase, input: TransferInput): TransferReport => import_games_file(database, input),
   },
   api: games_api,
 });

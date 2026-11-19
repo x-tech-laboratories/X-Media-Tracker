@@ -1,5 +1,5 @@
 // The books' settings: the Hardcover key, how new books start, collections, how often new books are looked for and where
-// the server sends alerts for them, and StoryGraph's and LibraryThing's import and export.
+// the server sends alerts for them, StoryGraph's and LibraryThing's import and export, and the books' own.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -15,7 +15,9 @@ import { read_picked, save_text } from "../files.ts";
 import { SecretRow, TextRow } from "../settings/rows.tsx";
 import type { FeatureSettingsProps } from "../features.tsx";
 import { book_status_labels, book_statuses, type BookCollection } from "../../shared/books/model.ts";
+import { transfer_section } from "../transfer.tsx";
 import { attempt } from "./actions.tsx";
+import { book_merge } from "./merge.tsx";
 
 // ── Catalogues and new books ─────────────────────────────────────────────────
 
@@ -241,5 +243,14 @@ export function book_settings(props: FeatureSettingsProps): SettingsSection[] {
     { id: "book-alerts", heading: "New books and alerts", content: <AlertSettings {...props} /> },
     { id: "storygraph", heading: "StoryGraph", hint: "StoryGraph has no API, so books travel through its export files.", content: <StoryGraphSettings /> },
     { id: "librarything", heading: "LibraryThing", hint: "LibraryThing's library travels through its export files.", content: <LibraryThingSettings /> },
+    transfer_section({
+      name: "books",
+      noun: "book",
+      holds: "Every book with its status, rating, review, notes, progress and ids, every read and journal entry, the collections, the authors and series you follow, and your reading goals.",
+      export_json: () => calls().export_books_json(),
+      export_csv: () => calls().export_books_csv(),
+      import_file: (input) => calls().import_books_file(input),
+      merging: async () => ({ kind: book_merge, items: (await calls().list_books()).books }),
+    }),
   ];
 }
