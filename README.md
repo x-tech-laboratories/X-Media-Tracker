@@ -91,8 +91,8 @@ Set a [Steam Web API key](https://steamcommunity.com/dev/apikey) and your Steam 
 Steam**: its 64-bit id (shown at the top of store.steampowered.com/account), its custom URL name, or a link to it; the profile's **Game details** must be public. **Import library** adds
 every game you own, owned on PC from Steam, as Currently playing once played and Backlog before; a game already here takes Steam's
 playtime and last day played when they are later, leaves the Wishlist for the Backlog, and keeps its status unless it
-was still wanted and has now been played. **Import wishlist** adds wished games as Wishlist, and moves a game in the
-Backlog you own nowhere to the Wishlist. With **Import from Steam every** set to some hours, the server and the desktop
+was still wanted and has now been played. **Import wishlist** adds wished games as Wishlist, and leaves the
+status of a game already here alone. With **Import from Steam every** set to some hours, the server and the desktop
 app import both on that schedule; the last import syncs, so they do not both run it. New games from Steam have their
 names and box art at once; **Refresh** in Games fills in the rest from the catalogues.
 

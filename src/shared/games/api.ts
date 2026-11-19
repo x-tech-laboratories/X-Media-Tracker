@@ -217,8 +217,8 @@ export const games_api = {
   },
   import_steam_wishlist: {
     description:
-      "Imports the Steam profile's wishlist: games not yet tracked are added as Wishlist, and tracked ones in the Backlog not owned anywhere move to the " +
-      "Wishlist. Gives the counts added and already tracked.",
+      "Imports the Steam profile's wishlist: games not yet tracked are added as Wishlist, and tracked ones keep their status. " +
+      "Gives the counts added and already tracked.",
     params: [],
   },
   run_steam_sync: {

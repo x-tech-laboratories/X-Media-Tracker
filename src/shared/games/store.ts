@@ -481,7 +481,7 @@ function import_owned(database: SqlDatabase, owned: OwnedGame[]): GameImportRepo
   return report;
 }
 
-// Wished games not yet tracked come in as Wishlist, and a tracked one in the Backlog not owned anywhere moves there.
+// Wished games not yet tracked come in as Wishlist; a tracked one keeps its status.
 function import_wished(database: SqlDatabase, wished: WishedGame[]): GameImportReport {
   const db = drizzle_of(database);
   const report: GameImportReport = { added: 0, updated: 0 };
@@ -489,10 +489,8 @@ function import_wished(database: SqlDatabase, wished: WishedGame[]): GameImportR
     const id = find_game(database, { steam_app_id: game.app_id });
     if (id) {
       const row = db.select().from(games_games).where(eq(games_games.id, id)).get()!;
-      const status = game_status_of(row.status);
-      const unowned = parse_list(row.owned_platforms).length === 0;
       db.update(games_games)
-        .set({ cover_url: steam_art(row.cover_url, game), status: status === "backlog" && unowned ? "wishlist" : status })
+        .set({ cover_url: steam_art(row.cover_url, game) })
         .where(eq(games_games.id, id))
         .run();
       report.updated++;

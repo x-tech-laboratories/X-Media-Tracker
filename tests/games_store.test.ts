@@ -494,7 +494,7 @@ describe("Steam", () => {
     await expect(methods.import_steam_library()).rejects.toThrow("Game details to Public");
   });
 
-  it("puts wished games on the Wishlist until they are owned", async () => {
+  it("adds wished games as Wishlist and leaves tracked games' statuses", async () => {
     const methods = with_account();
     await methods.add_game("steam", "620");
     owned = [{ appid: 400, name: "Portal", playtime_forever: 0, rtime_last_played: 0 }];
@@ -502,7 +502,7 @@ describe("Steam", () => {
     wished = [{ appid: 620 }, { appid: 400 }, { appid: 70 }];
     expect(await methods.import_steam_wishlist()).toEqual({ added: 1, updated: 2 });
     expect(methods.get_game("steam:70")).toMatchObject({ title: "Wished 70", status: "wishlist", year: "2027" });
-    expect(methods.get_game("rawg:portal-2")).toMatchObject({ status: "wishlist" });
+    expect(methods.get_game("rawg:portal-2")).toMatchObject({ status: "backlog" });
     expect(methods.get_game("steam:400")).toMatchObject({ status: "backlog" });
     owned = [{ appid: 70, name: "Wished 70", playtime_forever: 0, rtime_last_played: 0 }];
     await methods.import_steam_library();
