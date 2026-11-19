@@ -196,13 +196,6 @@ export function image_url(path: string, size: string): string {
   return path ? `${image_base}${size}${path}` : "";
 }
 
-// The image path from a full TMDB image address, such as one the Trilium add-on kept.
-export function image_path_of(url: string): string {
-  if (url.startsWith("/")) return url;
-  const match = /image\.tmdb\.org\/t\/p\/[^/]+(\/.+)$/.exec(url);
-  return match ? match[1]! : "";
-}
-
 // ── Genres ───────────────────────────────────────────────────────────────────
 
 export function parse_genres(value: string): string[] {

@@ -4,7 +4,7 @@
 
 import type { JsonSchema, MethodSpec } from "@x-tech-laboratories/x-libs/api_spec";
 
-import { id_of, json_file, step, text } from "../api_schemas.ts";
+import { id_of, step, text } from "../api_schemas.ts";
 import { statuses } from "./model.ts";
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
@@ -46,10 +46,6 @@ export const library_api = {
   lookup_title_details: {
     description: "Looks up a tracked title on TMDB: its overview, genres, runtime, cast, and for a show every season's episodes with their names, summaries and air dates.",
     params: [{ name: "id", schema: title_id }],
-  },
-  export_library: {
-    description: "Gives the whole library as the Trilium Media Tracker's Database JSON, which import_trilium_media reads back.",
-    params: [],
   },
   add_title: {
     description: "Adds a movie or show from TMDB by its TMDB id, with the default status from Settings; one already tracked only has its details refreshed. Gives back its id.",
@@ -170,12 +166,5 @@ export const library_api = {
   get_library_refresh: {
     description: "Shows the latest library refresh: running, done or failed, how many titles it has done out of how many, and once done its report of titles with new details, with a new status and not found on TMDB. State none means no refresh since the server started.",
     params: [],
-  },
-  import_trilium_media: {
-    description: "Imports the Trilium Media Tracker add-on's library; adds new titles and merges ones already here, never removing any.",
-    params: [
-      { name: "database_json", schema: { ...json_file, description: "The text of the add-on's Database note." } },
-      { name: "groups_json", schema: text('The add-on\'s collectionGroups setting, such as {"groups":["Mood"],"assign":{"MCU":"Franchise"}}, or "" for none.') },
-    ],
   },
 } satisfies Record<string, MethodSpec>;

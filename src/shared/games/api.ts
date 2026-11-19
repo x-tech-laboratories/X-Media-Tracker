@@ -283,15 +283,6 @@ export const games_api = {
       { name: "status", schema: { ...status, description: `A status's id, or empty to unmap; ${status.description}` } },
     ],
   },
-  import_trilium_games: {
-    description:
-      "Imports the Trilium Game Tracker add-on's library; adds new games and merges ones already here, never removing any. A status added in the add-on " +
-      "becomes the status of its name, such as Endless, or else the nearest status by its role and a collection of its name.",
-    params: [
-      { name: "database_json", schema: { ...json_file, description: "The add-on's Database note: its whole JSON text." } },
-      { name: "config_json", schema: { ...json_file, description: "The add-on's config.json note, for the statuses added there, or empty." } },
-    ],
-  },
   import_igdb_export: {
     description:
       "Imports IGDB's data export for an account: its Want to Play, Playing and Played lists as statuses (an entry's own status, such as Abandoned, " +

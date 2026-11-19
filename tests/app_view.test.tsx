@@ -11,12 +11,13 @@ import { bind_methods, open_store, type MediaMethods } from "../src/shared/store
 import { set_page_api } from "../src/web/api.ts";
 import { App } from "../src/web/App.tsx";
 import { forget_page_plugins } from "../src/web/sources/plugins.tsx";
-import { trilium_database, trilium_groups } from "./trilium_sample.ts";
+import { seed_library } from "./library_sample.ts";
 
 // The page's calls answered by a real store on a throwaway database, as the desktop app would, which needs no sign-in.
-function fake_page(): MediaMethods {
+function fake_page(seed: (database: DatabaseSync) => void = () => undefined): MediaMethods {
   const database = new DatabaseSync(":memory:");
   open_store(database);
+  seed(database);
   const methods = bind_methods(() => database, () => undefined);
   const calls = Object.fromEntries(Object.entries(methods).map(([name, call]) => [name, async (...args: unknown[]) => (call as (...args: unknown[]) => unknown)(...args)]));
   set_page_api({ host: "desktop", calls: calls as unknown as Client<MediaMethods>, device: null, cover_src: async () => "", on_change: () => () => undefined });
@@ -70,8 +71,7 @@ describe("sidebar", () => {
 
 describe("search", () => {
   it("opens the results from the top bar and shows the library's matches", async () => {
-    const store = fake_page();
-    store.import_trilium_media(trilium_database, "");
+    fake_page(seed_library);
     render(<App />);
 
     const box = await screen.findByLabelText("Search your library and TMDB, or paste a link");
@@ -90,8 +90,7 @@ describe("search", () => {
 
 describe("library page", () => {
   it("shows every title and narrows by type and collection, each choice counting what it would leave", async () => {
-    const store = fake_page();
-    store.import_trilium_media(trilium_database, trilium_groups);
+    fake_page((database) => seed_library(database, { groups: true }));
     render(<App />);
 
     expect(await screen.findByText("3 of 3 titles")).toBeTruthy();
@@ -111,8 +110,7 @@ describe("library page", () => {
 
 describe("library table", () => {
   it("shows the titles as table rows once Table is picked, and keeps the choice", async () => {
-    const store = fake_page();
-    store.import_trilium_media(trilium_database, "");
+    fake_page(seed_library);
     render(<App />);
 
     fireEvent.click(await screen.findByRole("radio", { name: "Table" }));
@@ -127,8 +125,7 @@ describe("library table", () => {
 
 describe("title page", () => {
   it("shows a title's status and rating and changes its status", async () => {
-    const store = fake_page();
-    store.import_trilium_media(trilium_database, "");
+    const store = fake_page(seed_library);
     render(<App />);
     go("#/movies/title/tmdb%3A693134");
 
@@ -175,8 +172,7 @@ describe("importing in settings", () => {
 
 describe("history page", () => {
   it("lists the latest changes and brings a removed title back", async () => {
-    const store = fake_page();
-    store.import_trilium_media(trilium_database, "");
+    const store = fake_page(seed_library);
     store.remove_title("tmdb:693134");
     render(<App />);
     go("#/history");

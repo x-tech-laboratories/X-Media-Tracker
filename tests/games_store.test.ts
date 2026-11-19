@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { games_feature } from "../src/shared/games/store.ts";
 import { bind_methods, open_store, secret_settings } from "../src/shared/store.ts";
+import { insert_games, type SampleGame } from "./games_sample.ts";
 
 // ── Catalogue stand-ins ──────────────────────────────────────────────────────
 
@@ -104,9 +105,10 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-function open_methods() {
+function open_methods(games: SampleGame[] = []) {
   const database = new DatabaseSync(":memory:");
   open_store(database);
+  insert_games(database, games);
   return bind_methods(() => database, () => undefined);
 }
 
@@ -359,9 +361,8 @@ describe("keeping a game", () => {
   });
 
   it("refuses an id another game already has", async () => {
-    const methods = open_methods();
+    const methods = open_methods([{ id: "title:portal", title: "Portal", status: "backlog" }]);
     await methods.add_game("steam", "620");
-    methods.import_trilium_games(JSON.stringify({ games: { a: { title: "Portal" } } }), "");
     await expect(methods.set_game_ids("title:portal", { steam_app_id: "https://store.steampowered.com/app/620/" })).rejects.toThrow("Portal 2 already has that Steam app id");
     await expect(methods.set_game_ids("title:portal", { wikidata_id: "nonsense" })).rejects.toThrow("is not a Wikidata item");
   });
@@ -587,35 +588,6 @@ describe("Steam", () => {
   });
 });
 
-// ── Trilium ──────────────────────────────────────────────────────────────────
-
-describe("the Trilium Game Tracker import", () => {
-  const config = JSON.stringify({ statuses: { entries: { "item-2": { name: "Endless", role: "playing" } } } });
-
-  it("adds new games and merges ones already here", async () => {
-    const methods = open_methods();
-    await methods.add_game("steam", "620");
-    methods.set_game_rating("rawg:portal-2", 7);
-    const database = JSON.stringify({
-      games: {
-        "steam:620": { steamAppId: "620", title: "Portal 2", status: "beaten", rating: 10, playtime: 305, lastPlayed: "2025-06-04", collections: ["Puzzles"] },
-        "steam:105600": { steamAppId: "105600", title: "Terraria", status: "item-2", playtime: 50 },
-      },
-    });
-    expect(methods.import_trilium_games(database, config)).toEqual({ added: 1, updated: 1 });
-    const library = methods.list_games();
-    const names = new Map(library.collections.map((collection) => [collection.id, collection.name]));
-    expect(methods.get_game("rawg:portal-2")).toMatchObject({ status: "finished", rating: 7, playtime_minutes: 305, last_played: "2025-06-04" });
-    expect(methods.get_game("rawg:portal-2")!.collection_ids.map((id) => names.get(id))).toEqual(["Puzzles"]);
-    expect(methods.get_game("steam:105600")).toMatchObject({ title: "Terraria", status: "endless", owned_platforms: ["PC"] });
-    expect(methods.get_game("steam:105600")!.collection_ids).toEqual([]);
-  });
-
-  it("refuses a file with no games", () => {
-    expect(() => open_methods().import_trilium_games("{}", "")).toThrow("No games found");
-  });
-});
-
 // ── IGDB ─────────────────────────────────────────────────────────────────────
 
 describe("the IGDB export import", () => {
@@ -624,8 +596,10 @@ describe("the IGDB export import", () => {
   const page = `<h3>Want to Play</h3><table>${header}${row("Half-Life 2")}</table><h3>Played</h3><table>${header}${row("Portal")}${row("Terraria", "Abandoned")}</table>`;
 
   it("matches games by title and adds the rest by their title", () => {
-    const methods = open_methods();
-    methods.import_trilium_games(JSON.stringify({ games: { "steam:400": { steamAppId: "400", title: "Portal", status: "backlog" }, "steam:105600": { steamAppId: "105600", title: "Terraria", status: "playing" } } }), "");
+    const methods = open_methods([
+      { id: "steam:400", steam_app_id: "400", title: "Portal", status: "backlog" },
+      { id: "steam:105600", steam_app_id: "105600", title: "Terraria", status: "currently_playing" },
+    ]);
     expect(methods.import_igdb_export(page)).toEqual({ added: 1, updated: 2 });
     expect(methods.get_game("steam:400")).toMatchObject({ status: "finished" });
     expect(methods.get_game("steam:105600")).toMatchObject({ status: "currently_playing" });
@@ -652,9 +626,11 @@ describe("merging games", () => {
   });
 
   it("merges an imported copy into the catalogued one with its collections, picked values and DLC", async () => {
-    const methods = open_methods();
+    const methods = open_methods([
+      { id: "title:portal", title: "Portal", status: "backlog" },
+      { id: "title:peer review", title: "Peer Review", status: "backlog" },
+    ]);
     await methods.add_game("steam", "620");
-    methods.import_trilium_games(JSON.stringify({ games: { a: { title: "Portal" }, b: { title: "Peer Review" } } }), "");
     methods.set_game_rating("title:portal", 8);
     methods.set_game_collections("title:portal", [methods.save_game_collection({ name: "Puzzles" })]);
     methods.set_game_base(methods.list_games().games.find((game) => game.title === "Peer Review")!.id, "title:portal");
@@ -668,9 +644,8 @@ describe("merging games", () => {
   });
 
   it("refuses an id a game outside the merge has", async () => {
-    const methods = open_methods();
+    const methods = open_methods([{ id: "title:portal", title: "Portal", status: "backlog" }]);
     await methods.add_game("steam", "620");
-    methods.import_trilium_games(JSON.stringify({ games: { a: { title: "Portal" } } }), "");
     expect(() => methods.merge_games(["title:portal"], "title:portal", { steam_app_id: "620" })).toThrow("Portal 2 already has that Steam app id");
   });
 });

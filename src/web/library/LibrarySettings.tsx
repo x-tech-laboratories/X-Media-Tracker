@@ -1,9 +1,8 @@
-// The library's settings: the TMDB key, how new titles start, genres, collection groups, and the Trilium import and
-// export.
+// The library's settings: the TMDB key, how new titles start, genres and collection groups.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
-import { useRef, useState, type ChangeEvent } from "react";
+import { useState } from "react";
 import { ChipField } from "@x-tech-laboratories/x-libs/web/react/chip_field";
 import { CommitInput, Segmented, Select, Switch } from "@x-tech-laboratories/x-libs/web/react/controls";
 import { confirm_dialog } from "@x-tech-laboratories/x-libs/web/react/dialog";
@@ -12,7 +11,6 @@ import { Loaded } from "@x-tech-laboratories/x-libs/web/react/states";
 import { toast } from "@x-tech-laboratories/x-libs/web/react/toasts";
 
 import { calls, use_data } from "../api.ts";
-import { read_picked, save_text } from "../files.ts";
 import type { FeatureSettingsProps } from "../features.tsx";
 import { list_genres, poster_sizes, saved_poster_sizes, status_labels, statuses, type Collection, type CollectionGroup } from "../../shared/library/model.ts";
 import type { Library } from "../../shared/library/store.ts";
@@ -239,47 +237,6 @@ function CollectionSettings() {
   return <Loaded resource={library}>{(loaded) => <CollectionGroups library={loaded} />}</Loaded>;
 }
 
-// ── Import and export ────────────────────────────────────────────────────────
-
-function LibraryData() {
-  const trilium_file = useRef<HTMLInputElement>(null);
-  const [groups_json, set_groups_json] = useState("");
-
-  async function import_trilium(event: ChangeEvent<HTMLInputElement>): Promise<void> {
-    const text = await read_picked(event);
-    if (text === null) return;
-    try {
-      const summary = await calls().import_trilium_media(text, groups_json);
-      toast(`Imported ${summary.added} new title(s) and merged ${summary.updated} already here.`, { tone: "good" });
-    } catch (error) {
-      toast(`Could not import: ${(error as Error).message}`, { tone: "bad" });
-    }
-  }
-
-  async function export_all(): Promise<void> {
-    save_text("x-media-tracker-library.json", await calls().export_library());
-  }
-
-  return (
-    <>
-      <SettingRow label="Trilium collection groups" hint="Optional: the add-on's collectionGroups setting from its config note, so collections land in their groups." as_label>
-        <input value={groups_json} placeholder='{"groups":[…],"assign":{…}}' spellCheck={false} onChange={(event) => set_groups_json(event.currentTarget.value)} />
-      </SettingRow>
-      <SettingRow label="Import from Trilium" hint="The Media Tracker add-on's Database note, saved as a .json file; new titles are added and ones already here gain its episodes and collections.">
-        <input ref={trilium_file} type="file" accept="application/json,.json" hidden aria-label="Trilium Database file" onChange={(event) => void import_trilium(event)} />
-        <button type="button" onClick={() => trilium_file.current?.click()}>
-          Import Trilium…
-        </button>
-      </SettingRow>
-      <SettingRow label="Export" hint="The whole library in the Trilium add-on's Database shape, which Import Trilium reads back.">
-        <button type="button" onClick={() => void export_all()}>
-          Export JSON
-        </button>
-      </SettingRow>
-    </>
-  );
-}
-
 // ── Sections ─────────────────────────────────────────────────────────────────
 
 export function library_settings(props: FeatureSettingsProps): SettingsSection[] {
@@ -293,7 +250,6 @@ export function library_settings(props: FeatureSettingsProps): SettingsSection[]
       hint: "Collections are yours: a title can be in several. Each group, such as Mood or Franchise, becomes its own filter on the Library.",
       content: <CollectionSettings />,
     },
-    { id: "library-data", heading: "Import and export", content: <LibraryData /> },
     ...source_settings(props),
   ];
 }

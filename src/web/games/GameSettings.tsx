@@ -1,6 +1,6 @@
 // The games' settings: the catalogues' keys and IGDB's Twitch app, the statuses and how new games start, collections, the Steam profile whose library and
-// wishlist come in and how often, the status each Steam category gives, the itch.io account whose library comes in, and the Trilium
-// Game Tracker's and IGDB's imports.
+// wishlist come in and how often, the status each Steam category gives, the itch.io account whose library comes in, and
+// IGDB's import.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -381,60 +381,6 @@ function SteamCategorySettings({ settings }: FeatureSettingsProps) {
   );
 }
 
-// ── Trilium ──────────────────────────────────────────────────────────────────
-
-// Only the config note's statuses are kept; it also holds a Steam key, which stays on this page.
-function statuses_of(config: string): string {
-  try {
-    const parsed = JSON.parse(config) as { statuses?: unknown };
-    return parsed.statuses ? JSON.stringify({ statuses: parsed.statuses }) : "";
-  } catch {
-    return "";
-  }
-}
-
-function TriliumSettings() {
-  const database_file = useRef<HTMLInputElement>(null);
-  const config_file = useRef<HTMLInputElement>(null);
-  const [statuses, set_statuses] = useState("");
-
-  async function pick_config(event: ChangeEvent<HTMLInputElement>): Promise<void> {
-    const text = await read_picked(event);
-    if (text === null) return;
-    const kept = statuses_of(text);
-    if (!kept) toast("That file has no statuses; pick the Game Tracker's config.json note.", { tone: "bad" });
-    set_statuses(kept);
-  }
-
-  async function import_database(event: ChangeEvent<HTMLInputElement>): Promise<void> {
-    const text = await read_picked(event);
-    if (text === null) return;
-    try {
-      const report = await calls().import_trilium_games(text, statuses);
-      toast(`Imported ${report.added} new game(s) and merged ${report.updated} already here. Refresh in Games fills in details.`, { tone: "good" });
-    } catch (error) {
-      toast(`Could not import: ${(error as Error).message}`, { tone: "bad" });
-    }
-  }
-
-  return (
-    <>
-      <SettingRow label="Trilium statuses" hint={`Optional: the add-on's config.json note, so statuses you added there, such as Endless, keep their meaning. ${statuses ? "Statuses are loaded." : "None loaded."}`}>
-        <input ref={config_file} type="file" accept="application/json,.json" hidden aria-label="Trilium Game Tracker config file" onChange={(event) => void pick_config(event)} />
-        <button type="button" onClick={() => config_file.current?.click()}>
-          Pick config…
-        </button>
-      </SettingRow>
-      <SettingRow label="Import from Trilium" hint="The Game Tracker add-on's Database note, saved as a .json file; new games are added and ones already here gain its playtime, rating and collections.">
-        <input ref={database_file} type="file" accept="application/json,.json" hidden aria-label="Trilium Game Tracker Database file" onChange={(event) => void import_database(event)} />
-        <button type="button" onClick={() => database_file.current?.click()}>
-          Import Trilium…
-        </button>
-      </SettingRow>
-    </>
-  );
-}
-
 // ── IGDB ─────────────────────────────────────────────────────────────────────
 
 function IgdbSettings() {
@@ -490,7 +436,6 @@ export function game_settings(props: FeatureSettingsProps): SettingsSection[] {
       content: <SteamCategorySettings {...props} />,
     },
     { id: "itchio", heading: "itch.io", content: <ItchioSettings {...props} /> },
-    { id: "trilium-games", heading: "Trilium Game Tracker", content: <TriliumSettings /> },
     { id: "igdb", heading: "IGDB", hint: "IGDB's API gives only its catalogue, so your IGDB lists come in through its data export.", content: <IgdbSettings /> },
   ];
 }

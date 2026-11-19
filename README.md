@@ -7,7 +7,7 @@ dropped, with ratings, every episode ticked off, every read of a book with its d
 platforms you own it on, and your own collections. It runs as a web page
 served by your own server, as a desktop app and as an Android app; the desktop and Android apps keep their own copy of
 the library, work offline, and sync with the server whenever it can be reached. It is the X-Tech port of the Trilium
-Media Tracker add-on, and imports its library.
+Media Tracker add-on.
 
 The sidebar has a section for each: **Movies & Series**, **Books** and **Games**, each with its own pages, search in
 the top bar and settings.
@@ -186,27 +186,13 @@ The address and port come from `X_MEDIA_TRACKER_HOST` and `X_MEDIA_TRACKER_PORT`
 `name:hash` line each; `npm run hash-password -- <name> <file>` adds one or changes their password.
 `x-media-tracker --help` lists every option.
 
-## Coming from Trilium
-
-Open the add-on's `Database` note under your Library Root, save its text as a `.json` file, and pick it under
-**Settings → Movies & Series → Import and export → Import Trilium**. To keep your collection groups, paste the add-on's
-`collectionGroups` setting from its config note into the field above first. Titles keep their ids (such as
-`tmdb:693134`), status, rating, watched episodes, dates and collections; an import adds new titles and merges ones
-already here without changing their status or rating. **Export JSON** writes the library back in the same shape.
-
+## Coming from IGDB
 
 From IGDB, ask for your data under its **Settings → Privacy**, unzip what it sends, and pick its `index.html` under
 **Settings → Games → IGDB → Import IGDB**. Want to Play, Playing and Played become statuses, an entry's own status
 (such as Abandoned) winning, and a game in several lists takes the furthest along; your own lists become collections,
 with ratings and reviews too. The export names no ids, so games are matched by title, and new ones have only their
 title until **Refresh** in Games finds them on Wikidata.
-
-For the Trilium Game Tracker add-on, save its `Database` note's text as a `.json` file and pick it under **Settings →
-Games → Trilium Game Tracker → Import Trilium**. To keep the statuses you added in the add-on, such as Endless, pick its
-`config.json` note first with **Pick config**; each becomes the status of its name, such as Endless, or else the
-nearest status by its role and a collection of its name. Only the config's statuses are read; its Steam key stays on the page. Games keep their Steam id, status, rating,
-playtime, days and collections; a game already here gains its playtime, days and collections and keeps its own status
-and rating.
 
 ## Importing from Trakt and Stremio
 

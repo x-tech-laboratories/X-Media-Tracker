@@ -263,7 +263,7 @@ function LibraryPage({ library }: { library: Games }) {
         />
       </Toolbar>
       {library.games.length === 0 ? (
-        <Empty title="No games yet." hint="Search for a game in the bar at the top, paste a store link, or import your Steam library or the Trilium Game Tracker under Settings → Games." />
+        <Empty title="No games yet." hint="Search for a game in the bar at the top, paste a store link, or import your Steam library or IGDB lists under Settings → Games." />
       ) : shown.length === 0 ? (
         <Empty title="No games match these filters." />
       ) : (

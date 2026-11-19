@@ -50,7 +50,7 @@ on the Settings page.
   adding the same title make one row; `library_episodes`, one row per watched episode, so two devices ticking
   different episodes both keep theirs; `library_collections` with an optional `library_collection_groups` row, and
   `library_title_collections` between titles and collections.
-- `tmdb.ts` is the TMDB client; `trilium.ts` reads and writes the Trilium add-on's Database note.
+- `tmdb.ts` is the TMDB client.
 - A title is found by any shared id, so a title first known only by its IMDb id is matched once TMDB names it.
 
 ## Books
@@ -86,7 +86,7 @@ on the Settings page.
   older or removed ones read as their nearest, which ids name one game, pasted links, platforms, playtime, sorting and the Games library's filters with
   counts.
 - `schema.ts`: `games_games`, keyed by the strongest id (`rawg:…`, else `mobygames:…`, `giantbomb:…`, `wikidata:…`,
-  `steam:…`, `igdb:…`, `thegamesdb:…`, `gog:…`, `steamgriddb:…`, `itchio:…`; a Trilium game with none is `title:<title>/<year>`), with the platforms a copy is owned on and the
+  `steam:…`, `igdb:…`, `thegamesdb:…`, `gog:…`, `steamgriddb:…`, `itchio:…`; an IGDB game with none is `title:<title>`), with the platforms a copy is owned on and the
   stores it is owned from as JSON lists and, for DLC, `base_game`: the key of the game it adds to, such as `steam:620`, or a library id, found among
   the tracked games by any id (`find_base_game` in `model.ts`); `none` once set by hand as not DLC, so the catalogues
   stop filling it in. Its `status` column still defaults to an older status, read as Backlog, since changing a default
@@ -110,7 +110,6 @@ on the Settings page.
 - `steam_collections.ts` reads the Steam client's library categories file; `import_steam_categories` gives games in a
   category mapped in `games.steam_category_statuses` its status. The desktop finds the file in Steam's folder
   (`src/main/steam_categories.ts`), offers it to the page through its own bridge and imports it on the Steam schedule.
-- `trilium.ts` reads the Trilium Game Tracker add-on's Database note and the statuses from its config note.
 - `igdb_export.ts` reads IGDB's data export page, by its tables' headers and without a DOM: lists as statuses or
   collections, ratings and reviews, each game by its title alone.
 

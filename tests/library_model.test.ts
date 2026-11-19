@@ -5,7 +5,6 @@ import {
   facet_counts,
   filter_titles,
   format_episodes,
-  image_path_of,
   next_unwatched,
   no_filters,
   normalize_names,
@@ -82,12 +81,6 @@ describe("ids and links", () => {
     expect(parse_media_link("https://www.imdb.com/title/TT15239678/")).toEqual({ imdb_id: "tt15239678" });
     expect(parse_media_link("tt15239678")).toEqual({ imdb_id: "tt15239678" });
     expect(parse_media_link("Dune")).toBeNull();
-  });
-
-  it("takes the image path from a whole TMDB image address", () => {
-    expect(image_path_of("https://image.tmdb.org/t/p/w342/abc.jpg")).toBe("/abc.jpg");
-    expect(image_path_of("/abc.jpg")).toBe("/abc.jpg");
-    expect(image_path_of("https://example.org/abc.jpg")).toBe("");
   });
 
   it("keeps one of each name whatever its case, the first spelling first", () => {
