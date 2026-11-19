@@ -341,3 +341,16 @@ describe("merging titles", () => {
     expect(() => store.merge_titles(["tmdb:1396"], "tmdb:1396", { status: "binged" })).toThrow("Unknown status: binged.");
   });
 });
+
+describe("notes", () => {
+  it("keeps a title's notes and clears them when empty", async () => {
+    const store = open_methods();
+    await store.add_title("show", "1399");
+
+    store.set_title_notes("tmdb:1399", "Skip season 8");
+    expect(store.get_title("tmdb:1399")!.notes).toBe("Skip season 8");
+
+    store.set_title_notes("tmdb:1399", "  ");
+    expect(store.get_title("tmdb:1399")!.notes).toBe("");
+  });
+});

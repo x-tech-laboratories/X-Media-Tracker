@@ -38,6 +38,8 @@ export const library_titles = sqliteTable(
     runtime: integer().notNull().default(0),
     status: text().notNull().default("planned"),
     rating: real(),
+    // Your own notes, as Markdown.
+    notes: text().notNull().default(""),
     last_watched: text().notNull().default(""),
     total_episodes: integer().notNull().default(0),
     added_at: text().notNull().default(""),

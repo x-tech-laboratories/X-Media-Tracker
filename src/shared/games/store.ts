@@ -715,7 +715,7 @@ async function run_refresh(database: SqlDatabase, refresh: GamesRefresh): Promis
 const game_merge_columns = {
   ...Object.fromEntries(game_id_keys.map((key) => [key, "text"])),
   ...Object.fromEntries(
-    ["title", "year", "release_date", "overview", "cover_url", "cover_file", "cover_file_from", "genres", "platforms", "developers", "publishers", "status", "review", "owned_platforms", "edition", "last_played", "added_at", "base_game", "base_game_title"].map((key) => [
+    ["title", "year", "release_date", "overview", "cover_url", "cover_file", "cover_file_from", "genres", "platforms", "developers", "publishers", "status", "review", "notes", "owned_platforms", "edition", "last_played", "added_at", "base_game", "base_game_title"].map((key) => [
       key,
       "text",
     ]),
@@ -835,6 +835,8 @@ export const games_feature = define_feature({
     },
 
     set_game_review: (database: SqlDatabase, id: string, review: string): void => update_game(database, id, { review: review.trim() }),
+
+    set_game_notes: (database: SqlDatabase, id: string, notes: string): void => update_game(database, id, { notes: notes.trim() }),
 
     set_game_platforms: (database: SqlDatabase, id: string, platforms: string[]): void => {
       if (!Array.isArray(platforms)) throw new Error("Platforms are a list of names, such as PC or Nintendo Switch.");

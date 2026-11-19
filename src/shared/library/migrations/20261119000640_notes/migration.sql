@@ -1,0 +1,1 @@
+ALTER TABLE `library_titles` ADD `notes` text DEFAULT '' NOT NULL;

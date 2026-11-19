@@ -30,6 +30,7 @@ import {
 import { attempt, game_href, set_game_status } from "./actions.tsx";
 import { HeadPoster, use_cover } from "../covers.tsx";
 import { MergeButton } from "../merging.tsx";
+import { NotesBox } from "../notes.tsx";
 import { game_merge } from "./merge.tsx";
 import { StatusPicker } from "./StatusPicker.tsx";
 
@@ -287,6 +288,7 @@ function GamePage({ game, games, collections, known_platforms }: { game: Library
       </div>
       {dlc.length > 0 && <DlcList dlc={dlc} />}
       <Review key={game.id} game={game} />
+      <NotesBox key={`notes:${game.id}`} notes={game.notes} save={(notes) => calls().set_game_notes(game.id, notes)} />
     </Stack>
   );
 }

@@ -459,3 +459,14 @@ describe("merging games", () => {
     expect(() => methods.merge_games(["title:portal"], "title:portal", { steam_app_id: "620" })).toThrow("Portal 2 already has that Steam app id");
   });
 });
+
+describe("notes", () => {
+  it("keeps a game's notes apart from its review", async () => {
+    const methods = open_methods();
+    await methods.add_game("steam", "620");
+
+    methods.set_game_notes("rawg:portal-2", "Play *co-op* next");
+
+    expect(methods.get_game("rawg:portal-2")).toMatchObject({ notes: "Play *co-op* next", review: "" });
+  });
+});

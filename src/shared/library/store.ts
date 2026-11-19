@@ -259,7 +259,7 @@ function import_title(database: SqlDatabase, title: ImportedTitle, collection_id
 // ── Merging ──────────────────────────────────────────────────────────────────
 
 const title_merge_columns = {
-  ...Object.fromEntries(["tmdb_id", "imdb_id", "trakt_id", "media_type", "name", "year", "overview", "poster_path", "cover_file", "cover_file_from", "genres", "status", "last_watched", "added_at"].map((key) => [key, "text"])),
+  ...Object.fromEntries(["tmdb_id", "imdb_id", "trakt_id", "media_type", "name", "year", "overview", "poster_path", "cover_file", "cover_file_from", "genres", "status", "notes", "last_watched", "added_at"].map((key) => [key, "text"])),
   runtime: "number",
   total_episodes: "number",
   rating: "nullable_number",
@@ -435,6 +435,11 @@ export const library_feature = define_feature({
         .set(status === "watched" ? { status, last_watched: today() } : { status })
         .where(eq(library_titles.id, id))
         .run();
+    },
+
+    set_title_notes: (database: SqlDatabase, id: string, notes: string): void => {
+      require_title(database, id);
+      drizzle_of(database).update(library_titles).set({ notes: notes.trim() }).where(eq(library_titles.id, id)).run();
     },
 
     set_title_rating: (database: SqlDatabase, id: string, rating: number | null): void => {

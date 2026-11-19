@@ -92,6 +92,13 @@ export const library_api = {
       { name: "status", schema: { type: "string", enum: [...statuses], description: "The new status." } },
     ],
   },
+  set_title_notes: {
+    description: "Sets your own notes on a movie or show, in Markdown, replacing any before; empty clears them. Notes are kept apart from any review.",
+    params: [
+      { name: "id", schema: title_id },
+      { name: "notes", schema: text("The notes' text, in Markdown.") },
+    ],
+  },
   set_title_rating: {
     description: "Rates a title 1 to 10, or clears its rating with null or 0.",
     params: [

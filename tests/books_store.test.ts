@@ -466,3 +466,16 @@ describe("merging books", () => {
     expect(() => store.merge_books([piranesi.id], "isbn:1", {})).toThrow("must be one of those merged");
   });
 });
+
+describe("notes", () => {
+  it("keeps a book's notes apart from its review, and merges carry them", async () => {
+    const store = open_methods();
+    store.import_storygraph(storygraph_csv);
+    const piranesi = store.list_books().books.find((book) => book.title === "Piranesi")!;
+
+    store.set_book_notes(piranesi.id, "  **Lent** to Sam  ");
+
+    expect(store.get_book(piranesi.id)).toMatchObject({ notes: "**Lent** to Sam", review: "" });
+    expect(store.merge_books([piranesi.id], piranesi.id, { notes: "Returned" }).notes).toBe("Returned");
+  });
+});

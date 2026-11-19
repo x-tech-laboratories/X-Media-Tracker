@@ -103,6 +103,8 @@ export interface Game extends GameIds {
   // 1 to 10, shown as half stars out of five; null when unrated.
   rating: number | null;
   review: string;
+  // Your own notes, in Markdown.
+  notes: string;
   // The platforms a copy is owned on, such as ["PC", "Switch"].
   owned_platforms: string[];
   // Which edition is owned, such as "Game of the Year Edition", or "".

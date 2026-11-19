@@ -33,6 +33,7 @@ const fields: MergeFieldSpec[] = [
   { id: "status", label: "Status", columns: ["status"], personal: true, text: (value) => (is_book_status(value) ? book_status_labels[value] : "") },
   { id: "rating", label: "Rating", columns: ["rating"], personal: true, text: (value) => stars_text(value as number | null) },
   { id: "review", label: "Review", columns: ["review"], personal: true },
+  { id: "notes", label: "Notes", columns: ["notes"], personal: true },
   { id: "format", label: "Format", columns: ["format"], personal: true, text: (value) => (is_book_format(value) && value ? book_format_labels[value] : "") },
   { id: "owned", label: "Owned", columns: ["owned"], personal: true, text: (value) => (value ? "Owned" : "Not owned") },
   { id: "progress", label: "Progress", columns: ["progress", "progress_unit"], personal: true, text: count_text },

@@ -17,7 +17,7 @@ the top bar and settings.
 - **Library:** every title as a poster or a table row, narrowed by type, status, genre and each collection group, each
   choice showing how many titles it would leave; sorted by name, last watched, release, rating, when added or progress,
   and optionally grouped under its collections.
-- **A title's page:** status, rating, collections, TMDB's overview and cast, and for a show every season's episodes to
+- **A title's page:** status, rating, collections, your notes in rich text, TMDB's overview and cast, and for a show every season's episodes to
   tick off one at a time, the rest of a season, or the whole show at once. A show's status follows its episodes.
 - **Search:** the bar at the top searches your library and TMDB at once, each TMDB result added with a button; a pasted
   TMDB or IMDb link is added at once.
@@ -36,7 +36,7 @@ TMDB supplies search, posters, episode lists and details, and needs a free API k
 - **Library:** every book as a cover or a table row, narrowed by status (Want to read, Reading, Paused, Read, Did not
   finish), format, owned and collection, each choice showing how many books it would leave, and sorted.
 - **A book's page:** status, rating, format, owned, progress in pages, percent or audiobook minutes, collections, the
-  review, every read with its start and finish days (a book read twice has two), a reading journal of dated notes, and
+  review and your notes in rich text, every read with its start and finish days (a book read twice has two), a reading journal of dated notes, and
   the series in order with what you have read and a button to add the rest.
 - **Search:** the bar at the top, in Books, searches your books, Open Library, BookBrainz and Hardcover at once, the same
   book from several catalogues shown once; a pasted BookBrainz, Open Library or Hardcover link or an ISBN is added at
@@ -62,7 +62,7 @@ search, series in order and new books in the series you follow. Make the key wit
   the platform you own it on and collection, each choice showing how many games it would leave, and sorted by title,
   last played, release, rating, playtime or when added.
 - **A game's page:** status, picked by group and then within it, rating, playtime and the day last played, edition, the platforms you own it on,
-  collections and the review, with what the catalogues say of it and a link to each.
+  collections, the review and your notes in rich text, with what the catalogues say of it and a link to each.
 - **DLC:** a DLC or expansion names the game it adds to, linked from its page, and a game's page lists its DLC. Steam
   and RAWG say which game a DLC belongs to when it is added or refreshed; **Change** beside **DLC of** sets it by
   hand, or marks a game as not DLC.

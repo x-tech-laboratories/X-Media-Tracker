@@ -43,6 +43,7 @@ import type { CatalogSeries } from "../../shared/books/catalog.ts";
 import { attempt, book_href, report_added, set_book_status } from "./actions.tsx";
 import { HeadPoster } from "../covers.tsx";
 import { MergeButton } from "../merging.tsx";
+import { NotesBox } from "../notes.tsx";
 import { book_merge } from "./merge.tsx";
 
 // ── Facts ────────────────────────────────────────────────────────────────────
@@ -439,6 +440,7 @@ function BookPage({ book, collections, books }: { book: LibraryBook; collections
         </div>
       </div>
       <Review key={book.id} book={book} />
+      <NotesBox key={`notes:${book.id}`} notes={book.notes} save={(notes) => calls().set_book_notes(book.id, notes)} />
       <Reads book={book} />
       <Journal book={book} />
       <Series book={book} books={books} />

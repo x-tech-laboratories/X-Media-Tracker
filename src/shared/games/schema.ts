@@ -38,6 +38,8 @@ export const games_games = sqliteTable(
     status: text().notNull().default("want_to_play"),
     rating: real(),
     review: text().notNull().default(""),
+    // Your own notes, as Markdown.
+    notes: text().notNull().default(""),
     // The platforms a copy is owned on, as a JSON list.
     owned_platforms: text().notNull().default("[]"),
     edition: text().notNull().default(""),
