@@ -48,5 +48,15 @@ export const migrations: DrizzleMigration[] = [
     "statements": [
       "ALTER TABLE `games_games` ADD `notes` text DEFAULT '' NOT NULL;"
     ]
+  },
+  {
+    "name": "20261119003057_catalogue_ids",
+    "statements": [
+      "ALTER TABLE `games_games` ADD `thegamesdb_id` text DEFAULT '' NOT NULL;",
+      "ALTER TABLE `games_games` ADD `gog_id` text DEFAULT '' NOT NULL;",
+      "ALTER TABLE `games_games` ADD `steamgriddb_id` text DEFAULT '' NOT NULL;",
+      "CREATE INDEX `games_games_by_thegamesdb` ON `games_games` (`thegamesdb_id`);",
+      "CREATE INDEX `games_games_by_gog` ON `games_games` (`gog_id`);"
+    ]
   }
 ];

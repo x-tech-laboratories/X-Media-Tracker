@@ -79,9 +79,14 @@ export interface GameIds {
   wikidata_id: string;
   steam_app_id: string;
   igdb_id: string;
+  thegamesdb_id: string;
+  // A GOG store page's slug, such as the_witcher_3_wild_hunt.
+  gog_id: string;
+  steamgriddb_id: string;
 }
 
-export const game_id_keys = ["rawg_id", "mobygames_id", "giantbomb_id", "wikidata_id", "steam_app_id", "igdb_id"] as const satisfies readonly (keyof GameIds)[];
+// New catalogues go last, so a tracked game's id, made from the first id it has, never changes.
+export const game_id_keys = ["rawg_id", "mobygames_id", "giantbomb_id", "wikidata_id", "steam_app_id", "igdb_id", "thegamesdb_id", "gog_id", "steamgriddb_id"] as const satisfies readonly (keyof GameIds)[];
 
 export interface Game extends GameIds {
   id: string;
@@ -162,7 +167,17 @@ export function parse_giantbomb_id(input: string): string {
 // A base game set by hand to none, so the catalogues no longer fill one in.
 export const not_dlc = "none";
 
-const key_fields: Record<string, keyof GameIds> = { rawg: "rawg_id", mobygames: "mobygames_id", giantbomb: "giantbomb_id", wikidata: "wikidata_id", steam: "steam_app_id", igdb: "igdb_id" };
+const key_fields: Record<string, keyof GameIds> = {
+  rawg: "rawg_id",
+  mobygames: "mobygames_id",
+  giantbomb: "giantbomb_id",
+  wikidata: "wikidata_id",
+  steam: "steam_app_id",
+  igdb: "igdb_id",
+  thegamesdb: "thegamesdb_id",
+  gog: "gog_id",
+  steamgriddb: "steamgriddb_id",
+};
 
 export function is_dlc(game: Pick<Game, "base_game">): boolean {
   return !!game.base_game && game.base_game !== not_dlc;
@@ -186,14 +201,23 @@ export function dlc_of<Item extends Game>(base: Game, games: Item[]): Item[] {
 
 // ── Links ────────────────────────────────────────────────────────────────────
 
-export type GameSource = "rawg" | "mobygames" | "giantbomb" | "wikidata" | "steam";
+export type GameSource = "rawg" | "mobygames" | "giantbomb" | "wikidata" | "steam" | "igdb" | "thegamesdb" | "gog" | "steamgriddb";
 
 export interface ParsedGameLink {
   source: GameSource;
   id: string;
 }
 
-// A pasted RAWG, MobyGames, Giant Bomb, Wikidata or Steam store link.
+// A GOG store page's slug, such as the_witcher_3_wild_hunt, alone or in a link, without Wikidata's leading "game/".
+export function parse_gog_slug(input: string): string {
+  const text = input.trim();
+  const linked = /gog\.com\/(?:[a-z]{2}\/)?game\/([a-z0-9_]+)/i.exec(text);
+  if (linked) return linked[1]!.toLowerCase();
+  const bare = /^(?:game\/)?([a-z0-9_]+)$/i.exec(text);
+  return bare && !/^\d+$/.test(bare[1]!) ? bare[1]!.toLowerCase() : "";
+}
+
+// A pasted RAWG, MobyGames, Giant Bomb, Wikidata, Steam store, IGDB, TheGamesDB or GOG link.
 export function parse_game_link(input: string): ParsedGameLink | null {
   const text = input.trim();
   const rawg = /rawg\.io\/games\/([a-z0-9-]+)/i.exec(text);
@@ -205,6 +229,11 @@ export function parse_game_link(input: string): ParsedGameLink | null {
   if (wikidata) return { source: "wikidata", id: wikidata[1]!.toUpperCase() };
   const steam = /store\.steampowered\.com\/app\/(\d+)/i.exec(text) ?? /steamcommunity\.com\/app\/(\d+)/i.exec(text);
   if (steam) return { source: "steam", id: steam[1]! };
+  const igdb = /igdb\.com\/games\/([a-z0-9-]+)/i.exec(text);
+  if (igdb) return { source: "igdb", id: igdb[1]!.toLowerCase() };
+  const thegamesdb = /thegamesdb\.net\/game\.php\?(?:[^#\s]*&)?id=(\d+)/i.exec(text);
+  if (thegamesdb) return { source: "thegamesdb", id: thegamesdb[1]! };
+  if (/gog\.com\//i.test(text) && parse_gog_slug(text)) return { source: "gog", id: parse_gog_slug(text) };
   return null;
 }
 
@@ -216,6 +245,9 @@ export function game_links(game: Partial<GameIds>): { label: string; href: strin
     game.wikidata_id && { label: "Wikidata", href: `https://www.wikidata.org/wiki/${game.wikidata_id}` },
     game.steam_app_id && { label: "Steam", href: `https://store.steampowered.com/app/${game.steam_app_id}/` },
     game.igdb_id && { label: "IGDB", href: `https://www.igdb.com/games/${game.igdb_id}` },
+    game.thegamesdb_id && { label: "TheGamesDB", href: `https://thegamesdb.net/game.php?id=${game.thegamesdb_id}` },
+    game.gog_id && { label: "GOG", href: `https://www.gog.com/en/game/${game.gog_id}` },
+    game.steamgriddb_id && { label: "SteamGridDB", href: `https://www.steamgriddb.com/game/${game.steamgriddb_id}` },
   ].filter((link): link is { label: string; href: string } => !!link);
 }
 

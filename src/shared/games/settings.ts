@@ -5,6 +5,11 @@ export const games_setting_defaults = {
   "games.rawg_api_key": "",
   "games.mobygames_api_key": "",
   "games.giantbomb_api_key": "",
+  "games.thegamesdb_api_key": "",
+  "games.steamgriddb_api_key": "",
+  // A Twitch developer app's client id and secret, which IGDB is reached with.
+  "games.igdb_client_id": "",
+  "games.igdb_client_secret": "",
   // A Steam Web API key and the 64-bit id of the profile whose library and wishlist are read.
   "games.steam_api_key": "",
   "games.steam_id": "",
@@ -22,4 +27,12 @@ export const games_setting_defaults = {
 };
 
 // Settings that hold another service's key, kept out of what other programs read.
-export const games_secret_settings = ["games.rawg_api_key", "games.mobygames_api_key", "games.giantbomb_api_key", "games.steam_api_key"];
+export const games_secret_settings = [
+  "games.rawg_api_key",
+  "games.mobygames_api_key",
+  "games.giantbomb_api_key",
+  "games.thegamesdb_api_key",
+  "games.steamgriddb_api_key",
+  "games.igdb_client_secret",
+  "games.steam_api_key",
+];

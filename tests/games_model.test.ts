@@ -30,6 +30,9 @@ function game(fields: Partial<LibraryGame>): LibraryGame {
     wikidata_id: "",
     steam_app_id: "",
     igdb_id: "",
+    thegamesdb_id: "",
+    gog_id: "",
+    steamgriddb_id: "",
     cover_file: "",
     cover_file_from: "",
     title: "",
@@ -72,6 +75,10 @@ describe("game ids", () => {
     expect(parse_game_link("https://www.giantbomb.com/portal-2/3030-21662/")).toEqual({ source: "giantbomb", id: "3030-21662" });
     expect(parse_game_link("https://www.wikidata.org/wiki/Q279446")).toEqual({ source: "wikidata", id: "Q279446" });
     expect(parse_game_link("https://store.steampowered.com/app/620/Portal_2/")).toEqual({ source: "steam", id: "620" });
+    expect(parse_game_link("https://www.igdb.com/games/Portal-2")).toEqual({ source: "igdb", id: "portal-2" });
+    expect(parse_game_link("https://thegamesdb.net/game.php?id=41")).toEqual({ source: "thegamesdb", id: "41" });
+    expect(parse_game_link("https://www.gog.com/en/game/the_witcher_3_wild_hunt")).toEqual({ source: "gog", id: "the_witcher_3_wild_hunt" });
+    expect(parse_game_link("https://www.gog.com/game/doom_1993")).toEqual({ source: "gog", id: "doom_1993" });
     expect(parse_game_link("Portal 2")).toBeNull();
   });
 
@@ -84,6 +91,11 @@ describe("game ids", () => {
 
   it("links to every catalogue it has an id for", () => {
     expect(game_links({ rawg_id: "portal-2", steam_app_id: "620" }).map((link) => link.label)).toEqual(["RAWG", "Steam"]);
+    expect(game_links({ thegamesdb_id: "41", gog_id: "doom_1993", steamgriddb_id: "2460" }).map((link) => link.href)).toEqual([
+      "https://thegamesdb.net/game.php?id=41",
+      "https://www.gog.com/en/game/doom_1993",
+      "https://www.steamgriddb.com/game/2460",
+    ]);
   });
 });
 

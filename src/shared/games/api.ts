@@ -16,14 +16,15 @@ const statuses_named = game_statuses.map((status) => `${status} (${game_status_t
 
 const status: JsonSchema = { type: "string", enum: [...game_statuses], description: `A status, as IGDB has them, each in a group: ${statuses_named}.` };
 
-const source: JsonSchema = { type: "string", enum: ["rawg", "mobygames", "giantbomb", "wikidata", "steam"], description: "Which catalogue the id is from." };
+const source: JsonSchema = { type: "string", enum: ["rawg", "igdb", "mobygames", "giantbomb", "thegamesdb", "gog", "wikidata", "steam"], description: "Which catalogue the id is from." };
 
 // ── Calls ────────────────────────────────────────────────────────────────────
 
 export const games_api = {
   list_games: {
     description:
-      "Lists every tracked game, sorted by title, with its catalogue ids (RAWG slug, MobyGames, Giant Bomb guid, Wikidata item, Steam app, IGDB slug), " +
+      "Lists every tracked game, sorted by title, with its catalogue ids (RAWG slug, MobyGames, Giant Bomb guid, Wikidata item, Steam app, IGDB slug, TheGamesDB, " +
+      "GOG slug, SteamGridDB), " +
       "release, genres, platforms it came out on, developers, status (one of " + game_statuses.join(", ") + "), rating 1 to 10 (half stars " +
       "out of five) or null, review, the platforms a copy is owned on, edition, playtime in minutes, the day last played, the collections it is in, " +
       "and for DLC base_game, the key or id of the game it adds to (\"none\" when set as not DLC), with base_game_title; " +
@@ -36,21 +37,24 @@ export const games_api = {
   },
   search_games: {
     description:
-      "Searches RAWG, MobyGames and Giant Bomb (each only when its key is set), Steam's store and Wikidata for games by title at once, the same game from " +
+      "Searches RAWG, IGDB, MobyGames, Giant Bomb and TheGamesDB (each only when its key is set), Steam's store, GOG and Wikidata for games by title at once, the same game from " +
       "several catalogues joined into one result, each marked with the id of the library's game when already tracked. Names any catalogue that failed or had no key.",
     params: [{ name: "query", schema: text("Words of the title, such as Portal 2.") }],
   },
   add_game: {
     description:
       "Adds a game from a catalogue by its id there, filling in what every catalogue says of it, with Wikidata linking the others, and the default status " +
-      "from Settings; one already tracked only has its details refreshed. Gives back its id.",
+      "from Settings, with SteamGridDB's art when its key is set; one already tracked only has its details refreshed. Gives back its id.",
     params: [
       { name: "source", schema: source },
-      { name: "id", schema: text("The id there: a RAWG slug such as portal-2, a MobyGames number such as 51233, a Giant Bomb guid such as 3030-21662, a Wikidata item such as Q279446, or a Steam app such as 620.") },
+      { name: "id", schema: text(
+          "The id there: a RAWG or IGDB slug such as portal-2, a MobyGames number such as 51233, a Giant Bomb guid such as 3030-21662, a TheGamesDB number " +
+            "such as 1234, a GOG store slug such as the_witcher_3_wild_hunt, a Wikidata item such as Q279446, or a Steam app such as 620.",
+        ) },
     ],
   },
   add_game_from_link: {
-    description: "Adds a game from a RAWG, MobyGames, Giant Bomb, Wikidata or Steam store link. Gives back its id.",
+    description: "Adds a game from a RAWG, IGDB, MobyGames, Giant Bomb, TheGamesDB, GOG, Wikidata or Steam store link. Gives back its id.",
     params: [{ name: "link", schema: text("Such as https://rawg.io/games/portal-2 or https://store.steampowered.com/app/620/.") }],
   },
   set_game_ids: {
@@ -71,6 +75,9 @@ export const games_api = {
             wikidata_id: text("A Wikidata item such as Q279446 or a link, or empty to clear it."),
             steam_app_id: text("A Steam app number or store link, or empty to clear it."),
             igdb_id: text("An IGDB slug or link, or empty to clear it."),
+            thegamesdb_id: text("A TheGamesDB game number or link, or empty to clear it."),
+            gog_id: text("A GOG store page's slug such as the_witcher_3_wild_hunt or its link, or empty to clear it."),
+            steamgriddb_id: text("A SteamGridDB game number or link, or empty to clear it."),
           },
         },
       },
@@ -87,7 +94,7 @@ export const games_api = {
   },
   lookup_game_sources: {
     description:
-      "Looks up what each catalogue (RAWG, MobyGames and Giant Bomb when their keys are set, Steam and Wikidata) says of a tracked game, each answer on its own " +
+      "Looks up what each catalogue (RAWG, IGDB, MobyGames, Giant Bomb, TheGamesDB and SteamGridDB when their keys are set, GOG, Steam and Wikidata) says of a tracked game, each answer on its own " +
       "rather than joined, with the same field names as list_games gives a game: ids, title, year, release_date, overview, cover_url, genres, platforms, developers, " +
       "publishers and, for DLC, base_game. Names any catalogue that failed. Use it to pick, field by field, which catalogue's value a game keeps through merge_games.",
     params: [{ name: "id", schema: game_id }],

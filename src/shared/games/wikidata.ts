@@ -22,7 +22,23 @@ const id_properties: Record<Exclude<keyof GameIds, "wikidata_id">, string> = {
   giantbomb_id: "P5247",
   steam_app_id: "P1733",
   igdb_id: "P5794",
+  thegamesdb_id: "P7622",
+  gog_id: "P2725",
+  steamgriddb_id: "P12561",
 };
+
+// Wikidata writes a GOG id as game/<slug>, or movie/<slug> for a film, which is no game.
+const gog_prefix = "game/";
+
+// An id as Wikidata writes it, and as this app keeps it.
+function wikidata_value(key: keyof typeof id_properties, value: string): string {
+  return key === "gog_id" ? `${gog_prefix}${value}` : value;
+}
+
+function kept_value(key: keyof typeof id_properties, value: string): string {
+  if (key !== "gog_id") return value;
+  return value.startsWith(gog_prefix) ? value.slice(gog_prefix.length) : "";
+}
 
 const publication_date = "P577";
 const platform = "P400";
@@ -51,10 +67,6 @@ function values_of(claims: Claims, property: string): unknown[] {
   const statements = list_of(claims[property]).filter((each) => each.rank !== "deprecated");
   const ordered = [...statements.filter((each) => each.rank === "preferred"), ...statements.filter((each) => each.rank !== "preferred")];
   return ordered.map((each) => ((each.mainsnak as Json | undefined)?.datavalue as Json | undefined)?.value).filter((value) => value !== undefined);
-}
-
-function first_text(claims: Claims, property: string): string {
-  return values_of(claims, property).map(text_of).find(Boolean) ?? "";
 }
 
 function item_ids(claims: Claims, property: string): string[] {
@@ -88,11 +100,14 @@ function game_of(id: string, entity: Json, names: Map<string, string>): CatalogG
   return {
     ...empty_game("wikidata"),
     wikidata_id: id,
-    rawg_id: first_text(claims, id_properties.rawg_id),
-    mobygames_id: first_text(claims, id_properties.mobygames_id),
-    giantbomb_id: first_text(claims, id_properties.giantbomb_id),
-    steam_app_id: first_text(claims, id_properties.steam_app_id),
-    igdb_id: first_text(claims, id_properties.igdb_id),
+    ...(Object.fromEntries(
+      (Object.entries(id_properties) as [keyof typeof id_properties, string][]).map(([key, property]) => [
+        key,
+        values_of(claims, property)
+          .map((value) => kept_value(key, text_of(value)))
+          .find(Boolean) ?? "",
+      ]),
+    ) as Record<keyof typeof id_properties, string>),
     title: label_of(entity),
     ...first_release(claims),
     overview: text_of(descriptions.en?.value),
@@ -174,7 +189,7 @@ export function create_wikidata(fetcher: Fetch = fetch): Wikidata {
       for (const [key, property] of Object.entries(id_properties) as [keyof typeof id_properties, string][]) {
         const value = ids[key];
         if (!value) continue;
-        const [item] = await search_items(`haswbstatement:"${property}=${value.replace(/"/g, "")}"`, 1);
+        const [item] = await search_items(`haswbstatement:"${property}=${wikidata_value(key, value).replace(/"/g, "")}"`, 1);
         if (item) return item;
       }
       return "";

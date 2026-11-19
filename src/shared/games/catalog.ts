@@ -1,4 +1,4 @@
-// What RAWG, MobyGames, Giant Bomb, Wikidata and Steam say of a game, in one shape, and the rules for joining their
+// What RAWG, MobyGames, Giant Bomb, IGDB, TheGamesDB, GOG, SteamGridDB, Wikidata and Steam say of a game, in one shape, and the rules for joining their
 // answers about the same game; each catalogue's client turns its own answers into this shape.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
@@ -7,7 +7,17 @@ import { game_id_keys, shares_a_game_id, type GameIds, type GameSource } from ".
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
 
-export const catalog_labels: Record<GameSource, string> = { rawg: "RAWG", mobygames: "MobyGames", giantbomb: "Giant Bomb", wikidata: "Wikidata", steam: "Steam" };
+export const catalog_labels: Record<GameSource, string> = {
+  rawg: "RAWG",
+  mobygames: "MobyGames",
+  giantbomb: "Giant Bomb",
+  wikidata: "Wikidata",
+  steam: "Steam",
+  igdb: "IGDB",
+  thegamesdb: "TheGamesDB",
+  gog: "GOG",
+  steamgriddb: "SteamGridDB",
+};
 
 export interface CatalogGame extends GameIds {
   // The catalogues this answer came from, first the one searched.
@@ -33,12 +43,7 @@ export interface CatalogGame extends GameIds {
 export function empty_game(source: GameSource): CatalogGame {
   return {
     sources: [source],
-    rawg_id: "",
-    mobygames_id: "",
-    giantbomb_id: "",
-    wikidata_id: "",
-    steam_app_id: "",
-    igdb_id: "",
+    ...(Object.fromEntries(game_id_keys.map((key) => [key, ""])) as Record<keyof GameIds, string>),
     title: "",
     year: "",
     release_date: "",
@@ -66,8 +71,8 @@ const timeout_in_milliseconds = 20_000;
 // Every catalogue asks callers to name themselves.
 export const user_agent = "X-Media-Tracker (https://github.com/x-tech-laboratories/X-Media-Tracker)";
 
-// One JSON answer, failing in the catalogue's name and never repeating the address or its key.
-export async function fetch_json(fetcher: Fetch, service: string, address: string, init: RequestInit = {}): Promise<Json> {
+// One answer that went well, failing in the catalogue's name and never repeating the address or its key.
+async function fetch_ok(fetcher: Fetch, service: string, address: string, init: RequestInit): Promise<Response> {
   let response: Response;
   try {
     response = await fetcher(address, { ...init, signal: AbortSignal.timeout(timeout_in_milliseconds) });
@@ -78,6 +83,17 @@ export async function fetch_json(fetcher: Fetch, service: string, address: strin
   if (response.status === 404) throw new Error(`${service} has no such game.`);
   if (response.status === 429) throw new Error(`${service} asks to slow down; try again in a minute.`);
   if (!response.ok) throw new Error(`${service} request failed (HTTP ${response.status})`);
+  return response;
+}
+
+// One page's text, such as a store page.
+export async function fetch_text(fetcher: Fetch, service: string, address: string, init: RequestInit = {}): Promise<string> {
+  return (await fetch_ok(fetcher, service, address, init)).text();
+}
+
+// One JSON answer.
+export async function fetch_json(fetcher: Fetch, service: string, address: string, init: RequestInit = {}): Promise<Json> {
+  const response = await fetch_ok(fetcher, service, address, init);
   try {
     return (await response.json()) as Json;
   } catch {
@@ -140,8 +156,9 @@ export function same_game(first: CatalogGame, second: CatalogGame): boolean {
   return !first.year || !second.year || first.year === second.year;
 }
 
-// Box art from the catalogue best at it: MobyGames and Giant Bomb keep covers, Steam its upright library art.
-const cover_order: GameSource[] = ["mobygames", "giantbomb", "steam", "rawg", "wikidata"];
+// Box art from the catalogue best at it: MobyGames, Giant Bomb, IGDB and TheGamesDB keep covers, Steam and GOG their
+// upright store art, and SteamGridDB its users' art.
+const cover_order: GameSource[] = ["mobygames", "giantbomb", "igdb", "thegamesdb", "steam", "gog", "steamgriddb", "rawg", "wikidata"];
 
 // The first answer wins where both say something; the second fills what the first lacks.
 export function merge_games(first: CatalogGame, second: CatalogGame): CatalogGame {
@@ -150,12 +167,7 @@ export function merge_games(first: CatalogGame, second: CatalogGame): CatalogGam
   const cover_from = rank(second) < rank(first) ? second : first;
   return {
     sources: [...new Set([...first.sources, ...second.sources])],
-    rawg_id: fill(first.rawg_id, second.rawg_id),
-    mobygames_id: fill(first.mobygames_id, second.mobygames_id),
-    giantbomb_id: fill(first.giantbomb_id, second.giantbomb_id),
-    wikidata_id: fill(first.wikidata_id, second.wikidata_id),
-    steam_app_id: fill(first.steam_app_id, second.steam_app_id),
-    igdb_id: fill(first.igdb_id, second.igdb_id),
+    ...(Object.fromEntries(game_id_keys.map((key) => [key, fill(first[key], second[key])])) as Record<keyof GameIds, string>),
     title: fill(first.title, second.title),
     year: fill(first.year, second.year),
     release_date: fill(first.release_date, second.release_date),

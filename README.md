@@ -63,21 +63,26 @@ search, series in order and new books in the series you follow. Make the key wit
   last played, release, rating, playtime or when added.
 - **A game's page:** status, picked by group and then within it, rating, playtime and the day last played, edition, the platforms you own it on,
   collections, the review and your notes in rich text, with what the catalogues say of it and a link to each.
-- **DLC:** a DLC or expansion names the game it adds to, linked from its page, and a game's page lists its DLC. Steam
-  and RAWG say which game a DLC belongs to when it is added or refreshed; **Change** beside **DLC of** sets it by
+- **DLC:** a DLC or expansion names the game it adds to, linked from its page, and a game's page lists its DLC. Steam,
+  RAWG, IGDB and GOG say which game a DLC belongs to when it is added or refreshed; **Change** beside **DLC of** sets it by
   hand, or marks a game as not DLC.
-- **Search:** the bar at the top, in Games, searches your games, RAWG, MobyGames, Giant Bomb, Steam's store and
-  Wikidata at once, the same game from several catalogues shown once; a pasted RAWG, MobyGames, Giant Bomb, Wikidata
-  or Steam store link is added at once.
+- **Search:** the bar at the top, in Games, searches your games, RAWG, IGDB, MobyGames, Giant Bomb, TheGamesDB,
+  Steam's store, GOG and Wikidata at once, the same game from several catalogues shown once; a pasted RAWG, IGDB,
+  MobyGames, Giant Bomb, TheGamesDB, Wikidata, Steam store or GOG store link is added at once.
 - **Steam:** your library, with playtime and the day last played, and your wishlist, imported by hand or on a schedule,
   and your library's categories, each mapped to a status.
 
-Wikidata and Steam's store need no key. Wikidata matters most: its items name a game's RAWG, MobyGames, Giant Bomb,
-Steam and IGDB ids, so a game known to one catalogue, such as a game from your Steam library, is found in the others.
-Keys for [RAWG](https://rawg.io/apidocs), [MobyGames](https://www.mobygames.com/info/api/) and
-[Giant Bomb](https://www.giantbomb.com/api/), each free for personal use and set under **Settings → Games →
-Catalogues**, add that catalogue to search and details. Box art comes from MobyGames or Giant Bomb when set, else from
-Steam's library art.
+Wikidata, Steam's store and GOG need no key; GOG is read through the answers its own store uses, which it does not
+publish as an API, so they may change. Wikidata matters most: its items name a game's RAWG, MobyGames, Giant Bomb,
+Steam, IGDB, TheGamesDB, GOG and SteamGridDB ids, so a game known to one catalogue, such as a game from your Steam
+library, is found in the others. Keys for [RAWG](https://rawg.io/apidocs),
+[MobyGames](https://www.mobygames.com/info/api/), [Giant Bomb](https://www.giantbomb.com/api/),
+[TheGamesDB](https://forums.thegamesdb.net/) and [SteamGridDB](https://www.steamgriddb.com/profile/preferences/api),
+and a [Twitch application](https://dev.twitch.tv/console)'s client id and secret for
+[IGDB](https://api-docs.igdb.com/), each free for personal use and set under **Settings → Games → Catalogues**, add
+that catalogue to search and details. SteamGridDB gives only art: a game's upright cover drawn by its users, found by
+its Steam app or its title. Box art comes from MobyGames, Giant Bomb, IGDB or TheGamesDB when set, else from Steam's
+or GOG's store art, else from SteamGridDB.
 
 ## Steam
 
@@ -333,6 +338,10 @@ X-Media-Tracker is built on these services and the people who keep them:
 - [RAWG](https://rawg.io/): game details, through its API.
 - [MobyGames](https://www.mobygames.com/): game details and box art, through its API.
 - [Giant Bomb](https://www.giantbomb.com/): game details and box art, through its API.
+- [IGDB](https://www.igdb.com/), of Twitch: game details and box art, through its API.
+- [TheGamesDB](https://thegamesdb.net/): game details and box art, through its API.
+- [GOG](https://www.gog.com/): game details and store art, through the answers its store uses.
+- [SteamGridDB](https://www.steamgriddb.com/): box art drawn by its users, through its API.
 - [Wikidata](https://www.wikidata.org/), of the Wikimedia Foundation: game details and the ids that link the other
   catalogues, under CC0.
 - [Steam](https://store.steampowered.com/): game details, library art, and your library, playtime and wishlist.

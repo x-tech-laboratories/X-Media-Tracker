@@ -74,7 +74,10 @@ function source_of(result: GameSearchResult): [GameSource, string] {
   if (result.mobygames_id) return ["mobygames", result.mobygames_id];
   if (result.giantbomb_id) return ["giantbomb", result.giantbomb_id];
   if (result.wikidata_id) return ["wikidata", result.wikidata_id];
-  return ["steam", result.steam_app_id];
+  if (result.steam_app_id) return ["steam", result.steam_app_id];
+  if (result.igdb_id) return ["igdb", result.igdb_id];
+  if (result.thegamesdb_id) return ["thegamesdb", result.thegamesdb_id];
+  return ["gog", result.gog_id];
 }
 
 function result_key(result: GameSearchResult): string {

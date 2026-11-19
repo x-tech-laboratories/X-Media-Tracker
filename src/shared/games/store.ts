@@ -1,5 +1,6 @@
 // The games: every game tracked, with its status, rating, review, owned platforms, edition, playtime and collections.
-// RAWG, MobyGames, Giant Bomb, Wikidata and Steam fill in what games are, with Wikidata linking their ids; a Steam
+// RAWG, IGDB, MobyGames, Giant Bomb, TheGamesDB, GOG, Wikidata and Steam fill in what games are, with Wikidata linking
+// their ids, and SteamGridDB adds art; a Steam
 // profile's library and wishlist come in by hand or on a schedule, and the Trilium Game Tracker's library and IGDB's
 // lists by their files.
 
@@ -14,6 +15,8 @@ import { merge_columns, merge_ids, type SourceAnswers } from "../merging.ts";
 import { games_api } from "./api.ts";
 import { catalog_labels, empty_game, join_results, merge_games, same_game, title_words, type CatalogGame } from "./catalog.ts";
 import { create_giantbomb } from "./giantbomb.ts";
+import { create_gog } from "./gog.ts";
+import { create_igdb } from "./igdb.ts";
 import { read_igdb_export, type IgdbGame } from "./igdb_export.ts";
 import { migrations } from "./migrations/index.ts";
 import { create_mobygames } from "./mobygames.ts";
@@ -28,6 +31,7 @@ import {
   not_dlc,
   parse_game_link,
   parse_giantbomb_id,
+  parse_gog_slug,
   parse_wikidata_id,
   type GameCollection,
   type GameIds,
@@ -38,7 +42,9 @@ import {
 import { create_rawg } from "./rawg.ts";
 import { games_collections, games_game_collections, games_games, games_tables } from "./schema.ts";
 import { games_secret_settings, games_setting_defaults } from "./settings.ts";
+import { create_thegamesdb } from "./thegamesdb.ts";
 import { read_steam_categories, type SteamCategory } from "./steam_collections.ts";
+import { create_steamgriddb, type SteamGridDb } from "./steamgriddb.ts";
 import { create_steam, parse_steam_id, parse_steam_name, steam_cover, type OwnedGame, type WishedGame } from "./steam.ts";
 import { read_trilium_games, read_trilium_statuses, type ImportedGame } from "./trilium.ts";
 import { create_wikidata } from "./wikidata.ts";
@@ -115,23 +121,24 @@ function set_games_setting(database: SqlDatabase, key: GamesSetting, value: unkn
   database.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value").run(key, JSON.stringify(value));
 }
 
-// The catalogues with a key set; Wikidata and Steam's store always.
+// The catalogues with a key set; Wikidata, Steam's store and GOG always.
 function catalogs_of(database: SqlDatabase) {
   const key = (setting: GamesSetting) => String(games_setting(database, setting)).trim();
   return {
     rawg: key("games.rawg_api_key") ? create_rawg(key("games.rawg_api_key")) : null,
+    igdb: key("games.igdb_client_id") && key("games.igdb_client_secret") ? create_igdb(key("games.igdb_client_id"), key("games.igdb_client_secret")) : null,
     mobygames: key("games.mobygames_api_key") ? create_mobygames(key("games.mobygames_api_key")) : null,
     giantbomb: key("games.giantbomb_api_key") ? create_giantbomb(key("games.giantbomb_api_key")) : null,
+    thegamesdb: key("games.thegamesdb_api_key") ? create_thegamesdb(key("games.thegamesdb_api_key")) : null,
+    steamgriddb: key("games.steamgriddb_api_key") ? create_steamgriddb(key("games.steamgriddb_api_key")) : null,
+    gog: create_gog(),
     wikidata: create_wikidata(),
     steam: create_steam(),
   };
 }
 
-const key_settings: Partial<Record<GameSource, [GamesSetting, string]>> = {
-  rawg: ["games.rawg_api_key", "RAWG"],
-  mobygames: ["games.mobygames_api_key", "MobyGames"],
-  giantbomb: ["games.giantbomb_api_key", "Giant Bomb"],
-};
+// The catalogues searched only once their key is set, in the order their answers are joined.
+const keyed_searches = ["rawg", "igdb", "mobygames", "giantbomb", "thegamesdb"] as const;
 
 // The key and the profile as set: its 64-bit id, its custom URL name, or a link to either.
 function steam_settings(database: SqlDatabase): { key: string; profile: string } {
@@ -204,7 +211,7 @@ function find_by_title(database: SqlDatabase, title: string, year: string): stri
 // ── Catalogues ───────────────────────────────────────────────────────────────
 
 // Text and pictures come from the richest catalogue first; Wikidata, asked first for its links, is the last resort.
-const detail_order: GameSource[] = ["rawg", "mobygames", "giantbomb", "steam", "wikidata"];
+const detail_order: GameSource[] = ["rawg", "igdb", "mobygames", "giantbomb", "thegamesdb", "gog", "steam", "steamgriddb", "wikidata"];
 
 function ids_only(game: CatalogGame): CatalogGame {
   const ids = Object.fromEntries(game_id_keys.map((key) => [key, game[key]]));
@@ -218,7 +225,7 @@ interface Heard {
 }
 
 // What every catalogue that knows the game says: Wikidata first, for the ids the others know it by, then each catalogue
-// with a key by its own id. Each may fail alone, and the game is refused only when none answered.
+// with a key by its own id, then SteamGridDB's art. Each may fail alone, and the game is refused only when none answered.
 async function gather(database: SqlDatabase, start: CatalogGame, heard: Heard = { answers: {}, failures: [] }): Promise<CatalogGame> {
   const catalogs = catalogs_of(database);
   const { answers, failures } = heard;
@@ -236,19 +243,35 @@ async function gather(database: SqlDatabase, start: CatalogGame, heard: Heard = 
     if (item) ids.wikidata_id = item;
   }
   if (ids.wikidata_id) await ask("wikidata", () => catalogs.wikidata.game(ids.wikidata_id));
-  const { rawg, mobygames, giantbomb, steam } = catalogs;
+  const { rawg, igdb, mobygames, giantbomb, thegamesdb, gog, steam, steamgriddb } = catalogs;
   await Promise.all([
     rawg && ids.rawg_id ? ask("rawg", () => rawg.game(ids.rawg_id)) : undefined,
+    igdb && ids.igdb_id ? ask("igdb", () => igdb.game(ids.igdb_id)) : undefined,
     mobygames && ids.mobygames_id ? ask("mobygames", () => mobygames.game(ids.mobygames_id)) : undefined,
     giantbomb && ids.giantbomb_id ? ask("giantbomb", () => giantbomb.game(ids.giantbomb_id)) : undefined,
+    thegamesdb && ids.thegamesdb_id ? ask("thegamesdb", () => thegamesdb.game(ids.thegamesdb_id)) : undefined,
+    ids.gog_id ? ask("gog", () => gog.game(ids.gog_id)) : undefined,
     ids.steam_app_id ? ask("steam", () => steam.game(ids.steam_app_id)) : undefined,
   ]);
-  const answered = detail_order.flatMap((source) => (answers[source] ? [answers[source]!] : []));
+  const heard_of = () => detail_order.flatMap((source) => (answers[source] ? [answers[source]!] : []));
+  if (steamgriddb) {
+    const id = ids.steamgriddb_id || (await steamgriddb_id_of(steamgriddb, ids, heard_of().reduce(merge_games, start)));
+    if (id) await ask("steamgriddb", () => steamgriddb.game(id));
+  }
+  const answered = heard_of();
   if (answered.length === 0 && !start.title) throw new Error(failures.join("; ") || "No catalogue knows that game.");
   // The ids asked by win over any a catalogue gives, so an id set by hand stays.
   let game = ids_only(start);
   for (const answer of answered) game = merge_games(game, answer);
   return merge_games(merge_games(game, ids), start);
+}
+
+// A game's SteamGridDB id: from its Steam app, else the game of the same title and year; "" when neither finds one.
+async function steamgriddb_id_of(steamgriddb: SteamGridDb, ids: CatalogGame, known: CatalogGame): Promise<string> {
+  const by_steam = ids.steam_app_id ? await steamgriddb.by_steam(ids.steam_app_id).catch(() => "") : "";
+  if (by_steam || !known.title) return by_steam;
+  const found = await steamgriddb.search(known.title).catch(() => []);
+  return found.find((each) => same_game(each, { ...known, steamgriddb_id: "" }))?.steamgriddb_id ?? "";
 }
 
 // Steam's own art replaces a cover that is only the usual guess at its address, and never box art from elsewhere.
@@ -300,7 +323,7 @@ function write_details(database: SqlDatabase, game: CatalogGame): AddedGame {
     return { id: existing, title: game.title, existed: true };
   }
   const id = game_key(game);
-  if (!id) throw new Error("That game has no RAWG, MobyGames, Giant Bomb, Wikidata or Steam id.");
+  if (!id) throw new Error("That game has no catalogue id.");
   const status = game_status_of(games_setting(database, "games.default_status"));
   db.insert(games_games)
     .values({ id, ...fields, ...base_of(undefined, game), title: game.title || "Untitled game", status, added_at: today() })
@@ -314,6 +337,10 @@ function start_from(source: GameSource, id: string): CatalogGame {
   else if (source === "mobygames") start.mobygames_id = /^\d+$/.test(id) ? id : "";
   else if (source === "giantbomb") start.giantbomb_id = parse_giantbomb_id(id);
   else if (source === "wikidata") start.wikidata_id = parse_wikidata_id(id);
+  else if (source === "igdb") start.igdb_id = /^[a-z0-9-]+$/i.test(id) ? id.toLowerCase() : "";
+  else if (source === "thegamesdb") start.thegamesdb_id = /^\d+$/.test(id) ? id : "";
+  else if (source === "gog") start.gog_id = parse_gog_slug(id);
+  else if (source === "steamgriddb") start.steamgriddb_id = /^\d+$/.test(id) ? id : "";
   else start.steam_app_id = /^\d+$/.test(id) ? id : "";
   if (!game_key(start)) throw new Error(`${id} is not a ${catalog_labels[source]} id.`);
   return start;
@@ -328,12 +355,12 @@ async function search_everywhere(database: SqlDatabase, query: string): Promise<
   const catalogs = catalogs_of(database);
   const searches: [GameSource, Promise<CatalogGame[]>][] = [];
   const failures: string[] = [];
-  for (const source of ["rawg", "mobygames", "giantbomb"] as const) {
+  for (const source of keyed_searches) {
     const client = catalogs[source];
     if (client) searches.push([source, client.search(query)]);
-    else failures.push(`${key_settings[source]![1]}: no key set`);
+    else failures.push(`${catalog_labels[source]}: no key set`);
   }
-  searches.push(["steam", catalogs.steam.search(query)], ["wikidata", catalogs.wikidata.search(query)]);
+  searches.push(["steam", catalogs.steam.search(query)], ["gog", catalogs.gog.search(query)], ["wikidata", catalogs.wikidata.search(query)]);
   const settled = await Promise.allSettled(searches.map(([, search]) => search));
   failures.push(...settled.flatMap((result, index) => (result.status === "rejected" ? [`${catalog_labels[searches[index]![0]]}: ${(result.reason as Error).message}`] : [])));
   if (settled.every((result) => result.status === "rejected")) throw new Error(failures.join("; "));
@@ -604,6 +631,9 @@ const id_labels: Record<keyof GameIds, string> = {
   wikidata_id: "Wikidata item",
   steam_app_id: "Steam app id",
   igdb_id: "IGDB id",
+  thegamesdb_id: "TheGamesDB id",
+  gog_id: "GOG id",
+  steamgriddb_id: "SteamGridDB id",
 };
 
 // Each id typed or pasted as its catalogue writes it, or as a link; empty clears it.
@@ -625,7 +655,10 @@ function clean_ids(ids: Partial<GameIds>): Partial<GameIds> {
   clean("giantbomb_id", parse_giantbomb_id, "3030-21662");
   clean("wikidata_id", parse_wikidata_id, "Q279446");
   clean("steam_app_id", (input) => link_id("steam")(input) || (/^\d+$/.test(input) ? input : ""), "620");
-  clean("igdb_id", (input) => /igdb\.com\/games\/([a-z0-9-]+)/i.exec(input)?.[1]?.toLowerCase() ?? (/^[a-z0-9-]+$/i.test(input) ? input.toLowerCase() : ""), "portal-2");
+  clean("igdb_id", (input) => link_id("igdb")(input) || (/^[a-z0-9-]+$/i.test(input) ? input.toLowerCase() : ""), "portal-2");
+  clean("thegamesdb_id", (input) => link_id("thegamesdb")(input) || (/^\d+$/.test(input) ? input : ""), "1234");
+  clean("gog_id", parse_gog_slug, "the_witcher_3_wild_hunt");
+  clean("steamgriddb_id", (input) => /steamgriddb\.com\/game\/(\d+)/i.exec(input)?.[1] ?? (/^\d+$/.test(input) ? input : ""), "21207");
   return cleaned;
 }
 
@@ -801,7 +834,7 @@ export const games_feature = define_feature({
 
     add_game_from_link: (database: SqlDatabase, link: string): Promise<AddedGame> => {
       const parsed = parse_game_link(link);
-      if (!parsed) throw new Error("Not a RAWG, MobyGames, Giant Bomb, Wikidata or Steam store link, such as https://rawg.io/games/portal-2 or https://store.steampowered.com/app/620/.");
+      if (!parsed) throw new Error("Not a RAWG, IGDB, MobyGames, Giant Bomb, TheGamesDB, GOG, Wikidata or Steam store link, such as https://rawg.io/games/portal-2 or https://store.steampowered.com/app/620/.");
       return add_from(database, parsed.source, parsed.id);
     },
 
