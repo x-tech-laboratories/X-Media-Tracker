@@ -52,6 +52,21 @@ afterEach(() => {
 });
 
 describe("games library", () => {
+  it("draws the covers at the grid size chosen in settings", async () => {
+    const store = fake_page();
+    store.import_trilium_games(trilium_database, "");
+    render(<App />);
+    go("#/settings");
+
+    await screen.findAllByRole("radiogroup", { name: "Grid size" });
+    const choice = within(document.getElementById("settings-games-view")!).getByRole("radiogroup", { name: "Grid size" });
+    fireEvent.click(within(choice).getByRole("radio", { name: "Large" }));
+    await waitFor(() => expect(store.get_settings()["games.grid_size"]).toBe("large"));
+
+    go("#/games/library");
+    expect((await screen.findByRole("list", { name: "Games" })).className).toBe("media-grid media-large");
+  });
+
   it("groups the covers under a heading per status group, in order from not yet played to done", async () => {
     fake_page(sample_games);
     render(<App />);

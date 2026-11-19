@@ -14,7 +14,7 @@ import { toast } from "@x-tech-laboratories/x-libs/web/react/toasts";
 import { calls, use_data } from "../api.ts";
 import { read_picked, save_text } from "../files.ts";
 import { PluginRows } from "../plugins.tsx";
-import { SecretRow, SourceRow, TextRow } from "../settings/rows.tsx";
+import { GridSizeRow, SecretRow, SourceRow, TextRow } from "../settings/rows.tsx";
 import type { FeatureSettingsProps } from "../features.tsx";
 import { book_catalog_manifests } from "../../shared/books/manifests.ts";
 import { book_status_labels, book_statuses, type BookCollection } from "../../shared/books/model.ts";
@@ -237,6 +237,7 @@ function SourceSettings() {
 export function book_settings(props: FeatureSettingsProps): SettingsSection[] {
   return [
     { id: "book-sources", heading: "Sources", hint: "Each catalogue is a plugin: turn it off to leave it out of search and details. Open Library and BookBrainz need no key; Hardcover answers once its key is set.", content: <SourceSettings /> },
+    { id: "books-view", heading: "Library view", content: <GridSizeRow {...props} setting="books.grid_size" hint="How big each cover is in the library; smaller fits more to a row." /> },
     { id: "new-books", heading: "New books", content: <NewBookSettings {...props} /> },
     { id: "book-collections", heading: "Book collections", hint: "Your own shelves, such as Book club or Favourites; a book can be in several.", content: <CollectionSettings /> },
     { id: "book-alerts", heading: "New books and alerts", content: <AlertSettings {...props} /> },

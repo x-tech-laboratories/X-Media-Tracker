@@ -26,6 +26,8 @@ export const games_setting_defaults = {
   "games.statuses": [] as { id: string; label: string; group: string }[],
   // The status a game added by hand starts with.
   "games.default_status": "backlog",
+  // How big each cover is in the library's grid: "small", "medium" or "large".
+  "games.grid_size": "medium",
   // The fewest hours between automatic Steam imports; 0 turns them off.
   "games.steam_sync_hours": 0,
   // When the last Steam import ran, as an ISO timestamp, and what it did; synced, so the server and a desktop do not both run it.

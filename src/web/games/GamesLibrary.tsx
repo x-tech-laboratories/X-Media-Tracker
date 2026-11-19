@@ -5,7 +5,7 @@
 // ── Imports ──────────────────────────────────────────────────────────────────
 
 import { useMemo } from "react";
-import { MediaGrid, MediaTile } from "@x-tech-laboratories/x-libs/web/react/media";
+import { MediaGrid, MediaTile, type MediaGridSize } from "@x-tech-laboratories/x-libs/web/react/media";
 import { MenuButton } from "@x-tech-laboratories/x-libs/web/react/menu_button";
 import { Segmented, Select, TreeSelect } from "@x-tech-laboratories/x-libs/web/react/controls";
 import { PageHeading, Stack, Toolbar } from "@x-tech-laboratories/x-libs/web/react/layout";
@@ -16,7 +16,7 @@ import { is_boolean, one_of } from "@x-tech-laboratories/x-libs/web/prefs";
 import { use_pref } from "@x-tech-laboratories/x-libs/web/react/prefs";
 import { toast } from "@x-tech-laboratories/x-libs/web/react/toasts";
 
-import { calls, use_data } from "../api.ts";
+import { calls, use_data, use_settings } from "../api.ts";
 import { use_refresh } from "../refresh.ts";
 import {
   filter_games,
@@ -42,6 +42,7 @@ import type { Games, GamesRefreshReport } from "../../shared/games/store.ts";
 import { game_href, game_status_menu_items, stars_text } from "./actions.tsx";
 import { use_cover } from "../covers.tsx";
 import { GroupedList, rating_key, type Grouping } from "../grouping.tsx";
+import { grid_size_of } from "../settings/rows.tsx";
 
 // ── Remembered view ──────────────────────────────────────────────────────────
 
@@ -118,11 +119,11 @@ function GameTable({ games, statuses }: { games: LibraryGame[]; statuses: GameSt
   return <DataTable caption="Games" columns={columns} rows={games} row_key={(game) => game.id} />;
 }
 
-function GameList({ games, statuses, grouping, layout }: { games: LibraryGame[]; statuses: GameStatusInfo[]; grouping: Grouping<LibraryGame> | undefined; layout: Layout }) {
+function GameList({ games, statuses, grouping, size, layout }: { games: LibraryGame[]; statuses: GameStatusInfo[]; grouping: Grouping<LibraryGame> | undefined; size: MediaGridSize; layout: Layout }) {
   const tile = (game: LibraryGame) => <GameTile key={game.id} game={game} statuses={statuses} />;
-  if (grouping) return <GroupedList items={games} grouping={grouping} as_table={layout === "table"} tile={tile} table={(members) => <GameTable games={members} statuses={statuses} />} />;
+  if (grouping) return <GroupedList items={games} grouping={grouping} as_table={layout === "table"} size={size} tile={tile} table={(members) => <GameTable games={members} statuses={statuses} />} />;
   if (layout === "table") return <GameTable games={games} statuses={statuses} />;
-  return <MediaGrid label="Games">{games.map(tile)}</MediaGrid>;
+  return <MediaGrid label="Games" size={size}>{games.map(tile)}</MediaGrid>;
 }
 
 // ── Groups ───────────────────────────────────────────────────────────────────
@@ -165,7 +166,7 @@ function use_games_refresh() {
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
-function LibraryPage({ library }: { library: Games }) {
+function LibraryPage({ library, settings }: { library: Games; settings: Record<string, unknown> }) {
   const [remembered, set_remembered] = use_pref("x-media-tracker-games-filters", remembered_defaults, is_filters);
   const [sort_key, set_sort_key] = use_pref<GameSortKey>("x-media-tracker-games-sort", "title", one_of(...game_sort_keys));
   const [descending, set_descending] = use_pref("x-media-tracker-games-descending", false, is_boolean);
@@ -267,7 +268,7 @@ function LibraryPage({ library }: { library: Games }) {
       ) : shown.length === 0 ? (
         <Empty title="No games match these filters." />
       ) : (
-        <GameList games={shown} statuses={library.statuses} grouping={group_by === "none" ? undefined : groupings[group_by]} layout={layout} />
+        <GameList games={shown} statuses={library.statuses} grouping={group_by === "none" ? undefined : groupings[group_by]} size={grid_size_of(settings["games.grid_size"])} layout={layout} />
       )}
     </Stack>
   );
@@ -275,9 +276,10 @@ function LibraryPage({ library }: { library: Games }) {
 
 export function GamesLibrary() {
   const library = use_data((api) => api.list_games());
+  const settings = use_settings();
   return (
     <div className="games-page">
-      <Loaded resource={library}>{(loaded) => <LibraryPage library={loaded} />}</Loaded>
+      <Loaded resource={library}>{(loaded) => <Loaded resource={settings}>{(values) => <LibraryPage library={loaded} settings={values} />}</Loaded>}</Loaded>
     </div>
   );
 }

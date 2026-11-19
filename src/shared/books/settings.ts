@@ -3,6 +3,8 @@
 export const books_setting_defaults = {
   // The status a book added by hand starts with.
   "books.default_status": "want_to_read",
+  // How big each cover is in the library's grid: "small", "medium" or "large".
+  "books.grid_size": "medium",
   // Whether a StoryGraph import's rating replaces one already set.
   "books.import_overwrite_ratings": false,
   // The fewest hours between checks for new books by the authors and series followed.

@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 
 import { group_items, type GroupOptions } from "@x-tech-laboratories/x-libs/grouping";
 import { GroupSections } from "@x-tech-laboratories/x-libs/web/react/layout";
-import { GroupedMediaGrid } from "@x-tech-laboratories/x-libs/web/react/media";
+import { GroupedMediaGrid, type MediaGridSize } from "@x-tech-laboratories/x-libs/web/react/media";
 
 // ── Groupings ────────────────────────────────────────────────────────────────
 
@@ -34,13 +34,14 @@ interface GroupedListProps<Item> {
   items: Item[];
   grouping: Grouping<Item>;
   as_table: boolean;
+  size: MediaGridSize;
   tile: (item: Item) => ReactNode;
   table: (items: Item[]) => ReactNode;
 }
 
 // The items under a heading per group, keeping their sorted order inside each.
-export function GroupedList<Item>({ items, grouping, as_table, tile, table }: GroupedListProps<Item>) {
+export function GroupedList<Item>({ items, grouping, as_table, size, tile, table }: GroupedListProps<Item>) {
   const groups = group_items(items, grouping.keys_of, grouping);
   if (as_table) return <GroupSections groups={groups} name_of={grouping.name_of}>{(members) => table(members)}</GroupSections>;
-  return <GroupedMediaGrid groups={groups} name_of={grouping.name_of}>{tile}</GroupedMediaGrid>;
+  return <GroupedMediaGrid groups={groups} name_of={grouping.name_of} size={size}>{tile}</GroupedMediaGrid>;
 }

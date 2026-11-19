@@ -7,6 +7,8 @@ export const library_setting_defaults = {
   "library.poster_size": "w342",
   // TMDB's image width for the posters kept on every device; a change takes every poster again.
   "library.saved_poster_size": "w780",
+  // How big each poster is in the Library's grid: "small", "medium" or "large".
+  "library.grid_size": "medium",
   // Whether the Library filters by TMDB's genres and the details page shows them.
   "library.genres_enabled": true,
   // Genres left out of the Library's genre filter.
