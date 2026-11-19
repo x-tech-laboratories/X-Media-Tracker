@@ -89,6 +89,25 @@ export const books_api = {
       },
     ],
   },
+  lookup_book_sources: {
+    description:
+      "Looks up what each catalogue (BookBrainz, Open Library and, when a key is set, Hardcover) says of a tracked book, each answer on its own rather than joined, " +
+      "with the same field names as list_books gives a book: ids, title, subtitle, authors, series, year, release_date, overview, cover_url, genres, pages and audio_minutes. " +
+      "Names any catalogue that failed. Use it to pick, field by field, which catalogue's value a book keeps through merge_books.",
+    params: [{ name: "id", schema: book_id }],
+  },
+  merge_books: {
+    description:
+      "Merges tracked books that are the same book into one: the book kept takes the values given, gains every read, journal entry and collection of the others, " +
+      "and the others are removed; History can bring them back. Values are by list_books' field names, such as title, authors, author_refs, series_ref, status, " +
+      "rating or owned, each from one of the books or from lookup_book_sources; a field left out stays as the kept book has it. A catalogue id another tracked book " +
+      "outside the merge already has is refused. With one id it only sets the values. Gives back the book kept.",
+    params: [
+      { name: "ids", schema: { type: "array", items: { type: "string" }, description: "Every book to merge, the kept one among them, by its id as list_books gives it." } },
+      { name: "keep", schema: { ...book_id, description: "The id of the book that stays." } },
+      { name: "values", schema: { type: "object", description: 'The fields the kept book takes, by name, such as {"title": "The Final Empire", "rating": 9}.' } },
+    ],
+  },
   remove_book: {
     description: "Removes a book from the library, with its reads and journal; History can bring it back.",
     params: [{ name: "id", schema: book_id }],

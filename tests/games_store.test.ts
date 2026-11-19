@@ -422,3 +422,40 @@ describe("the IGDB export import", () => {
     expect(() => open_methods().import_igdb_export("<h1>Nope</h1>")).toThrow("No games found");
   });
 });
+
+describe("merging games", () => {
+  it("gives each catalogue's own answer in a game's shape", async () => {
+    const methods = open_methods();
+    methods.set_setting("games.rawg_api_key", "rawg-key");
+    await methods.add_game("steam", "620");
+
+    const { answers } = await methods.lookup_game_sources("rawg:portal-2");
+
+    expect(answers.map((answer) => answer.source)).toEqual(["rawg", "steam", "wikidata"]);
+    expect(answers.every((answer) => answer.values.title === "Portal 2")).toBe(true);
+    expect(answers.find((answer) => answer.source === "steam")!.values).toMatchObject({ steam_app_id: "620" });
+  });
+
+  it("merges an imported copy into the catalogued one with its collections, picked values and DLC", async () => {
+    const methods = open_methods();
+    await methods.add_game("steam", "620");
+    methods.import_trilium_games(JSON.stringify({ games: { a: { title: "Portal" }, b: { title: "Peer Review" } } }), "");
+    methods.set_game_rating("title:portal", 8);
+    methods.set_game_collections("title:portal", [methods.save_game_collection({ name: "Puzzles" })]);
+    methods.set_game_base(methods.list_games().games.find((game) => game.title === "Peer Review")!.id, "title:portal");
+
+    const merged = methods.merge_games(["rawg:portal-2", "title:portal"], "rawg:portal-2", { rating: 8, owned_platforms: ["PC", "Switch", "pc"] });
+
+    expect(methods.list_games().games.map((game) => game.id)).not.toContain("title:portal");
+    expect(merged).toMatchObject({ id: "rawg:portal-2", rating: 8, owned_platforms: ["PC", "Switch"], steam_app_id: "620" });
+    expect(merged.collection_ids).toHaveLength(1);
+    expect(methods.list_games().games.find((game) => game.title === "Peer Review")!.base_game).toBe("rawg:portal-2");
+  });
+
+  it("refuses an id a game outside the merge has", async () => {
+    const methods = open_methods();
+    await methods.add_game("steam", "620");
+    methods.import_trilium_games(JSON.stringify({ games: { a: { title: "Portal" } } }), "");
+    expect(() => methods.merge_games(["title:portal"], "title:portal", { steam_app_id: "620" })).toThrow("Portal 2 already has that Steam app id");
+  });
+});

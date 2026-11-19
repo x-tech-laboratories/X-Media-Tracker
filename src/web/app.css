@@ -19,3 +19,30 @@
   border-top: var(--border-width) solid var(--border-default);
   border-radius: 0;
 }
+
+/* The merge window: long values cut short so every column fits, each column's cover beside its name, and the copies
+   offered to merge one to a line. */
+.merge-window :is(td, th) {
+  max-width: 16rem;
+}
+
+.merge-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.merge-candidates {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.merge-candidate {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}

@@ -29,6 +29,8 @@ import {
 } from "../../shared/games/model.ts";
 import { attempt, game_href, set_game_status } from "./actions.tsx";
 import { HeadPoster, use_cover } from "../covers.tsx";
+import { MergeButton } from "../merging.tsx";
+import { game_merge } from "./merge.tsx";
 import { StatusPicker } from "./StatusPicker.tsx";
 
 // ── Owning ───────────────────────────────────────────────────────────────────
@@ -222,6 +224,7 @@ function GamePage({ game, games, collections, known_platforms }: { game: Library
             <button type="button" onClick={() => open_dialog((close) => <IdsDialog game={game} close={close} />)}>
               Change ids
             </button>
+            <MergeButton kind={game_merge} start={game} items={games} />
             <button type="button" className="danger" onClick={remove}>
               Remove
             </button>

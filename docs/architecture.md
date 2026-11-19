@@ -122,6 +122,14 @@ Trakt and Stremio are bundled X-Libs plugins, each named once by a manifest in `
   transaction writes, matching on any id and merging episodes.
 - `keep_importing` (`src/shared/sources/schedule.ts`) checks the automatic imports hourly on the server and the desktop.
 
+## Merging
+
+`src/shared/merging.ts` holds what merging shares: a catalogue's answer in a tracked row's own shape, and the checks
+before a merge writes. Each feature's store has `lookup_<kind>_sources`, each catalogue's own answer from the same
+lookups as adding, and `merge_<kind>s`, which writes the values picked onto the copy kept, moves the others' reads,
+journal, episodes and collections to it, points DLC at it and removes them, in one transaction. The page's window is
+`src/web/merging.tsx` on X-Libs' `MergeGrid`, with each feature's fields in `src/web/<feature>/merge.tsx`.
+
 ## History
 
 `src/shared/history/store.ts` keeps a version of every title (with its episodes and collections) and every collection
