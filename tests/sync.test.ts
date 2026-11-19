@@ -3,7 +3,7 @@ import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
 
 import { bind_methods, open_store, sync_engine } from "../src/shared/store.ts";
-import { trilium_database } from "./trilium_sample.ts";
+import { seed_library } from "./library_sample.ts";
 
 function open_device(): DatabaseSync {
   const database = new DatabaseSync(":memory:");
@@ -25,8 +25,8 @@ describe("sync between devices", () => {
     const on_phone = bind_methods(() => phone, () => undefined);
     const on_desktop = bind_methods(() => desktop, () => undefined);
 
-    on_phone.import_trilium_media(trilium_database, "");
-    on_desktop.import_trilium_media(trilium_database, "");
+    seed_library(phone);
+    seed_library(desktop);
     on_phone.set_episodes_watched("tmdb:95396", [{ season: 2, from: 2, to: 3 }], true, 19);
     on_desktop.set_title_rating("tmdb:693134", 10);
     push(phone, desktop);

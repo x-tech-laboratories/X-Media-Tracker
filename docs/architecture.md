@@ -50,7 +50,7 @@ on the Settings page.
   adding the same title make one row; `library_episodes`, one row per watched episode, so two devices ticking
   different episodes both keep theirs; `library_collections` with an optional `library_collection_groups` row, and
   `library_title_collections` between titles and collections.
-- `tmdb.ts` is the TMDB client; `trilium.ts` reads and writes the Trilium add-on's Database note.
+- `tmdb.ts` is the TMDB client.
 - A title is found by any shared id, so a title first known only by its IMDb id is matched once TMDB names it.
 
 ## Books

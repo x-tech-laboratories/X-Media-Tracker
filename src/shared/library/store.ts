@@ -15,8 +15,6 @@ import {
   episodes_in,
   format_episodes,
   is_status,
-  normalize_names,
-  parse_episodes,
   parse_media_link,
   status_from_progress,
   title_key,
@@ -33,7 +31,6 @@ import {
 import { library_collection_groups, library_collections, library_episodes, library_tables, library_title_collections, library_titles } from "./schema.ts";
 import { library_secret_settings, library_setting_defaults } from "./settings.ts";
 import { create_tmdb, resolve_details, type Tmdb, type TmdbDetails, type TmdbFullDetails, type TmdbTitle } from "./tmdb.ts";
-import { read_trilium_database, read_trilium_groups, write_trilium_database, type ImportedTitle } from "./trilium.ts";
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
 
@@ -204,20 +201,6 @@ function add_details(database: SqlDatabase, details: TmdbDetails): Added {
   return { id, name: details.name, existed: false };
 }
 
-// The collection with this name whatever its case, made in the group given when there is none.
-function collection_named(database: SqlDatabase, name: string, group_id: string | null): string {
-  const db = drizzle_of(database);
-  const found = db
-    .select()
-    .from(library_collections)
-    .all()
-    .find((collection) => collection.name.toLowerCase() === name.toLowerCase());
-  if (found) return found.id;
-  const id = new_id();
-  db.insert(library_collections).values({ id, name, group_id }).run();
-  return id;
-}
-
 function group_named(database: SqlDatabase, name: string): string {
   const db = drizzle_of(database);
   const groups = db.select().from(library_collection_groups).all();
@@ -226,39 +209,6 @@ function group_named(database: SqlDatabase, name: string): string {
   const id = new_id();
   db.insert(library_collection_groups).values({ id, name, position: groups.length }).run();
   return id;
-}
-
-// One Trilium title into the library: a new one whole; one already here gains its episodes and collections, and what it
-// lacks, keeping its own status and rating.
-function import_title(database: SqlDatabase, title: ImportedTitle, collection_ids: string[]): "added" | "updated" {
-  const db = drizzle_of(database);
-  const existing = find_title(database, title);
-  const { watched_episodes, collections: _collections, ...fields } = title;
-  const id = existing || title.id;
-  if (existing) {
-    const row = db.select().from(library_titles).where(eq(library_titles.id, existing)).get()!;
-    const fill = <Value>(mine: Value, theirs: Value) => (mine === "" || mine === 0 || mine === null ? theirs : mine);
-    db.update(library_titles)
-      .set({
-        tmdb_id: fill(row.tmdb_id, fields.tmdb_id),
-        imdb_id: fill(row.imdb_id, fields.imdb_id),
-        trakt_id: fill(row.trakt_id, fields.trakt_id),
-        overview: fill(row.overview, fields.overview),
-        poster_path: fill(row.poster_path, fields.poster_path),
-        genres: fill(row.genres, fields.genres),
-        runtime: fill(row.runtime, fields.runtime),
-        total_episodes: fill(row.total_episodes, fields.total_episodes),
-        rating: fill(row.rating, fields.rating),
-        last_watched: [row.last_watched, fields.last_watched].sort().at(-1)!,
-      })
-      .where(eq(library_titles.id, existing))
-      .run();
-  } else db.insert(library_titles).values(fields).run();
-
-  const episodes = [...parse_episodes(watched_episodes)].flatMap(([season, numbers]) => [...numbers].map((episode) => ({ season, episode })));
-  write_episodes(database, id, episodes, true);
-  for (const collection_id of collection_ids) db.insert(library_title_collections).values({ title_id: id, collection_id }).onConflictDoNothing().run();
-  return existing ? "updated" : "added";
 }
 
 // ── Merging ──────────────────────────────────────────────────────────────────
@@ -396,16 +346,6 @@ export const library_feature = define_feature({
       return { ...(await tmdb.full_details(title.media_type, tmdb_id)), title };
     },
 
-    export_library: (database: SqlDatabase): string => {
-      const names = new Map(drizzle_of(database).select().from(library_collections).all().map((collection) => [collection.id, collection.name]));
-      return write_trilium_database(
-        list_titles(database).map(({ collection_ids, watched_count: _watched_count, ...title }) => ({
-          ...title,
-          collections: collection_ids.map((id) => names.get(id)!).filter(Boolean),
-        })),
-      );
-    },
-
     add_title: async (database: SqlDatabase, media_type: MediaType, tmdb_id: string): Promise<Added> => add_details(database, await tmdb_of(database).details(media_type, tmdb_id)),
 
     // An IMDb link does not say whether it is a movie or a show, so both are asked for; an id matches only one.
@@ -541,22 +481,6 @@ export const library_feature = define_feature({
     },
 
     get_library_refresh: (database: SqlDatabase): LibraryRefresh => snapshot_of(refreshes.get(database) ?? no_refresh),
-
-    // The Trilium Media Tracker's Database note, and optionally its collection groups setting; adds and merges, never removes.
-    import_trilium_media: (database: SqlDatabase, database_json: string, groups_json: string): ImportReport => {
-      const titles = read_trilium_database(database_json);
-      const groups = read_trilium_groups(groups_json);
-      return in_transaction(database, () => {
-        const group_ids = new Map(groups.groups.map((name) => [name, group_named(database, name)]));
-        for (const [key, group] of Object.entries(groups.group_of)) collection_named(database, groups.names[key] ?? key, group_ids.get(group) ?? null);
-        const report: ImportReport = { added: 0, updated: 0 };
-        for (const title of titles) {
-          const collection_ids = normalize_names(title.collections).map((name) => collection_named(database, name, group_ids.get(groups.group_of[name.toLowerCase()] ?? "") ?? null));
-          report[import_title(database, title, collection_ids)]++;
-        }
-        return report;
-      });
-    },
   },
   api: library_api,
 });
