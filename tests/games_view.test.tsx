@@ -51,6 +51,20 @@ afterEach(() => {
 });
 
 describe("games library", () => {
+  it("groups the covers under a heading per status group, in order from not yet played to done", async () => {
+    const store = fake_page();
+    store.import_trilium_games(trilium_database, "");
+    render(<App />);
+    go("#/games/library");
+    await screen.findByText("3 of 3 games");
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Group by" }), { target: { value: "status_group" } });
+
+    const headings = await screen.findAllByRole("heading", { level: 2 });
+    expect(headings.map((heading) => heading.textContent)).toEqual(["Want to play 1", "Playing 1", "Played 1"]);
+    expect(within(screen.getByRole("list", { name: "Played" })).getByRole("link", { name: "Portal 2" })).toBeTruthy();
+  });
+
   it("lists the games with counts on each filter and narrows by status", async () => {
     const store = fake_page();
     store.import_trilium_games(trilium_database, "");
