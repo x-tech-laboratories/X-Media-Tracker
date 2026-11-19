@@ -55,6 +55,7 @@ function base_answers(): Record<string, unknown> {
       "620": { success: true, data: { name: "Portal 2", short_description: "The &quot;Perpetual Testing Initiative&quot;", release_date: { date: "18 Apr, 2011" }, genres: [{ description: "Action" }] } },
     },
     "store.steampowered.com/api/storesearch/": { items: [{ type: "app", id: 620, name: "Portal 2", platforms: { windows: true } }] },
+    "catalog.gog.com/v1/catalog": { products: [] },
   };
 }
 
@@ -76,6 +77,8 @@ function answer_of(url: URL): unknown {
 
 const fetch_stub = vi.fn(async (address: string) => {
   const answer = answer_of(new URL(address));
+  // A page, such as a store page, is answered as its text.
+  if (typeof answer === "string") return new Response(answer, { status: 200 });
   if (answer) return new Response(JSON.stringify(answer), { status: 200 });
   return new Response("{}", { status: 404 });
 });
@@ -155,8 +158,96 @@ describe("adding a game", () => {
     const methods = open_methods();
     await methods.add_game("steam", "620");
     const search = await methods.search_games("portal");
-    expect(search.failures).toEqual(["RAWG: no key set", "MobyGames: no key set", "Giant Bomb: no key set"]);
+    expect(search.failures).toEqual(["RAWG: no key set", "IGDB: no key set", "MobyGames: no key set", "Giant Bomb: no key set", "TheGamesDB: no key set"]);
     expect(search.results.map((result) => [result.title, result.wikidata_id, result.steam_app_id, result.tracked_id])).toEqual([["Portal 2", "Q279446", "620", "rawg:portal-2"]]);
+  });
+});
+
+describe("IGDB, TheGamesDB, GOG and SteamGridDB", () => {
+  const igdb_portal = {
+    name: "Portal 2",
+    slug: "portal-2",
+    summary: "Sequel to Portal.",
+    first_release_date: 1_303_084_800,
+    cover: { image_id: "co1rs4" },
+    genres: [{ name: "Puzzle" }],
+    platforms: [{ name: "PC (Microsoft Windows)" }],
+    involved_companies: [
+      { developer: true, publisher: false, company: { name: "Valve" } },
+      { developer: false, publisher: true, company: { name: "Electronic Arts" } },
+    ],
+    external_games: [{ uid: "620", external_game_source: 1 }],
+  };
+
+  const thegamesdb_answer = (games: unknown[]) => ({
+    code: 200,
+    data: { count: games.length, games },
+    include: {
+      boxart: { base_url: { large: "https://cdn.thegamesdb.net/images/large/" }, data: { "41": [{ side: "front", filename: "boxart/front/41-1.jpg" }] } },
+      platform: { data: { "1": { id: 1, name: "PC" }, "12": { id: 12, name: "PlayStation 3" } } },
+    },
+  });
+
+  beforeEach(() => {
+    Object.assign(answers, {
+      "id.twitch.tv/oauth2/token": { access_token: "twitch-access", expires_in: 3600 },
+      "api.igdb.com/v4/games": [igdb_portal],
+      "api.thegamesdb.net/v1/Genres": { code: 200, data: { genres: { "5": { id: 5, name: "Puzzle" } } } },
+      "api.thegamesdb.net/v1/Developers": { code: 200, data: { developers: { "9": { id: 9, name: "Valve" } } } },
+      "api.thegamesdb.net/v1/Publishers": { code: 200, data: { publishers: {} } },
+      "api.thegamesdb.net/v1.1/Games/ByGameName": thegamesdb_answer([
+        { id: 41, game_title: "Portal 2", release_date: "2011-04-19", platform: 1, genres: [5], developers: [9] },
+        { id: 42, game_title: "Portal 2", release_date: "2011-04-19", platform: 12, genres: [5], developers: [9] },
+      ]),
+      "api.thegamesdb.net/v1/Games/ByGameID": thegamesdb_answer([{ id: 77, game_title: "Lone Island", release_date: "1994-03-01", platform: 1, overview: "A small game." }]),
+      "www.steamgriddb.com/api/v2/search/autocomplete/Lone%20Island": { success: true, data: [{ id: 900, name: "Lone Island", release_date: 762_480_000 }] },
+      "www.steamgriddb.com/api/v2/games/id/900": { success: true, data: { id: 900, name: "Lone Island", release_date: 762_480_000 } },
+      "www.steamgriddb.com/api/v2/grids/game/900": { success: true, data: [{ url: "https://cdn2.steamgriddb.com/grid/lone.png" }] },
+    });
+  });
+
+  it("searches IGDB and TheGamesDB with their keys, joining the same game and its platforms", async () => {
+    const methods = open_methods();
+    methods.set_setting("games.igdb_client_id", "twitch-app");
+    methods.set_setting("games.igdb_client_secret", "twitch-secret");
+    methods.set_setting("games.thegamesdb_api_key", "tgdb-key");
+    const search = await methods.search_games("portal");
+    expect(search.failures).toEqual(["RAWG: no key set", "MobyGames: no key set", "Giant Bomb: no key set"]);
+    const [portal] = search.results;
+    expect(portal).toMatchObject({ title: "Portal 2", igdb_id: "portal-2", steam_app_id: "620", thegamesdb_id: "41", developers: "Valve", publishers: "Electronic Arts" });
+    expect(portal!.sources).toEqual(expect.arrayContaining(["igdb", "thegamesdb", "steam", "wikidata"]));
+    expect(portal!.cover_url).toBe("https://images.igdb.com/igdb/image/upload/t_cover_big_2x/co1rs4.jpg");
+    const igdb_call = fetch_stub.mock.calls.find(([address]) => String(address).includes("api.igdb.com")) as unknown as [string, RequestInit];
+    expect(igdb_call[1].headers).toMatchObject({ "Client-ID": "twitch-app", Authorization: "Bearer twitch-access" });
+  });
+
+  it("joins TheGamesDB's entries for each platform into one", async () => {
+    const methods = open_methods();
+    methods.set_setting("games.thegamesdb_api_key", "tgdb-key");
+    const search = await methods.search_games("portal");
+    expect(search.results.filter((result) => result.thegamesdb_id)).toHaveLength(1);
+    expect(search.results.find((result) => result.thegamesdb_id)!.platforms).toContain("PlayStation 3");
+  });
+
+  it("adds a game from TheGamesDB and finds SteamGridDB's art by its title", async () => {
+    const methods = open_methods();
+    methods.set_setting("games.thegamesdb_api_key", "tgdb-key");
+    methods.set_setting("games.steamgriddb_api_key", "sgdb-key");
+    const added = await methods.add_game_from_link("https://thegamesdb.net/game.php?id=77");
+    expect(added).toMatchObject({ id: "thegamesdb:77", title: "Lone Island" });
+    expect(methods.get_game("thegamesdb:77")).toMatchObject({ steamgriddb_id: "900", overview: "A small game.", platforms: "PC", cover_url: "https://cdn2.steamgriddb.com/grid/lone.png" });
+  });
+
+  it("adds a GOG game from its store link", async () => {
+    answers["www.gog.com/en/game/lone_island"] = '<div card-product="1234">';
+    answers["api.gog.com/v2/games/1234"] = {
+      description: "<p>Island <b>life</b>.</p>",
+      _links: { boxArtImage: { href: "https://images.gog-statics.com/box.jpg" } },
+      _embedded: { productType: "GAME", product: { title: "Lone Island", globalReleaseDate: "1994-03-01T00:00:00+02:00" }, developers: [{ name: "Islanders" }], tags: [{ name: "Adventure", level: 1 }] },
+    };
+    const methods = open_methods();
+    expect(await methods.add_game_from_link("https://www.gog.com/en/game/lone_island")).toMatchObject({ id: "gog:lone_island", title: "Lone Island" });
+    expect(methods.get_game("gog:lone_island")).toMatchObject({ overview: "Island life.", release_date: "1994-03-01", genres: "Adventure", developers: "Islanders", cover_url: "https://images.gog-statics.com/box.jpg" });
   });
 });
 
@@ -368,7 +459,17 @@ describe("Steam", () => {
   });
 
   it("keeps every catalogue's key and the Steam key out of what other programs read", () => {
-    expect(secret_settings).toEqual(expect.arrayContaining(["games.rawg_api_key", "games.mobygames_api_key", "games.giantbomb_api_key", "games.steam_api_key"]));
+    expect(secret_settings).toEqual(
+      expect.arrayContaining([
+        "games.rawg_api_key",
+        "games.mobygames_api_key",
+        "games.giantbomb_api_key",
+        "games.thegamesdb_api_key",
+        "games.steamgriddb_api_key",
+        "games.igdb_client_secret",
+        "games.steam_api_key",
+      ]),
+    );
   });
 });
 

@@ -77,6 +77,9 @@ const id_fields: [keyof GameIds, string, string][] = [
   ["wikidata_id", "Wikidata", "An item, such as Q279446, or its link"],
   ["steam_app_id", "Steam", "An app's number, such as 620, or its store link"],
   ["igdb_id", "IGDB", "A game's slug, such as portal-2, or its link"],
+  ["thegamesdb_id", "TheGamesDB", "A game's number, such as 1234, or its link"],
+  ["gog_id", "GOG", "A store page's slug, such as the_witcher_3_wild_hunt, or its link"],
+  ["steamgriddb_id", "SteamGridDB", "A game's number, such as 21207, or its link"],
 ];
 
 function IdsDialog({ game, close }: { game: LibraryGame; close: () => void }) {
@@ -87,6 +90,9 @@ function IdsDialog({ game, close }: { game: LibraryGame; close: () => void }) {
     wikidata_id: game.wikidata_id,
     steam_app_id: game.steam_app_id,
     igdb_id: game.igdb_id,
+    thegamesdb_id: game.thegamesdb_id,
+    gog_id: game.gog_id,
+    steamgriddb_id: game.steamgriddb_id,
   });
   const [busy, set_busy] = useState(false);
   return (

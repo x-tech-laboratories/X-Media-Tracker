@@ -22,6 +22,9 @@ export const games_games = sqliteTable(
     wikidata_id: text().notNull().default(""),
     steam_app_id: text().notNull().default(""),
     igdb_id: text().notNull().default(""),
+    thegamesdb_id: text().notNull().default(""),
+    gog_id: text().notNull().default(""),
+    steamgriddb_id: text().notNull().default(""),
     title: text().notNull(),
     year: text().notNull().default(""),
     release_date: text().notNull().default(""),
@@ -56,6 +59,8 @@ export const games_games = sqliteTable(
     index("games_games_by_giantbomb").on(table.giantbomb_id),
     index("games_games_by_wikidata").on(table.wikidata_id),
     index("games_games_by_steam").on(table.steam_app_id),
+    index("games_games_by_thegamesdb").on(table.thegamesdb_id),
+    index("games_games_by_gog").on(table.gog_id),
   ],
 );
 

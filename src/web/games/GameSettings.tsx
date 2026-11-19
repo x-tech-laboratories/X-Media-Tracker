@@ -1,4 +1,4 @@
-// The games' settings: the catalogues' keys, how new games start, collections, the Steam profile whose library and
+// The games' settings: the catalogues' keys and IGDB's Twitch app, how new games start, collections, the Steam profile whose library and
 // wishlist come in and how often, the status each Steam category gives, and the Trilium Game Tracker's and IGDB's imports.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
@@ -33,6 +33,28 @@ function CatalogueSettings(props: FeatureSettingsProps) {
         hint="The most careful catalogue, with box art. A free key for personal use is under API on your MobyGames profile; it allows about one request a second."
       />
       <SecretRow {...props} label="Giant Bomb API key" setting="games.giantbomb_api_key" placeholder="Paste your key" hint="Box art and short descriptions. A free key is on your Giant Bomb profile page." />
+      <TextRow
+        {...props}
+        label="IGDB client id"
+        setting="games.igdb_client_id"
+        placeholder="Paste the client id"
+        hint="The biggest catalogue, with box art. Register an application at dev.twitch.tv/console (free; Twitch asks for two-factor sign-in) and paste its client id and a new secret."
+      />
+      <SecretRow {...props} label="IGDB client secret" setting="games.igdb_client_secret" placeholder="Paste the client secret" hint="The secret of the same Twitch application." />
+      <SecretRow
+        {...props}
+        label="TheGamesDB API key"
+        setting="games.thegamesdb_api_key"
+        placeholder="Paste your key"
+        hint="Strongest on console and older games, with box art. Ask for a free key on the forums at forums.thegamesdb.net; it allows so many requests a month."
+      />
+      <SecretRow
+        {...props}
+        label="SteamGridDB API key"
+        setting="games.steamgriddb_api_key"
+        placeholder="Paste your key"
+        hint="Upright box art drawn by its users, for games the other catalogues have no cover for. A free key is under Preferences → API on steamgriddb.com."
+      />
     </>
   );
 }
@@ -310,6 +332,6 @@ export function game_settings(props: FeatureSettingsProps): SettingsSection[] {
       content: <SteamCategorySettings {...props} />,
     },
     { id: "trilium-games", heading: "Trilium Game Tracker", content: <TriliumSettings /> },
-    { id: "igdb", heading: "IGDB", hint: "IGDB's API needs a Twitch developer account, so your IGDB lists come in through its data export.", content: <IgdbSettings /> },
+    { id: "igdb", heading: "IGDB", hint: "IGDB's API gives only its catalogue, so your IGDB lists come in through its data export.", content: <IgdbSettings /> },
   ];
 }
