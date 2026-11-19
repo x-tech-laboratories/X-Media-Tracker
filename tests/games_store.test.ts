@@ -296,16 +296,17 @@ describe("IGDB's statuses", () => {
 });
 
 describe("keeping a game", () => {
-  it("sets status, rating, platforms, edition and playtime", async () => {
+  it("sets status, rating, platforms, stores, edition and playtime", async () => {
     const methods = open_methods();
     await methods.add_game("steam", "620");
     methods.set_game_status("rawg:portal-2", "completed");
     methods.set_game_rating("rawg:portal-2", 8.6);
     methods.set_game_platforms("rawg:portal-2", ["PC", " pc ", "Nintendo Switch"]);
+    methods.set_game_stores("rawg:portal-2", ["GOG", " gog ", "Epic Games Store"]);
     methods.set_game_edition("rawg:portal-2", " Complete ");
     methods.set_game_playtime("rawg:portal-2", 125.4);
     methods.set_game_last_played("rawg:portal-2", "2026-11-01");
-    expect(methods.get_game("rawg:portal-2")).toMatchObject({ status: "completed", rating: 9, owned_platforms: ["PC", "Nintendo Switch"], edition: "Complete", playtime_minutes: 125, last_played: "2026-11-01" });
+    expect(methods.get_game("rawg:portal-2")).toMatchObject({ status: "completed", rating: 9, owned_platforms: ["PC", "Nintendo Switch"], owned_stores: ["GOG", "Epic Games Store"], edition: "Complete", playtime_minutes: 125, last_played: "2026-11-01" });
     expect(() => methods.set_game_rating("rawg:portal-2", 11)).toThrow("1 to 10");
     expect(() => methods.set_game_last_played("rawg:portal-2", "Nov 1")).toThrow("a day such as");
     expect(() => methods.set_game_status("rawg:portal-2", "beaten" as never)).toThrow("Unknown status");
@@ -392,8 +393,8 @@ describe("Steam", () => {
       { appid: 400, name: "Portal", playtime_forever: 0, rtime_last_played: 0 },
     ];
     expect(await methods.import_steam_library()).toEqual({ added: 1, updated: 1 });
-    expect(methods.get_game("rawg:portal-2")).toMatchObject({ status: "currently_playing", playtime_minutes: 305, owned_platforms: ["PC"] });
-    expect(methods.get_game("steam:400")).toMatchObject({ title: "Portal", status: "backlog", playtime_minutes: 0, owned_platforms: ["PC"] });
+    expect(methods.get_game("rawg:portal-2")).toMatchObject({ status: "currently_playing", playtime_minutes: 305, owned_platforms: ["PC"], owned_stores: ["Steam"] });
+    expect(methods.get_game("steam:400")).toMatchObject({ title: "Portal", status: "backlog", playtime_minutes: 0, owned_platforms: ["PC"], owned_stores: ["Steam"] });
     expect(requested("GetOwnedGames")[0]).toContain("steamid=76561197960287930");
   });
 
@@ -546,10 +547,10 @@ describe("merging games", () => {
     methods.set_game_collections("title:portal", [methods.save_game_collection({ name: "Puzzles" })]);
     methods.set_game_base(methods.list_games().games.find((game) => game.title === "Peer Review")!.id, "title:portal");
 
-    const merged = methods.merge_games(["rawg:portal-2", "title:portal"], "rawg:portal-2", { rating: 8, owned_platforms: ["PC", "Switch", "pc"] });
+    const merged = methods.merge_games(["rawg:portal-2", "title:portal"], "rawg:portal-2", { rating: 8, owned_platforms: ["PC", "Switch", "pc"], owned_stores: ["GOG", "gog"] });
 
     expect(methods.list_games().games.map((game) => game.id)).not.toContain("title:portal");
-    expect(merged).toMatchObject({ id: "rawg:portal-2", rating: 8, owned_platforms: ["PC", "Switch"], steam_app_id: "620" });
+    expect(merged).toMatchObject({ id: "rawg:portal-2", rating: 8, owned_platforms: ["PC", "Switch"], owned_stores: ["GOG"], steam_app_id: "620" });
     expect(merged.collection_ids).toHaveLength(1);
     expect(methods.list_games().games.find((game) => game.title === "Peer Review")!.base_game).toBe("rawg:portal-2");
   });

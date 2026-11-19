@@ -1,0 +1,1 @@
+ALTER TABLE `games_games` ADD `owned_stores` text DEFAULT '[]' NOT NULL;

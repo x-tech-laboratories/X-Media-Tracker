@@ -64,5 +64,11 @@ export const migrations: DrizzleMigration[] = [
     "statements": [
       "ALTER TABLE `games_games` ADD `cover_by_hand` integer DEFAULT false NOT NULL;"
     ]
+  },
+  {
+    "name": "20261119083535_owned_stores",
+    "statements": [
+      "ALTER TABLE `games_games` ADD `owned_stores` text DEFAULT '[]' NOT NULL;"
+    ]
   }
 ];

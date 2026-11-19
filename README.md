@@ -88,7 +88,7 @@ or GOG's store art, else from SteamGridDB.
 
 Set a [Steam Web API key](https://steamcommunity.com/dev/apikey) and your Steam profile under **Settings → Games →
 Steam**: its 64-bit id (shown at the top of store.steampowered.com/account), its custom URL name, or a link to it; the profile's **Game details** must be public. **Import library** adds
-every game you own, owned on PC, as Currently playing once played and Backlog before; a game already here takes Steam's
+every game you own, owned on PC from Steam, as Currently playing once played and Backlog before; a game already here takes Steam's
 playtime and last day played when they are later, leaves the Wishlist for the Backlog, and keeps its status unless it
 was still wanted and has now been played. **Import wishlist** adds wished games as Wishlist, and moves a game in the
 Backlog you own nowhere to the Wishlist. With **Import from Steam every** set to some hours, the server and the desktop

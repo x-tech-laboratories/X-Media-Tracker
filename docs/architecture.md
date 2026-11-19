@@ -85,8 +85,8 @@ on the Settings page.
   IGDB's statuses in their three groups, with older ones read as their nearest, which ids name one game, pasted links, platforms, playtime, sorting and the Games library's filters with
   counts.
 - `schema.ts`: `games_games`, keyed by the strongest id (`rawg:…`, else `mobygames:…`, `giantbomb:…`, `wikidata:…`,
-  `steam:…`, `igdb:…`, `thegamesdb:…`, `gog:…`; a Trilium game with none is `title:<title>/<year>`), with the platforms a copy is owned on as a
-  JSON list and, for DLC, `base_game`: the key of the game it adds to, such as `steam:620`, or a library id, found among
+  `steam:…`, `igdb:…`, `thegamesdb:…`, `gog:…`; a Trilium game with none is `title:<title>/<year>`), with the platforms a copy is owned on and the
+  stores it is owned from as JSON lists and, for DLC, `base_game`: the key of the game it adds to, such as `steam:620`, or a library id, found among
   the tracked games by any id (`find_base_game` in `model.ts`); `none` once set by hand as not DLC, so the catalogues
   stop filling it in. Its `status` column still defaults to an older status, read as Backlog, since changing a default
   rebuilds the table and would drop its collection links. `games_collections` and `games_game_collections`. All of them sync.

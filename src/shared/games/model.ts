@@ -114,6 +114,8 @@ export interface Game extends GameIds {
   notes: string;
   // The platforms a copy is owned on, such as ["PC", "Switch"].
   owned_platforms: string[];
+  // The stores a copy is owned from, such as ["Steam", "GOG"].
+  owned_stores: string[];
   // Which edition is owned, such as "Game of the Year Edition", or "".
   edition: string;
   playtime_minutes: number;
@@ -258,6 +260,9 @@ export function game_links(game: Partial<GameIds>): { label: string; href: strin
 // Platforms one may own a game on, offered first when choosing; any other name can be typed.
 export const common_platforms = ["PC", "PlayStation 5", "PlayStation 4", "Xbox Series X|S", "Xbox One", "Nintendo Switch 2", "Nintendo Switch", "macOS", "Linux", "iOS", "Android"];
 
+// Stores one may own a game from, offered first when choosing; any other name can be typed.
+export const common_stores = ["Steam", "GOG", "Epic Games Store", "EA app", "Ubisoft Connect", "itch.io", "Humble Bundle", "Amazon Games", "Battle.net", "Microsoft Store", "PlayStation Store", "Nintendo eShop", "Disc"];
+
 // Names trimmed, empty ones dropped and the same name, whatever its case, kept once.
 export function clean_names(names: string[]): string[] {
   const kept: string[] = [];
@@ -310,20 +315,21 @@ export function sort_games<Item extends LibraryGame>(games: Item[], key: GameSor
 
 // ── Filters ──────────────────────────────────────────────────────────────────
 
-// "all" lets everything through; a platform or collection of "none" is games with none.
+// "all" lets everything through; a platform, store or collection of "none" is games with none.
 export interface GameFilters {
   search: string;
   kind: "games" | "dlc" | "all";
   // A status, a group of them, or "all".
   status: "all" | GameStatus | GameStatusGroup;
   platform: string;
+  store: string;
   collection: string;
 }
 
 export const game_kind_labels: Record<GameFilters["kind"], string> = { games: "Games", dlc: "DLC", all: "Both" };
 
 // DLC stays out of the library until asked for, as it shows on its game's page.
-export const no_game_filters: GameFilters = { search: "", kind: "games", status: "all", platform: "all", collection: "all" };
+export const no_game_filters: GameFilters = { search: "", kind: "games", status: "all", platform: "all", store: "all", collection: "all" };
 
 type GameFacet = keyof GameFilters;
 
@@ -339,6 +345,9 @@ function passes(game: LibraryGame, filters: GameFilters, skip: GameFacet | null)
   if (skip !== "platform" && filters.platform !== "all") {
     if (filters.platform === "none" ? game.owned_platforms.length > 0 : !game.owned_platforms.includes(filters.platform)) return false;
   }
+  if (skip !== "store" && filters.store !== "all") {
+    if (filters.store === "none" ? game.owned_stores.length > 0 : !game.owned_stores.includes(filters.store)) return false;
+  }
   if (skip !== "collection" && filters.collection !== "all") {
     if (filters.collection === "none" ? game.collection_ids.length > 0 : !game.collection_ids.includes(filters.collection)) return false;
   }
@@ -353,7 +362,7 @@ export type GameFacetCounts = Record<Exclude<GameFacet, "search">, Record<string
 
 // Each choice's count of the games it would show: narrowed by every other filter but never by its own.
 export function game_facet_counts(games: LibraryGame[], filters: GameFilters): GameFacetCounts {
-  const counts: GameFacetCounts = { kind: {}, status: {}, platform: {}, collection: {} };
+  const counts: GameFacetCounts = { kind: {}, status: {}, platform: {}, store: {}, collection: {} };
   const bump = (into: Record<string, number>, key: string) => void (into[key] = (into[key] ?? 0) + 1);
   for (const game of games) {
     if (passes(game, filters, "kind")) {
@@ -370,6 +379,11 @@ export function game_facet_counts(games: LibraryGame[], filters: GameFilters): G
       if (game.owned_platforms.length === 0) bump(counts.platform, "none");
       for (const platform of game.owned_platforms) bump(counts.platform, platform);
     }
+    if (passes(game, filters, "store")) {
+      bump(counts.store, "all");
+      if (game.owned_stores.length === 0) bump(counts.store, "none");
+      for (const store of game.owned_stores) bump(counts.store, store);
+    }
     if (passes(game, filters, "collection")) {
       bump(counts.collection, "all");
       if (game.collection_ids.length === 0) bump(counts.collection, "none");
@@ -382,6 +396,11 @@ export function game_facet_counts(games: LibraryGame[], filters: GameFilters): G
 // Every platform any game is owned on, A-Z, for the library's filter.
 export function owned_platforms_of(games: LibraryGame[]): string[] {
   return clean_names(games.flatMap((game) => game.owned_platforms)).sort((first, second) => first.localeCompare(second));
+}
+
+// Every store any game is owned from, A-Z, for the library's filter.
+export function owned_stores_of(games: LibraryGame[]): string[] {
+  return clean_names(games.flatMap((game) => game.owned_stores)).sort((first, second) => first.localeCompare(second));
 }
 
 // ── Days ─────────────────────────────────────────────────────────────────────

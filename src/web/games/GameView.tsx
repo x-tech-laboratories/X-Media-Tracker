@@ -1,4 +1,4 @@
-// One game's page: its cover, status, rating, the platforms a copy is owned on, edition, playtime, last day played and
+// One game's page: its cover, status, rating, the platforms and stores a copy is owned on and from, edition, playtime, last day played and
 // collections, the game it is DLC of or its own DLC, what the catalogues say of it with links to each, and the review.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
@@ -18,11 +18,14 @@ import { calls, use_data } from "../api.ts";
 import { HistoryButton } from "../history/HistoryView.tsx";
 import {
   common_platforms,
+  common_stores,
   dlc_of,
   find_base_game,
   game_links,
   game_status_labels,
   is_dlc,
+  owned_platforms_of,
+  owned_stores_of,
   type GameCollection,
   type GameIds,
   type LibraryGame,
@@ -47,6 +50,21 @@ function Platforms({ game, known }: { game: LibraryGame; known: string[] }) {
       add_label="Add"
       placeholder="Add a platform, such as PC"
       on_change={(next) => attempt(calls().set_game_platforms(game.id, next))}
+    />
+  );
+}
+
+function Stores({ game, known }: { game: LibraryGame; known: string[] }) {
+  const suggestions = [...new Set([...common_stores, ...known])];
+  return (
+    <ChipField
+      label="Owned from"
+      values={game.owned_stores}
+      suggestions={suggestions}
+      list_on_focus
+      add_label="Add"
+      placeholder="Add a store, such as GOG"
+      on_change={(next) => attempt(calls().set_game_stores(game.id, next))}
     />
   );
 }
@@ -205,7 +223,7 @@ function Review({ game }: { game: LibraryGame }) {
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
-function GamePage({ game, games, collections, known_platforms }: { game: LibraryGame; games: LibraryGame[]; collections: GameCollection[]; known_platforms: string[] }) {
+function GamePage({ game, games, collections }: { game: LibraryGame; games: LibraryGame[]; collections: GameCollection[] }) {
   const remove = () =>
     confirm_dialog({
       title: `Remove ${game.title}?`,
@@ -263,7 +281,8 @@ function GamePage({ game, games, collections, known_platforms }: { game: Library
                   on_commit={(event) => event.currentTarget.value.trim() !== game.edition && attempt(calls().set_game_edition(game.id, event.currentTarget.value))}
                 />,
               ],
-              ["Owned on", <Platforms game={game} known={known_platforms} />],
+              ["Owned on", <Platforms game={game} known={owned_platforms_of(games)} />],
+              ["Owned from", <Stores game={game} known={owned_stores_of(games)} />],
               ["Collections", <Collections game={game} collections={collections} />],
               ["DLC of", <BaseGame game={game} games={games} />],
             ]}
@@ -308,7 +327,7 @@ export function GameView({ id }: { id: string }) {
         {(loaded) =>
           loaded && (
             <Loaded resource={library}>
-              {(all) => <GamePage game={loaded} games={all.games} collections={all.collections} known_platforms={[...new Set(all.games.flatMap((each) => each.owned_platforms))]} />}
+              {(all) => <GamePage game={loaded} games={all.games} collections={all.collections} />}
             </Loaded>
           )
         }

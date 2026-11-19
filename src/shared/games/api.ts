@@ -26,7 +26,7 @@ export const games_api = {
       "Lists every tracked game, sorted by title, with its catalogue ids (RAWG slug, MobyGames, Giant Bomb guid, Wikidata item, Steam app, IGDB slug, TheGamesDB, " +
       "GOG slug, SteamGridDB), " +
       "release, genres, platforms it came out on, developers, status (one of " + game_statuses.join(", ") + "), rating 1 to 10 (half stars " +
-      "out of five) or null, review, the platforms a copy is owned on, edition, playtime in minutes, the day last played, the collections it is in, " +
+      "out of five) or null, review, the platforms a copy is owned on, the stores it is owned from, edition, playtime in minutes, the day last played, the collections it is in, " +
       "and for DLC base_game, the key or id of the game it adds to (\"none\" when set as not DLC), with base_game_title; " +
       "then every game collection.",
     params: [],
@@ -157,6 +157,13 @@ export const games_api = {
     params: [
       { name: "id", schema: game_id },
       { name: "platforms", schema: { type: "array", items: { type: "string" }, description: "Platform names, such as PC, PlayStation 5 or Nintendo Switch." } },
+    ],
+  },
+  set_game_stores: {
+    description: "Sets the stores a copy of the game is owned from, such as Steam, GOG or Epic Games Store, replacing the list before; empty when not known.",
+    params: [
+      { name: "id", schema: game_id },
+      { name: "stores", schema: { type: "array", items: { type: "string" }, description: "Store names, such as Steam, GOG, Epic Games Store, EA app, Ubisoft Connect, itch.io or Humble Bundle." } },
     ],
   },
   set_game_edition: {
