@@ -210,7 +210,7 @@ and rating.
 
 ## Importing from Trakt and Stremio
 
-**Settings → Sources → Import** shows a panel for each source plugin that is on. Imports only add and merge: a title is
+**Settings → Movies & Series → Source imports** shows a panel for each source plugin that is on. Imports only add and merge: a title is
 matched on any shared id (TMDB, IMDb or Trakt), episodes are merged and never unwatched, and status and rating are kept
 unless **Settings → Movies & Series → New titles** and the import settings say otherwise. Nothing is ever written to Stremio.
 
@@ -226,7 +226,7 @@ unless **Settings → Movies & Series → New titles** and the import settings s
 - **Stremio:** sign in with the account's email and password; the password is sent once for a key and kept nowhere.
   Stremio keeps only where each show is up to, so a show's episodes up to the one last played count as watched.
 
-**Settings → Sources → Plugins** turns each source on or off and sets it to import automatically; **Settings → Sources →
+**Settings → Movies & Series → Sources** turns each source on or off and sets it to import automatically; **Settings → Movies & Series →
 Automatic imports** sets the hours between runs (6 unless set). The server and the desktop app check hourly; the last
 run syncs, so they do not both run it, and a failing source still counts as a run.
 

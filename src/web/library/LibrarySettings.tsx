@@ -16,6 +16,7 @@ import { read_picked, save_text } from "../files.ts";
 import type { FeatureSettingsProps } from "../features.tsx";
 import { list_genres, poster_sizes, saved_poster_sizes, status_labels, statuses, type Collection, type CollectionGroup } from "../../shared/library/model.ts";
 import type { Library } from "../../shared/library/store.ts";
+import { source_settings } from "../sources/SourceSettings.tsx";
 
 // ── General ──────────────────────────────────────────────────────────────────
 
@@ -293,5 +294,6 @@ export function library_settings(props: FeatureSettingsProps): SettingsSection[]
       content: <CollectionSettings />,
     },
     { id: "library-data", heading: "Import and export", content: <LibraryData /> },
+    ...source_settings(props),
   ];
 }

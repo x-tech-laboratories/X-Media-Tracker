@@ -1,5 +1,5 @@
-// Settings: each feature's own settings, how long History keeps changes, the sources to import from, sync with a server
-// on a device, backups, and for an admin on the server its users and tokens.
+// Settings: each feature's own settings, how long History keeps changes, sync with a server on a device, backups, and
+// for an admin on the server its users and tokens.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -14,7 +14,6 @@ import { SyncSettings } from "@x-tech-laboratories/x-libs/web/react/sync_setting
 
 import { calls, data_watch, page, use_settings } from "../api.ts";
 import { page_features } from "../features.tsx";
-import { source_settings } from "../sources/SourceSettings.tsx";
 
 // ── History ──────────────────────────────────────────────────────────────────
 
@@ -82,7 +81,6 @@ export function SettingsView({ server_sections = [] }: { server_sections?: Setti
               ...page_features
                 .map((feature) => ({ heading: feature.label, sections: feature.settings({ settings: values, set_setting }) }))
                 .filter((category) => category.sections.length > 0),
-              { heading: "Sources", sections: source_settings({ settings: values, set_setting }) },
               ...data_category(server_sections),
             ]}
           />

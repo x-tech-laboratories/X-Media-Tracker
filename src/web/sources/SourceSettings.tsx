@@ -1,5 +1,5 @@
-// The sources' part of Settings: each source plugin's on or off and its own settings, the panel of each one that is on
-// for signing in and importing, and how often the automatic imports run.
+// The sources' part of Movies & Series' settings: each source plugin's on or off and its own settings, the panel of
+// each one that is on for signing in and importing, and how often the automatic imports run.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -23,7 +23,7 @@ function SourceImports() {
   if (!host) return <Skeleton lines={4} />;
   return (
     <Stack tight>
-      <PluginSlot host={host} name="import_panel" props={{}} empty={<Empty title="Every source is off." hint="Turn one on under Plugins above." />} />
+      <PluginSlot host={host} name="import_panel" props={{}} empty={<Empty title="Every source is off." hint="Turn one on under Sources above." />} />
     </Stack>
   );
 }
@@ -42,12 +42,12 @@ function AutomaticImports({ settings, set_setting }: FeatureSettingsProps) {
 
 export function source_settings(props: FeatureSettingsProps): SettingsSection[] {
   return [
-    { id: "plugins", heading: "Plugins", hint: "Bundled with the app; each runs with its full rights.", content: <SourcePluginSettings /> },
-    { id: "import", heading: "Import", hint: "One way and additive: imports add titles and merge ones already here, never removing any.", content: <SourceImports /> },
+    { id: "sources", heading: "Sources", hint: "Bundled with the app; each runs with its full rights.", content: <SourcePluginSettings /> },
+    { id: "source-imports", heading: "Source imports", hint: "One way and additive: imports add titles and merge ones already here, never removing any.", content: <SourceImports /> },
     {
       id: "automatic-imports",
       heading: "Automatic imports",
-      hint: "Sources set to import automatically under Plugins run on this schedule, on the server and the desktop app.",
+      hint: "Sources set to import automatically under Sources run on this schedule, on the server and the desktop app.",
       content: <AutomaticImports {...props} />,
     },
   ];

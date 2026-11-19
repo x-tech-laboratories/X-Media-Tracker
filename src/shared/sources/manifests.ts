@@ -20,7 +20,7 @@ export const plugins_setting = "plugins";
 const auto_import = (service: string) => ({
   key: "auto_import",
   label: "Import automatically",
-  hint: `Imports from ${service} on the schedule under Settings → Sources → Automatic imports.`,
+  hint: `Imports from ${service} on the schedule under Settings → Movies & Series → Automatic imports.`,
   type: "switch" as const,
   default: false,
 });
