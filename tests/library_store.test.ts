@@ -141,6 +141,22 @@ describe("watching", () => {
     expect(severance).toMatchObject({ watched_episodes: "", status: "planned", total_episodes: 19 });
   });
 
+  it("keeps what a title has when TMDB stops giving it, on refresh and on adding it again", async () => {
+    const store = open_methods();
+    await store.add_title("movie", "693134");
+    const bare = { id: 693134, title: "Dune: Part Two", release_date: "", poster_path: null, runtime: 0, imdb_id: "tt15239678" };
+    const full = tmdb_answers["/3/movie/693134"];
+    tmdb_answers["/3/movie/693134"] = bare;
+    try {
+      await refreshed(store);
+      expect(store.get_title("tmdb:693134")).toMatchObject({ year: "2024", runtime: 166, genres: "Science Fiction", poster_path: "/new.jpg" });
+      await store.add_title("movie", "693134");
+      expect(store.get_title("tmdb:693134")).toMatchObject({ year: "2024", runtime: 166, genres: "Science Fiction", poster_path: "/new.jpg" });
+    } finally {
+      tmdb_answers["/3/movie/693134"] = full;
+    }
+  });
+
   it("sets status and rating, watched marking today, and refuses what is not one", () => {
     const store = open_methods();
     store.import_trilium_media(trilium_database, "");
