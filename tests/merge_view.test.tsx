@@ -13,6 +13,7 @@ import { set_page_api } from "../src/web/api.ts";
 import { App } from "../src/web/App.tsx";
 import { combine_arrays, combine_lists, fill_empty_choices, type MergeColumn } from "../src/web/merging.tsx";
 import { forget_page_plugins } from "../src/web/sources/plugins.tsx";
+import { insert_games } from "./games_sample.ts";
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
@@ -86,7 +87,7 @@ describe("picking values", () => {
 describe("merge window", () => {
   it("merges a Steam copy of a game into the one open, taking what the open one lacks", async () => {
     const { methods, database } = fake_page();
-    methods.import_trilium_games(JSON.stringify({ games: { a: { title: "Portal 2", status: "Finished" } } }), "");
+    insert_games(database, [{ id: "title:portal 2", title: "Portal 2", status: "finished" }]);
     const [mine] = methods.list_games().games;
     database.prepare("INSERT INTO games_games (id, steam_app_id, title, status, playtime_minutes) VALUES ('steam:620', '620', 'Portal 2', 'backlog', 305)").run();
     render(<App />);
