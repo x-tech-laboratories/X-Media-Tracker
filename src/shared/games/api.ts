@@ -123,6 +123,13 @@ export const games_api = {
       { name: "rating", schema: { type: ["number", "null"], minimum: 0, maximum: 10, description: "1 to 10, or null for none." } },
     ],
   },
+  set_game_notes: {
+    description: "Sets your own notes on a game, in Markdown, replacing any before; empty clears them. Notes are kept apart from any review.",
+    params: [
+      { name: "id", schema: game_id },
+      { name: "notes", schema: text("The notes' text, in Markdown.") },
+    ],
+  },
   set_game_review: {
     description: "Sets a game's review, replacing any before; empty clears it.",
     params: [

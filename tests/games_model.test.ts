@@ -44,6 +44,7 @@ function game(fields: Partial<LibraryGame>): LibraryGame {
     status: "backlog",
     rating: null,
     review: "",
+    notes: "",
     owned_platforms: [],
     edition: "",
     playtime_minutes: 0,

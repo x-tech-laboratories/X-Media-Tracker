@@ -24,6 +24,7 @@ const fields: MergeFieldSpec[] = [
   { id: "trakt_id", label: "Trakt", columns: ["trakt_id"] },
   { id: "status", label: "Status", columns: ["status"], personal: true, text: (value) => (is_status(value) ? status_labels[value] : "") },
   { id: "rating", label: "Rating", columns: ["rating"], personal: true, text: (value) => (typeof value === "number" ? `★ ${value}` : "") },
+  { id: "notes", label: "Notes", columns: ["notes"], personal: true },
   { id: "last_watched", label: "Last watched", columns: ["last_watched"], personal: true },
   { id: "added_at", label: "Added", columns: ["added_at"], personal: true },
 ];

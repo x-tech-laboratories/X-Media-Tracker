@@ -34,6 +34,8 @@ export interface Title extends TitleIds {
   status: Status;
   // 1 to 10, or null when unrated.
   rating: number | null;
+  // Your own notes, in Markdown.
+  notes: string;
   // The day last watched, such as 2026-07-20, or "".
   last_watched: string;
   // Aired episodes outside the specials; 0 when not known or for a movie.

@@ -651,7 +651,7 @@ const book_id_keys = ["bookbrainz_id", "openlibrary_id", "hardcover_id", "isbn"]
 const book_merge_columns = {
   ...Object.fromEntries(book_id_keys.map((key) => [key, "text"])),
   ...Object.fromEntries(
-    ["title", "subtitle", "authors", "author_refs", "series", "series_position", "series_ref", "year", "release_date", "overview", "cover_url", "cover_file", "cover_file_from", "genres", "status", "review", "format", "progress_unit", "moods", "pace", "added_at"].map((key) => [key, "text"]),
+    ["title", "subtitle", "authors", "author_refs", "series", "series_position", "series_ref", "year", "release_date", "overview", "cover_url", "cover_file", "cover_file_from", "genres", "status", "review", "notes", "format", "progress_unit", "moods", "pace", "added_at"].map((key) => [key, "text"]),
   ),
   pages: "number",
   audio_minutes: "number",
@@ -811,6 +811,11 @@ export const books_feature = define_feature({
     set_book_review: (database: SqlDatabase, id: string, review: string): void => {
       require_book(database, id);
       drizzle_of(database).update(books_books).set({ review: review.trim() }).where(eq(books_books.id, id)).run();
+    },
+
+    set_book_notes: (database: SqlDatabase, id: string, notes: string): void => {
+      require_book(database, id);
+      drizzle_of(database).update(books_books).set({ notes: notes.trim() }).where(eq(books_books.id, id)).run();
     },
 
     set_book_owned: (database: SqlDatabase, id: string, owned: boolean): void => {

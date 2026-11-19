@@ -42,6 +42,8 @@ export const books_books = sqliteTable(
     status: text().notNull().default("want_to_read"),
     rating: real(),
     review: text().notNull().default(""),
+    // Your own notes, as Markdown.
+    notes: text().notNull().default(""),
     owned: integer().notNull().default(0),
     format: text().notNull().default(""),
     progress: real().notNull().default(0),

@@ -42,5 +42,11 @@ export const migrations: DrizzleMigration[] = [
       "ALTER TABLE `games_games` ADD `cover_file` text DEFAULT '' NOT NULL;",
       "ALTER TABLE `games_games` ADD `cover_file_from` text DEFAULT '' NOT NULL;"
     ]
+  },
+  {
+    "name": "20261119000639_notes",
+    "statements": [
+      "ALTER TABLE `games_games` ADD `notes` text DEFAULT '' NOT NULL;"
+    ]
   }
 ];

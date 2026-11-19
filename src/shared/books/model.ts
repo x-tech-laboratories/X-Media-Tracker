@@ -62,6 +62,8 @@ export interface Book extends BookIds {
   // 1 to 10, shown as half stars out of five; null when unrated.
   rating: number | null;
   review: string;
+  // Your own notes, in Markdown.
+  notes: string;
   owned: boolean;
   format: BookFormat;
   // How far into the current read, in progress_unit.

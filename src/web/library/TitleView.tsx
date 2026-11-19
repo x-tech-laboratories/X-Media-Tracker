@@ -21,6 +21,7 @@ import { use_page_plugins } from "../sources/plugins.tsx";
 import { set_status } from "./status.tsx";
 import { HeadPoster } from "../covers.tsx";
 import { MergeButton } from "../merging.tsx";
+import { NotesBox } from "../notes.tsx";
 import { title_merge } from "./merge.tsx";
 
 // ── Episodes ─────────────────────────────────────────────────────────────────
@@ -181,6 +182,7 @@ function TitlePage({ title, titles, collections, settings }: { title: LibraryTit
           {(tmdb?.overview || title.overview) && <p className="title-overview">{tmdb?.overview || title.overview}</p>}
         </div>
       </div>
+      <NotesBox key={`notes:${title.id}`} notes={title.notes} save={(notes) => calls().set_title_notes(title.id, notes)} />
       {details.status === "loading" && <Skeleton lines={6} />}
       {details.status === "failed" && <Failure error={details.error} retry={() => void details.reload()} />}
       {tmdb && tmdb.cast.length > 0 && (

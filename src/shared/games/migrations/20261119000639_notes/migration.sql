@@ -1,0 +1,1 @@
+ALTER TABLE `games_games` ADD `notes` text DEFAULT '' NOT NULL;

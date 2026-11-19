@@ -30,6 +30,7 @@ const fields: MergeFieldSpec[] = [
   { id: "status", label: "Status", columns: ["status"], personal: true, text: (value) => (is_game_status(value) ? game_status_text(value) : "") },
   { id: "rating", label: "Rating", columns: ["rating"], personal: true, text: (value) => stars_text(value as number | null) },
   { id: "review", label: "Review", columns: ["review"], personal: true },
+  { id: "notes", label: "Notes", columns: ["notes"], personal: true },
   { id: "owned_platforms", label: "Owned on", columns: ["owned_platforms"], personal: true, combine: combine_arrays },
   { id: "edition", label: "Edition", columns: ["edition"], personal: true },
   { id: "playtime_minutes", label: "Playtime", columns: ["playtime_minutes"], personal: true, text: (value) => format_playtime(Number(value) || 0) },

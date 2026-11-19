@@ -34,6 +34,7 @@ function title(fields: Partial<LibraryTitle> & Pick<LibraryTitle, "id" | "name">
     runtime: 0,
     status: "planned",
     rating: null,
+    notes: "",
     last_watched: "",
     total_episodes: 0,
     added_at: "",
