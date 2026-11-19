@@ -4,7 +4,7 @@
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
-import { clean_names, game_status_labels, game_statuses, release_day, type GameStatus } from "./model.ts";
+import { built_in_statuses, clean_names, release_day, type GameStatus } from "./model.ts";
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
 
@@ -57,7 +57,7 @@ const roles: Record<string, GameStatus> = { backlog: "backlog", playing: "curren
 
 // A status the user added with the name of one of ours, such as Endless, is that status.
 function status_named(name: string): GameStatus | undefined {
-  return game_statuses.find((status) => game_status_labels[status].toLowerCase() === name.toLowerCase());
+  return built_in_statuses.find((status) => status.label.toLowerCase() === name.toLowerCase())?.id;
 }
 
 export interface StatusMeaning {

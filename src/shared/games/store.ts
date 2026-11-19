@@ -22,11 +22,16 @@ import { create_itchio, type OwnedItchGame } from "./itchio.ts";
 import { migrations } from "./migrations/index.ts";
 import { create_mobygames } from "./mobygames.ts";
 import {
+  clean_game_statuses,
   clean_names,
   game_id_keys,
   game_key,
   furthest_status,
+  game_status_group_labels,
+  game_status_groups,
+  game_status_info,
   game_status_of,
+  group_status,
   is_game_status,
   is_unplayed,
   not_dlc,
@@ -39,6 +44,8 @@ import {
   type GameIds,
   type GameSource,
   type GameStatus,
+  type GameStatusGroup,
+  type GameStatusInfo,
   type LibraryGame,
 } from "./model.ts";
 import { create_rawg } from "./rawg.ts";
@@ -56,6 +63,8 @@ import { create_wikidata } from "./wikidata.ts";
 export interface Games {
   games: LibraryGame[];
   collections: GameCollection[];
+  // The user's statuses, in order within each group.
+  statuses: GameStatusInfo[];
 }
 
 export interface GameSearchResult extends CatalogGame {
@@ -129,6 +138,11 @@ function set_games_setting(database: SqlDatabase, key: GamesSetting, value: unkn
   database.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value").run(key, JSON.stringify(value));
 }
 
+// The user's statuses, or the built-in ones while none are set.
+export function statuses_of(database: SqlDatabase): GameStatusInfo[] {
+  return clean_game_statuses(games_setting(database, "games.statuses"));
+}
+
 // The catalogues with a key set; Wikidata, Steam's store, GOG and itch.io's pages always.
 function catalogs_of(database: SqlDatabase) {
   const key = (setting: GamesSetting) => String(games_setting(database, setting)).trim();
@@ -185,14 +199,20 @@ function parse_list(text: string): string[] {
   }
 }
 
+function status_fields(statuses: GameStatusInfo[], stored: string): { status: GameStatus; status_label: string; status_group: GameStatusGroup } {
+  const info = game_status_info(statuses, stored);
+  return { status: info.id, status_label: info.label, status_group: info.group };
+}
+
 export function list_games(database: SqlDatabase, ids?: string[]): LibraryGame[] {
   const db = drizzle_of(database);
   const rows = ids ? db.select().from(games_games).where(inArray(games_games.id, ids)).all() : db.select().from(games_games).orderBy(asc(games_games.title)).all();
   const collections_of = new Map<string, string[]>();
   for (const link of db.select().from(games_game_collections).all()) collections_of.set(link.game_id, [...(collections_of.get(link.game_id) ?? []), link.collection_id]);
+  const statuses = statuses_of(database);
   return rows.map((row) => ({
     ...row,
-    status: game_status_of(row.status),
+    ...status_fields(statuses, row.status),
     owned_platforms: parse_list(row.owned_platforms),
     owned_stores: parse_list(row.owned_stores),
     collection_ids: collections_of.get(row.id) ?? [],
@@ -358,7 +378,7 @@ function write_details(database: SqlDatabase, game: CatalogGame): AddedGame {
   }
   const id = game_key(game);
   if (!id) throw new Error("That game has no catalogue id.");
-  const status = game_status_of(games_setting(database, "games.default_status"));
+  const status = game_status_of(statuses_of(database), games_setting(database, "games.default_status"));
   db.insert(games_games)
     .values({ id, ...fields, ...base_of(undefined, game), title: game.title || "Untitled game", status, added_at: today() })
     .run();
@@ -429,9 +449,11 @@ function later_day(first: string, second: string): string {
   return first > second ? first : second;
 }
 
-function owned_status(status: GameStatus, playtime_minutes: number): GameStatus {
-  if (is_unplayed(status) && playtime_minutes > 0) return "currently_playing";
-  return status === "wishlist" ? "backlog" : status;
+// A game played moves on to Currently playing, or the Playing group's first status once that is removed.
+function owned_status(statuses: GameStatusInfo[], stored: string, playtime_minutes: number): GameStatus {
+  const status = game_status_of(statuses, stored);
+  if (is_unplayed(statuses, status) && playtime_minutes > 0) return game_status_of(statuses, "currently_playing");
+  return status === "wishlist" ? game_status_of(statuses, "backlog") : status;
 }
 
 function with_name(text: string, name: string): string {
@@ -452,7 +474,7 @@ function import_owned(database: SqlDatabase, owned: OwnedGame[]): GameImportRepo
         .set({
           playtime_minutes: Math.max(row.playtime_minutes, game.playtime_minutes),
           last_played: later_day(row.last_played, game.last_played),
-          status: owned_status(game_status_of(row.status), game.playtime_minutes),
+          status: owned_status(statuses_of(database), row.status, game.playtime_minutes),
           owned_platforms: with_name(row.owned_platforms, pc_platform),
           owned_stores: with_name(row.owned_stores, steam_store),
           cover_url: steam_art(row.cover_url, game),
@@ -468,7 +490,7 @@ function import_owned(database: SqlDatabase, owned: OwnedGame[]): GameImportRepo
         steam_app_id: game.app_id,
         title: game.title || `Steam app ${game.app_id}`,
         cover_url: game.cover_url,
-        status: owned_status("backlog", game.playtime_minutes),
+        status: owned_status(statuses_of(database), "backlog", game.playtime_minutes),
         owned_platforms: JSON.stringify([pc_platform]),
         owned_stores: JSON.stringify([steam_store]),
         playtime_minutes: game.playtime_minutes,
@@ -503,7 +525,7 @@ function import_wished(database: SqlDatabase, wished: WishedGame[]): GameImportR
           year: game.release_date.slice(0, 4),
           release_date: game.release_date,
           cover_url: game.cover_url,
-          status: "wishlist",
+          status: game_status_of(statuses_of(database), "wishlist"),
           added_at: today(),
         })
         .run();
@@ -583,7 +605,7 @@ function import_itchio_owned(database: SqlDatabase, owned: OwnedItchGame[]): Gam
       db.update(games_games)
         .set({
           itchio_id: row.itchio_id || game.itchio_id,
-          status: owned_status(game_status_of(row.status), 0),
+          status: owned_status(statuses_of(database), row.status, 0),
           owned_platforms: JSON.stringify(clean_names([...parse_list(row.owned_platforms), ...platforms])),
           owned_stores: with_name(row.owned_stores, itchio_store),
           cover_url: row.cover_url || game.cover_url,
@@ -602,7 +624,7 @@ function import_itchio_owned(database: SqlDatabase, owned: OwnedItchGame[]): Gam
         release_date: game.published,
         cover_url: game.cover_url,
         platforms: game.platforms,
-        status: "backlog",
+        status: game_status_of(statuses_of(database), "backlog"),
         owned_platforms: JSON.stringify(platforms),
         owned_stores: JSON.stringify([itchio_store]),
         added_at: today(),
@@ -636,19 +658,21 @@ async function sync_itchio(database: SqlDatabase): Promise<ItchioSync> {
 // The mapping as set, by each category's name in lower case; a status no longer known is left out.
 function category_statuses(database: SqlDatabase): Map<string, GameStatus> {
   const mapping = games_setting(database, "games.steam_category_statuses") ?? {};
-  return new Map(Object.entries(mapping).flatMap(([name, status]) => (is_game_status(status) ? [[name.toLowerCase(), status] as const] : [])));
+  const statuses = statuses_of(database);
+  return new Map(Object.entries(mapping).flatMap(([name, status]) => (is_game_status(statuses, status) ? [[name.toLowerCase(), status] as const] : [])));
 }
 
 // A tracked game in a mapped category takes that category's status; in several, the furthest along wins.
 function import_categories(database: SqlDatabase, categories: SteamCategory[]): SteamCategoryReport {
   const db = drizzle_of(database);
   set_games_setting(database, "games.steam_categories", categories.map((category) => category.name));
-  const statuses = category_statuses(database);
+  const statuses = statuses_of(database);
+  const mapped = category_statuses(database);
   const wanted = new Map<string, GameStatus>();
   for (const category of categories) {
-    const status = statuses.get(category.name.toLowerCase());
+    const status = mapped.get(category.name.toLowerCase());
     if (!status) continue;
-    for (const app_id of category.app_ids) wanted.set(app_id, furthest_status(wanted.get(app_id) ?? status, status));
+    for (const app_id of category.app_ids) wanted.set(app_id, furthest_status(statuses, wanted.get(app_id) ?? status, status));
   }
   const report: SteamCategoryReport = { categories: categories.length, updated: 0, untracked: 0 };
   for (const [app_id, status] of wanted) {
@@ -667,6 +691,12 @@ function import_categories(database: SqlDatabase, categories: SteamCategory[]): 
 
 // ── Trilium ──────────────────────────────────────────────────────────────────
 
+// A game still to play takes the imported status; one already played keeps its own.
+function moved_on(statuses: GameStatusInfo[], stored: string, imported: GameStatus): GameStatus {
+  const status = game_status_of(statuses, stored);
+  return is_unplayed(statuses, status) ? game_status_of(statuses, imported) : status;
+}
+
 // A new game whole; one already here gains the playtime, days, rating and collections it lacks, and moves on from Want to play.
 function import_trilium_game(database: SqlDatabase, game: ImportedGame): "added" | "updated" {
   const db = drizzle_of(database);
@@ -679,7 +709,7 @@ function import_trilium_game(database: SqlDatabase, game: ImportedGame): "added"
       .set({
         steam_app_id: row.steam_app_id || game.steam_app_id,
         igdb_id: row.igdb_id || game.igdb_id,
-        status: is_unplayed(game_status_of(row.status)) ? game.status : game_status_of(row.status),
+        status: moved_on(statuses_of(database), row.status, game.status),
         rating: row.rating ?? game.rating,
         playtime_minutes: Math.max(row.playtime_minutes, game.playtime_minutes),
         last_played: later_day(row.last_played, game.last_played),
@@ -699,7 +729,7 @@ function import_trilium_game(database: SqlDatabase, game: ImportedGame): "added"
         cover_url: game.cover_url || steam_cover(game.steam_app_id),
         genres: game.genres,
         platforms: game.platforms,
-        status: game.status,
+        status: game_status_of(statuses_of(database), game.status),
         rating: game.rating,
         owned_platforms: game.steam_app_id ? JSON.stringify([pc_platform]) : "[]",
         playtime_minutes: game.playtime_minutes,
@@ -724,7 +754,7 @@ function import_igdb_game(database: SqlDatabase, game: IgdbGame): "added" | "upd
     const row = db.select().from(games_games).where(eq(games_games.id, existing)).get()!;
     db.update(games_games)
       .set({
-        status: is_unplayed(game_status_of(row.status)) ? game.status : game_status_of(row.status),
+        status: moved_on(statuses_of(database), row.status, game.status),
         rating: row.rating ?? game.rating,
         review: row.review || game.review,
         owned_platforms: JSON.stringify(clean_names([...parse_list(row.owned_platforms), ...game.platforms])),
@@ -734,7 +764,7 @@ function import_igdb_game(database: SqlDatabase, game: IgdbGame): "added" | "upd
   } else {
     id = `title:${title_words(game.title)}`;
     db.insert(games_games)
-      .values({ id, title: game.title, status: game.status, rating: game.rating, review: game.review, owned_platforms: JSON.stringify(game.platforms), added_at: today() })
+      .values({ id, title: game.title, status: game_status_of(statuses_of(database), game.status), rating: game.rating, review: game.review, owned_platforms: JSON.stringify(game.platforms), added_at: today() })
       .run();
   }
   for (const name of game.collections) add_to_collection(database, id, collection_named(database, name));
@@ -902,7 +932,7 @@ function merge_into(database: SqlDatabase, ids: string[], keep: string, values: 
     if (key in stored && typeof stored[key] !== "string") stored[key] = JSON.stringify(clean_names(stored[key] as string[]));
   }
   const fields = merge_columns(stored, game_merge_columns);
-  if (fields.status !== undefined && !is_game_status(fields.status)) throw new Error(`Unknown status: ${String(fields.status)}.`);
+  if (fields.status !== undefined && !is_game_status(statuses_of(database), fields.status)) throw new Error(`Unknown status: ${String(fields.status)}.`);
   const db = drizzle_of(database);
   for (const key of game_id_keys) {
     const value = fields[key];
@@ -927,6 +957,54 @@ function merge_into(database: SqlDatabase, ids: string[], keep: string, values: 
   return require_game(database, keep);
 }
 
+// ── Statuses ─────────────────────────────────────────────────────────────────
+
+// A new status goes last in its group; a renamed one keeps its place, and one moved to another group goes last there.
+function save_status(database: SqlDatabase, status: { id?: string; label: string; group?: GameStatusGroup }): GameStatusInfo {
+  const statuses = statuses_of(database);
+  const label = String(status.label ?? "").trim();
+  if (!label) throw new Error("A status needs a name.");
+  const existing = status.id ? statuses.find((each) => each.id === status.id) : undefined;
+  if (status.id && !existing) throw new Error(`Unknown status: ${status.id}.`);
+  const group = status.group ?? existing?.group;
+  if (!group || !(game_status_groups as readonly string[]).includes(group)) throw new Error(`A status is in one of the groups ${game_status_groups.join(", ")}.`);
+  if (statuses.some((each) => each.id !== existing?.id && each.group === group && each.label.toLowerCase() === label.toLowerCase())) throw new Error(`${game_status_group_labels[group]} already has a status named ${label}.`);
+  if (existing && existing.group !== group && statuses.filter((each) => each.group === existing.group).length === 1) throw new Error(`${game_status_group_labels[existing.group]} needs at least one status.`);
+  const saved: GameStatusInfo = { id: existing?.id ?? new_id(), label, group };
+  const kept = existing && existing.group === group ? statuses.map((each) => (each.id === saved.id ? saved : each)) : [...statuses.filter((each) => each.id !== saved.id), saved];
+  set_games_setting(database, "games.statuses", clean_game_statuses(kept));
+  return saved;
+}
+
+// Games, new games' status and Steam categories on a removed status move to its group's status left: Backlog, Currently playing or Finished, else the first.
+function remove_status(database: SqlDatabase, id: string): void {
+  const statuses = statuses_of(database);
+  const removed = statuses.find((each) => each.id === id);
+  if (!removed) throw new Error(`Unknown status: ${id}.`);
+  const left = statuses.filter((each) => each.id !== id);
+  if (!left.some((each) => each.group === removed.group)) throw new Error(`${game_status_group_labels[removed.group]} needs at least one status.`);
+  const replacement = group_status(left, removed.group);
+  in_transaction(database, () => {
+    drizzle_of(database).update(games_games).set({ status: replacement }).where(eq(games_games.status, id)).run();
+    set_games_setting(database, "games.statuses", left);
+    if (games_setting(database, "games.default_status") === id) set_games_setting(database, "games.default_status", replacement);
+    const mapping = games_setting(database, "games.steam_category_statuses") ?? {};
+    set_games_setting(database, "games.steam_category_statuses", Object.fromEntries(Object.entries(mapping).map(([name, status]) => [name, status === id ? replacement : status])));
+  });
+}
+
+// Swaps a status with the one before or after it in its group.
+function move_status(database: SqlDatabase, id: string, step: -1 | 1): void {
+  const statuses = statuses_of(database);
+  const from = statuses.findIndex((each) => each.id === id);
+  if (from < 0) throw new Error(`Unknown status: ${id}.`);
+  if (step !== -1 && step !== 1) throw new Error("A status moves by -1 or 1.");
+  const to = from + step;
+  if (to < 0 || to >= statuses.length || statuses[to]!.group !== statuses[from]!.group) return;
+  [statuses[from], statuses[to]] = [statuses[to]!, statuses[from]!];
+  set_games_setting(database, "games.statuses", statuses);
+}
+
 // ── Feature ──────────────────────────────────────────────────────────────────
 
 function require_day(day: string, what: string): void {
@@ -948,6 +1026,7 @@ export const games_feature = define_feature({
     list_games: (database: SqlDatabase): Games => ({
       games: list_games(database),
       collections: drizzle_of(database).select().from(games_collections).orderBy(asc(games_collections.name)).all(),
+      statuses: statuses_of(database),
     }),
 
     get_game: (database: SqlDatabase, id: string): LibraryGame | null => list_games(database, [id])[0] ?? null,
@@ -982,9 +1061,15 @@ export const games_feature = define_feature({
     },
 
     set_game_status: (database: SqlDatabase, id: string, status: GameStatus): void => {
-      if (!is_game_status(status)) throw new Error(`Unknown status: ${String(status)}.`);
+      if (!is_game_status(statuses_of(database), status)) throw new Error(`Unknown status: ${String(status)}.`);
       update_game(database, id, { status });
     },
+
+    save_game_status: (database: SqlDatabase, status: { id?: string; label: string; group?: GameStatusGroup }): GameStatusInfo => save_status(database, status),
+
+    remove_game_status: (database: SqlDatabase, id: string): void => remove_status(database, id),
+
+    move_game_status: (database: SqlDatabase, id: string, step: -1 | 1): void => move_status(database, id, step),
 
     set_game_rating: (database: SqlDatabase, id: string, rating: number | null): void => {
       if (rating !== null && !(Number.isFinite(rating) && rating >= 0 && rating <= 10)) throw new Error("A rating is 1 to 10, or none.");
@@ -1104,7 +1189,7 @@ export const games_feature = define_feature({
     set_steam_category_status: (database: SqlDatabase, category: string, status: GameStatus | ""): void => {
       const name = category.trim();
       if (!name) throw new Error("A category needs a name.");
-      if (status && !is_game_status(status)) throw new Error(`Unknown status: ${String(status)}.`);
+      if (status && !is_game_status(statuses_of(database), status)) throw new Error(`Unknown status: ${String(status)}.`);
       const mapping = Object.fromEntries(Object.entries(games_setting(database, "games.steam_category_statuses") ?? {}).filter(([each]) => each.toLowerCase() !== name.toLowerCase()));
       set_games_setting(database, "games.steam_category_statuses", status ? { ...mapping, [name]: status } : mapping);
     },

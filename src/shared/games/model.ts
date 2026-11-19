@@ -11,65 +11,101 @@ export type GameStatusGroup = (typeof game_status_groups)[number];
 
 export const game_status_group_labels: Record<GameStatusGroup, string> = { want_to_play: "Want to play", playing: "Playing", played: "Played" };
 
-export const game_statuses = ["wishlist", "backlog", "currently_playing", "on_hold", "endless", "replaying", "finished", "completed", "abandoned"] as const;
+// A status by its id: a built-in one such as "on_hold", or one of the user's own.
+export type GameStatus = string;
 
-export type GameStatus = (typeof game_statuses)[number];
-
-export const game_status_labels: Record<GameStatus, string> = {
-  wishlist: "Wishlist",
-  backlog: "Backlog",
-  currently_playing: "Currently playing",
-  on_hold: "On hold",
-  endless: "Endless",
-  replaying: "Replaying",
-  finished: "Finished",
-  completed: "Completed",
-  abandoned: "Abandoned",
-};
-
-export const game_status_group_of: Record<GameStatus, GameStatusGroup> = {
-  wishlist: "want_to_play",
-  backlog: "want_to_play",
-  currently_playing: "playing",
-  on_hold: "playing",
-  endless: "playing",
-  replaying: "playing",
-  finished: "played",
-  completed: "played",
-  abandoned: "played",
-};
-
-// The status a game takes when only its group is chosen.
-export const game_group_status: Record<GameStatusGroup, GameStatus> = { want_to_play: "backlog", playing: "currently_playing", played: "finished" };
-
-export function statuses_in_group(group: GameStatusGroup): GameStatus[] {
-  return game_statuses.filter((status) => game_status_group_of[status] === group);
+// One status in the user's list: its id, what it is called and the group it is in.
+export interface GameStatusInfo {
+  id: GameStatus;
+  label: string;
+  group: GameStatusGroup;
 }
 
-// A status and its group, such as "Playing · On hold".
-export function game_status_text(status: GameStatus): string {
-  return `${game_status_group_labels[game_status_group_of[status]]} · ${game_status_labels[status]}`;
+// The statuses every library starts with; renaming, reordering or removing them changes only the user's list.
+export const built_in_statuses: readonly GameStatusInfo[] = [
+  { id: "wishlist", label: "Wishlist", group: "want_to_play" },
+  { id: "backlog", label: "Backlog", group: "want_to_play" },
+  { id: "currently_playing", label: "Currently playing", group: "playing" },
+  { id: "on_hold", label: "On hold", group: "playing" },
+  { id: "endless", label: "Endless", group: "playing" },
+  { id: "replaying", label: "Replaying", group: "playing" },
+  { id: "finished", label: "Finished", group: "played" },
+  { id: "completed", label: "Completed", group: "played" },
+  { id: "abandoned", label: "Abandoned", group: "played" },
+];
+
+function is_status_group(value: unknown): value is GameStatusGroup {
+  return typeof value === "string" && (game_status_groups as readonly string[]).includes(value);
+}
+
+// A stored list as statuses in group order, dropping broken or repeated entries; a group left empty gets its built-in statuses back.
+export function clean_game_statuses(value: unknown): GameStatusInfo[] {
+  const seen = new Set<string>();
+  const kept = (Array.isArray(value) ? value : []).flatMap((entry: Partial<GameStatusInfo> | null): GameStatusInfo[] => {
+    if (!entry || typeof entry.id !== "string" || !entry.id || seen.has(entry.id) || typeof entry.label !== "string" || !entry.label.trim() || !is_status_group(entry.group)) return [];
+    seen.add(entry.id);
+    return [{ id: entry.id, label: entry.label.trim(), group: entry.group }];
+  });
+  return game_status_groups.flatMap((group) => {
+    const members = kept.filter((each) => each.group === group);
+    return members.length > 0 ? members : built_in_statuses.filter((each) => each.group === group && !seen.has(each.id));
+  });
+}
+
+export function statuses_in_group(statuses: readonly GameStatusInfo[], group: GameStatusGroup): GameStatusInfo[] {
+  return statuses.filter((status) => status.group === group);
+}
+
+// The status a game takes when only its group is chosen: Backlog, Currently playing or Finished, or once that is removed the group's first.
+const built_in_group_status: Record<GameStatusGroup, GameStatus> = { want_to_play: "backlog", playing: "currently_playing", played: "finished" };
+
+export function group_status(statuses: readonly GameStatusInfo[], group: GameStatusGroup): GameStatus {
+  const members = statuses_in_group(statuses, group);
+  return members.find((each) => each.id === built_in_group_status[group])?.id ?? members[0]?.id ?? built_in_group_status[group];
+}
+
+export function is_game_status(statuses: readonly GameStatusInfo[], value: unknown): value is GameStatus {
+  return typeof value === "string" && statuses.some((status) => status.id === value);
 }
 
 // Statuses before IGDB's, as an older device may still sync them.
 const older_statuses: Record<string, GameStatus> = { want_to_play: "backlog", playing: "currently_playing", paused: "on_hold", played: "finished", dropped: "abandoned" };
 
-// A stored status as one of today's, or Backlog when it is none.
-export function game_status_of(value: unknown): GameStatus {
-  if (is_game_status(value)) return value;
-  return (typeof value === "string" && older_statuses[value]) || "backlog";
+// A stored status as one in the list: a removed built-in one, or an older one, as its group's status, and anything else as Backlog's.
+export function game_status_of(statuses: readonly GameStatusInfo[], value: unknown): GameStatus {
+  if (is_game_status(statuses, value)) return value;
+  const today = typeof value === "string" ? (older_statuses[value] ?? value) : "";
+  if (is_game_status(statuses, today)) return today;
+  return group_status(statuses, built_in_statuses.find((each) => each.id === today)?.group ?? "want_to_play");
+}
+
+export function game_status_info(statuses: readonly GameStatusInfo[], status: GameStatus): GameStatusInfo {
+  const id = game_status_of(statuses, status);
+  return statuses.find((each) => each.id === id) ?? built_in_statuses.find((each) => each.id === id)!;
+}
+
+// A status and its group, such as "Playing · On hold".
+export function game_status_text(statuses: readonly GameStatusInfo[], status: GameStatus): string {
+  const info = game_status_info(statuses, status);
+  return `${game_status_group_labels[info.group]} · ${info.label}`;
 }
 
 // From wanting a game to having played it, so of two statuses for one game the later says more.
-export const game_status_rank: readonly GameStatus[] = ["backlog", "wishlist", "on_hold", "currently_playing", "endless", "replaying", "abandoned", "finished", "completed"];
+const game_status_rank: readonly GameStatus[] = ["backlog", "wishlist", "on_hold", "currently_playing", "endless", "replaying", "abandoned", "finished", "completed"];
 
-export function furthest_status(first: GameStatus, second: GameStatus): GameStatus {
-  return game_status_rank.indexOf(second) > game_status_rank.indexOf(first) ? second : first;
+// A status of the user's own ranks with its group's built-in status, such as Currently playing.
+function rank_of(statuses: readonly GameStatusInfo[], status: GameStatus): number {
+  const rank = game_status_rank.indexOf(status);
+  return rank >= 0 ? rank : game_status_rank.indexOf(built_in_group_status[game_status_info(statuses, status).group]);
+}
+
+export function furthest_status(statuses: readonly GameStatusInfo[], first: GameStatus, second: GameStatus): GameStatus {
+  return rank_of(statuses, second) > rank_of(statuses, first) ? second : first;
 }
 
 // Whether a game counts as not yet played, so an import that finds it played may move it on.
-export function is_unplayed(status: GameStatus): boolean {
-  return game_status_group_of[status] === "want_to_play";
+export function is_unplayed(statuses: readonly GameStatusInfo[], status: GameStatus): boolean {
+  return game_status_info(statuses, status).group === "want_to_play";
 }
 
 export interface GameIds {
@@ -129,18 +165,16 @@ export interface Game extends GameIds {
   base_game_title: string;
 }
 
-// A game as the Games library lists it: with its collections.
+// A game as the Games library lists it: with its collections, and its status's name and group from the user's list.
 export interface LibraryGame extends Game {
   collection_ids: string[];
+  status_label: string;
+  status_group: GameStatusGroup;
 }
 
 export interface GameCollection {
   id: string;
   name: string;
-}
-
-export function is_game_status(value: unknown): value is GameStatus {
-  return typeof value === "string" && (game_statuses as readonly string[]).includes(value);
 }
 
 // ── Ids ──────────────────────────────────────────────────────────────────────
@@ -358,7 +392,7 @@ function matches_search(game: LibraryGame, search: string): boolean {
 function passes(game: LibraryGame, filters: GameFilters, skip: GameFacet | null): boolean {
   if (skip !== "search" && filters.search && !matches_search(game, filters.search)) return false;
   if (skip !== "kind" && filters.kind !== "all" && is_dlc(game) !== (filters.kind === "dlc")) return false;
-  if (skip !== "status" && filters.status !== "all" && game.status !== filters.status && game_status_group_of[game.status] !== filters.status) return false;
+  if (skip !== "status" && filters.status !== "all" && game.status !== filters.status && game.status_group !== filters.status) return false;
   if (skip !== "platform" && filters.platform !== "all") {
     if (filters.platform === "none" ? game.owned_platforms.length > 0 : !game.owned_platforms.includes(filters.platform)) return false;
   }
@@ -388,7 +422,7 @@ export function game_facet_counts(games: LibraryGame[], filters: GameFilters): G
     }
     if (passes(game, filters, "status")) {
       bump(counts.status, "all");
-      bump(counts.status, game_status_group_of[game.status]);
+      bump(counts.status, game.status_group);
       bump(counts.status, game.status);
     }
     if (passes(game, filters, "platform")) {

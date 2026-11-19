@@ -22,12 +22,12 @@ import {
   dlc_of,
   find_base_game,
   game_links,
-  game_status_labels,
   is_dlc,
   owned_platforms_of,
   owned_stores_of,
   type GameCollection,
   type GameIds,
+  type GameStatusInfo,
   type LibraryGame,
 } from "../../shared/games/model.ts";
 import { attempt, game_href, set_game_status } from "./actions.tsx";
@@ -196,7 +196,7 @@ function BaseGame({ game, games }: { game: LibraryGame; games: LibraryGame[] }) 
 
 function DlcTile({ game }: { game: LibraryGame }) {
   const image = use_cover(game.cover_file, game.cover_url);
-  return <MediaTile title={game.title} href={game_href(game.id)} image={image} lines={[game.year, game_status_labels[game.status]].filter(Boolean)} />;
+  return <MediaTile title={game.title} href={game_href(game.id)} image={image} lines={[game.year, game.status_label].filter(Boolean)} />;
 }
 
 function DlcList({ dlc }: { dlc: LibraryGame[] }) {
@@ -225,7 +225,7 @@ function Review({ game }: { game: LibraryGame }) {
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
-function GamePage({ game, games, collections }: { game: LibraryGame; games: LibraryGame[]; collections: GameCollection[] }) {
+function GamePage({ game, games, collections, statuses }: { game: LibraryGame; games: LibraryGame[]; collections: GameCollection[]; statuses: GameStatusInfo[] }) {
   const remove = () =>
     confirm_dialog({
       title: `Remove ${game.title}?`,
@@ -251,7 +251,7 @@ function GamePage({ game, games, collections }: { game: LibraryGame; games: Libr
             <button type="button" onClick={() => open_dialog((close) => <IdsDialog game={game} close={close} />)}>
               Change ids
             </button>
-            <MergeButton kind={game_merge} start={game} items={games} />
+            <MergeButton kind={game_merge(statuses)} start={game} items={games} />
             <button type="button" className="danger" onClick={remove}>
               Remove
             </button>
@@ -265,7 +265,7 @@ function GamePage({ game, games, collections }: { game: LibraryGame; games: Libr
           <Facts
             layout="rows"
             rows={[
-              ["Status", <StatusPicker status={game.status} on_change={(status) => set_game_status(game, status)} />],
+              ["Status", <StatusPicker statuses={statuses} status={game.status} on_change={(status) => set_game_status(game, status)} />],
               ["Rating", <Rating label="Rating" max={10} value={game.rating} on_change={(rating) => attempt(calls().set_game_rating(game.id, rating))} />],
               [
                 "Playtime",
@@ -329,7 +329,7 @@ export function GameView({ id }: { id: string }) {
         {(loaded) =>
           loaded && (
             <Loaded resource={library}>
-              {(all) => <GamePage game={loaded} games={all.games} collections={all.collections} />}
+              {(all) => <GamePage game={loaded} games={all.games} collections={all.collections} statuses={all.statuses} />}
             </Loaded>
           )
         }

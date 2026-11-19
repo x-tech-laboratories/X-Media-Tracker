@@ -4,17 +4,22 @@
 
 import type { JsonSchema } from "@x-tech-laboratories/x-libs/api_spec";
 
-import { day, id_of, json_file, text } from "../api_schemas.ts";
-import { game_status_text, game_statuses } from "./model.ts";
+import { day, id_of, json_file, step, text } from "../api_schemas.ts";
+import { built_in_statuses, game_status_groups } from "./model.ts";
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
 
 const game_id: JsonSchema = { ...id_of("game"), description: 'The game\'s id, such as "rawg:portal-2" or "steam:620", as list_games gives it.' };
 
-// Each status with the group it is in, such as "on_hold (Playing · On hold)".
-const statuses_named = game_statuses.map((status) => `${status} (${game_status_text(status)})`).join(", ");
+// The built-in statuses by id, such as "on_hold".
+const built_in_named = built_in_statuses.map((status) => status.id).join(", ");
 
-const status: JsonSchema = { type: "string", enum: [...game_statuses], description: `A status, as IGDB has them, each in a group: ${statuses_named}.` };
+const status: JsonSchema = {
+  type: "string",
+  description: `A status's id, as list_games gives the user's statuses: a built-in one still in the list (${built_in_named}) or one the user added.`,
+};
+
+const status_group: JsonSchema = { type: "string", enum: [...game_status_groups], description: "The group a status is in: want_to_play, playing or played." };
 
 const source: JsonSchema = { type: "string", enum: ["rawg", "igdb", "mobygames", "giantbomb", "thegamesdb", "gog", "wikidata", "steam", "itchio"], description: "Which catalogue the id is from." };
 
@@ -25,10 +30,10 @@ export const games_api = {
     description:
       "Lists every tracked game, sorted by title, with its catalogue ids (RAWG slug, MobyGames, Giant Bomb guid, Wikidata item, Steam app, IGDB slug, TheGamesDB, " +
       "GOG slug, SteamGridDB, itch.io page), " +
-      "release, genres, platforms it came out on, developers, status (one of " + game_statuses.join(", ") + "), rating 1 to 10 (half stars " +
+      "release, genres, platforms it came out on, developers, status (its id, with status_label, its name, and status_group), rating 1 to 10 (half stars " +
       "out of five) or null, review, the platforms a copy is owned on, the stores it is owned from, edition, playtime in minutes, the day last played, the collections it is in, " +
       "and for DLC base_game, the key or id of the game it adds to (\"none\" when set as not DLC), with base_game_title; " +
-      "then every game collection.",
+      "then every game collection, and the user's statuses in order, each with its id, label and group.",
     params: [],
   },
   get_game: {
@@ -119,10 +124,38 @@ export const games_api = {
     params: [{ name: "id", schema: game_id }],
   },
   set_game_status: {
-    description: "Sets a game's status: Wishlist or Backlog to want to play it; Currently playing, On hold, Endless or Replaying while playing; Finished, Completed or Abandoned once played.",
+    description:
+      "Sets a game's status to one of the user's statuses, each in the group Want to play, Playing or Played; the built-in ones are Wishlist and Backlog, " +
+      "Currently playing, On hold, Endless and Replaying, and Finished, Completed and Abandoned, and the user may rename, remove or add to them.",
     params: [
       { name: "id", schema: game_id },
       { name: "status", schema: status },
+    ],
+  },
+  save_game_status: {
+    description:
+      "Adds a status of the user's own to a group, such as Co-op under Playing, or renames the one with the id given, or moves it to another group. " +
+      "A new or moved status goes last in its group. Gives back the status.",
+    params: [
+      {
+        name: "status",
+        schema: {
+          type: "object",
+          properties: { id: text("The status's id when changing it; leave out to add one."), label: text("Its name, such as Co-op."), group: status_group },
+          required: ["label"],
+        },
+      },
+    ],
+  },
+  remove_game_status: {
+    description: "Removes a status, built-in or the user's own; its games, and new games or Steam categories set to it, move to its group's Backlog, Currently playing or Finished, or the group's first status once that is removed too. A group's last status stays.",
+    params: [{ name: "id", schema: status }],
+  },
+  move_game_status: {
+    description: "Moves a status one place earlier or later within its group, the order the status picker, filters and menus show.",
+    params: [
+      { name: "id", schema: status },
+      { name: "step", schema: step },
     ],
   },
   set_game_rating: {
@@ -247,7 +280,7 @@ export const games_api = {
     description: "Maps a Steam library category, by its name, to the status its games take when the categories are imported; an empty status unmaps it.",
     params: [
       { name: "category", schema: text("The category's name in Steam, such as Finished or Favorites.") },
-      { name: "status", schema: { type: "string", enum: ["", ...game_statuses], description: `A status, or empty to unmap: ${statuses_named}.` } },
+      { name: "status", schema: { ...status, description: `A status's id, or empty to unmap; ${status.description}` } },
     ],
   },
   import_trilium_games: {

@@ -82,7 +82,8 @@ on the Settings page.
 `src/shared/games/`:
 
 - `model.ts` holds the rules that need no database, and is the games file the page imports for more than types:
-  IGDB's statuses in their three groups, with older ones read as their nearest, which ids name one game, pasted links, platforms, playtime, sorting and the Games library's filters with
+  the statuses in their three groups, IGDB's built in and the user's list in the synced `games.statuses` setting, with
+  older or removed ones read as their nearest, which ids name one game, pasted links, platforms, playtime, sorting and the Games library's filters with
   counts.
 - `schema.ts`: `games_games`, keyed by the strongest id (`rawg:…`, else `mobygames:…`, `giantbomb:…`, `wikidata:…`,
   `steam:…`, `igdb:…`, `thegamesdb:…`, `gog:…`, `steamgriddb:…`, `itchio:…`; a Trilium game with none is `title:<title>/<year>`), with the platforms a copy is owned on and the

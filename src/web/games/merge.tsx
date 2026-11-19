@@ -5,12 +5,13 @@
 import { calls } from "../api.ts";
 import { combine_arrays, combine_lists, type MergeFieldSpec, type MergeKind } from "../merging.tsx";
 import { title_words } from "../../shared/games/catalog.ts";
-import { format_playtime, game_status_text, is_game_status, type LibraryGame } from "../../shared/games/model.ts";
+import { format_playtime, game_status_text, type GameStatusInfo, type LibraryGame } from "../../shared/games/model.ts";
 import { game_href, stars_text } from "./actions.tsx";
 
 // ── Fields ───────────────────────────────────────────────────────────────────
 
-const fields: MergeFieldSpec[] = [
+// What a catalogue says of a game.
+const catalog_fields: MergeFieldSpec[] = [
   { id: "title", label: "Title", columns: ["title"] },
   { id: "year", label: "Year", columns: ["year"] },
   { id: "release_date", label: "Released", columns: ["release_date"] },
@@ -31,7 +32,10 @@ const fields: MergeFieldSpec[] = [
   { id: "gog_id", label: "GOG", columns: ["gog_id"] },
   { id: "steamgriddb_id", label: "SteamGridDB", columns: ["steamgriddb_id"] },
   { id: "itchio_id", label: "itch.io", columns: ["itchio_id"] },
-  { id: "status", label: "Status", columns: ["status"], personal: true, text: (value) => (is_game_status(value) ? game_status_text(value) : "") },
+];
+
+// What is yours to set, after its status.
+const personal_fields: MergeFieldSpec[] = [
   { id: "rating", label: "Rating", columns: ["rating"], personal: true, text: (value) => stars_text(value as number | null) },
   { id: "review", label: "Review", columns: ["review"], personal: true },
   { id: "notes", label: "Notes", columns: ["notes"], personal: true },
@@ -43,16 +47,27 @@ const fields: MergeFieldSpec[] = [
   { id: "added_at", label: "Added", columns: ["added_at"], personal: true },
 ];
 
+// The fields, with statuses named from the user's list.
+function fields_of(statuses: GameStatusInfo[]): MergeFieldSpec[] {
+  return [
+    ...catalog_fields,
+    { id: "status", label: "Status", columns: ["status"], personal: true, text: (value) => (typeof value === "string" && value ? game_status_text(statuses, value) : "") },
+    ...personal_fields,
+  ];
+}
+
 // ── Kind ─────────────────────────────────────────────────────────────────────
 
-export const game_merge: MergeKind<LibraryGame> = {
-  noun: "game",
-  name: (game) => game.title,
-  detail: (game) => [game.year, game.platforms].filter(Boolean).join(" · "),
-  cover: (values) => ({ file: String(values.cover_file ?? ""), address: String(values.cover_url ?? "") }),
-  fields,
-  alike: (first, second) => title_words(first.title) === title_words(second.title),
-  lookup_sources: (id) => calls().lookup_game_sources(id),
-  merge: (ids, keep, values) => calls().merge_games(ids, keep, values),
-  href: game_href,
-};
+export function game_merge(statuses: GameStatusInfo[]): MergeKind<LibraryGame> {
+  return {
+    noun: "game",
+    name: (game) => game.title,
+    detail: (game) => [game.year, game.platforms].filter(Boolean).join(" · "),
+    cover: (values) => ({ file: String(values.cover_file ?? ""), address: String(values.cover_url ?? "") }),
+    fields: fields_of(statuses),
+    alike: (first, second) => title_words(first.title) === title_words(second.title),
+    lookup_sources: (id) => calls().lookup_game_sources(id),
+    merge: (ids, keep, values) => calls().merge_games(ids, keep, values),
+    href: game_href,
+  };
+}

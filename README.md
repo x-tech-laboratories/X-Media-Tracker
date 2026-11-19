@@ -57,8 +57,10 @@ search, series in order and new books in the series you follow. Make the key wit
 
 ### Games
 
-- **Statuses:** IGDB's, in three groups: Want to play (Wishlist, Backlog), Playing (Currently playing, On hold,
-  Endless, Replaying) and Played (Finished, Completed, Abandoned).
+- **Statuses:** three groups, starting with IGDB's statuses: Want to play (Wishlist, Backlog), Playing (Currently
+  playing, On hold, Endless, Replaying) and Played (Finished, Completed, Abandoned). **Settings → Games → Game
+  statuses** renames, reorders and removes them and adds your own, such as Co-op under Playing; a removed status's
+  games move to Backlog, Currently playing or Finished, or the group's first status once that is gone too.
 - **Library:** every game as its box art or a table row, narrowed to games, DLC or both, by a status or a whole group,
   the platform you own it on and collection, each choice showing how many games it would leave, and sorted by title,
   last played, release, rating, playtime or when added, and optionally grouped under headings by status group, status,

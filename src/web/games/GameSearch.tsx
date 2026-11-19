@@ -13,7 +13,7 @@ import { toast } from "@x-tech-laboratories/x-libs/web/react/toasts";
 
 import { calls, use_data } from "../api.ts";
 import { catalog_labels } from "../../shared/games/catalog.ts";
-import { filter_games, game_links, game_status_labels, no_game_filters, parse_game_link, type GameSource } from "../../shared/games/model.ts";
+import { filter_games, game_links, no_game_filters, parse_game_link, type GameSource } from "../../shared/games/model.ts";
 import type { GameSearchResult } from "../../shared/games/store.ts";
 import { game_href, game_search_href, report_added } from "./actions.tsx";
 
@@ -58,7 +58,7 @@ function LibraryMatches({ query }: { query: string }) {
           return (
             <MediaGrid label="In your library">
               {found.map((game) => (
-                <MediaTile key={game.id} title={game.title} href={game_href(game.id)} image={game.cover_url} lines={[game.year, game_status_labels[game.status]].filter(Boolean)} />
+                <MediaTile key={game.id} title={game.title} href={game_href(game.id)} image={game.cover_url} lines={[game.year, game.status_label].filter(Boolean)} />
               ))}
             </MediaGrid>
           );
