@@ -1,4 +1,4 @@
-// The Trakt panel in Settings' Import section: the user's own Trakt app, signing in by a code entered on Trakt's site,
+// Trakt's part of its dialog in Settings: the user's own Trakt app, signing in by a code entered on Trakt's site,
 // importing, archiving everything before leaving Trakt, and Trakt's history beside the library, one watch at a time.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Badge } from "@x-tech-laboratories/x-libs/web/react/badges";
 import { confirm_dialog } from "@x-tech-laboratories/x-libs/web/react/dialog";
-import { FormRow, Section } from "@x-tech-laboratories/x-libs/web/react/layout";
+import { FormRow } from "@x-tech-laboratories/x-libs/web/react/layout";
 import { Loaded } from "@x-tech-laboratories/x-libs/web/react/states";
 import { DataTable, type TableColumn } from "@x-tech-laboratories/x-libs/web/react/table";
 import { toast } from "@x-tech-laboratories/x-libs/web/react/toasts";
@@ -236,7 +236,7 @@ function Compare() {
 export function TraktPanel() {
   const status = use_data((api) => api.get_trakt_status());
   return (
-    <Section title="Trakt">
+    <>
       <p className="source-hint">Imports watched movies and every episode's history. Trakt changes only when you remove a watch from it below, once the library holds that watch.</p>
       <Loaded resource={status}>
         {(loaded) => (
@@ -259,6 +259,6 @@ export function TraktPanel() {
           </>
         )}
       </Loaded>
-    </Section>
+    </>
   );
 }

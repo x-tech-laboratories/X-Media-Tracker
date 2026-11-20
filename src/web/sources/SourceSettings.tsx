@@ -1,30 +1,48 @@
-// The sources' part of Movies & Series' settings: each source plugin's on or off and its own settings, the panel of
-// each one that is on for signing in and importing, and how often the automatic imports run.
+// The sources' part of Movies & Series' settings: a row for each source plugin whose dialog holds its on or off, its own
+// settings and its panel for signing in and importing, and how often the automatic imports run.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
 import { NumberField } from "@x-tech-laboratories/x-libs/web/react/controls";
-import { SettingRow, Stack, type SettingsSection } from "@x-tech-laboratories/x-libs/web/react/layout";
-import { PluginSettings, PluginSlot } from "@x-tech-laboratories/x-libs/web/react/plugins";
-import { Empty, Skeleton } from "@x-tech-laboratories/x-libs/web/react/states";
+import { SettingRow, type SettingsSection } from "@x-tech-laboratories/x-libs/web/react/layout";
+import { PluginSettings, PluginSlot, use_plugins, type PluginHost } from "@x-tech-laboratories/x-libs/web/react/plugins";
+import { Skeleton } from "@x-tech-laboratories/x-libs/web/react/states";
 
 import type { FeatureSettingsProps } from "../features.tsx";
-import { use_page_plugins } from "./plugins.tsx";
+import { SourceRow } from "../settings/rows.tsx";
+import { use_page_plugins, type PageSourceApi } from "./plugins.tsx";
 
 // ── Parts ────────────────────────────────────────────────────────────────────
 
-function SourcePluginSettings() {
-  const host = use_page_plugins();
-  return host ? <PluginSettings host={host} heading={null} /> : <Skeleton lines={2} />;
+// The host as one plugin sees it, so the shared widgets draw only that plugin's settings and panel.
+function only_plugin(host: PluginHost<PageSourceApi>, plugin_id: string): PluginHost<PageSourceApi> {
+  return {
+    ...host,
+    list: () => host.list().filter((status) => status.manifest.id === plugin_id),
+    slot: ((name) => host.slot(name).filter((part) => part.plugin_id === plugin_id)) as PluginHost<PageSourceApi>["slot"],
+  };
 }
 
-function SourceImports() {
+export function SourcePluginRows() {
   const host = use_page_plugins();
-  if (!host) return <Skeleton lines={4} />;
+  if (!host) return <Skeleton lines={2} />;
+  return <PluginRows host={host} />;
+}
+
+function PluginRows({ host }: { host: PluginHost<PageSourceApi> }) {
+  const statuses = use_plugins(host);
   return (
-    <Stack tight>
-      <PluginSlot host={host} name="import_panel" props={{}} empty={<Empty title="Every source is off." hint="Turn one on under Sources above." />} />
-    </Stack>
+    <>
+      {statuses.map(({ manifest, state }) => {
+        const one = only_plugin(host, manifest.id);
+        return (
+          <SourceRow key={manifest.id} name={manifest.name} status={state === "running" ? "On" : state === "off" ? "Off" : "Not running"} about={manifest.description}>
+            <PluginSettings host={one} heading={null} />
+            <PluginSlot host={one} name="import_panel" props={{}} empty={<p className="source-hint">Turn {manifest.name} on to sign in and import.</p>} />
+          </SourceRow>
+        );
+      })}
+    </>
   );
 }
 
@@ -40,15 +58,11 @@ function AutomaticImports({ settings, set_setting }: FeatureSettingsProps) {
 
 // ── Sections ─────────────────────────────────────────────────────────────────
 
-export function source_settings(props: FeatureSettingsProps): SettingsSection[] {
-  return [
-    { id: "sources", heading: "Sources", hint: "Bundled with the app; each runs with its full rights.", content: <SourcePluginSettings /> },
-    { id: "source-imports", heading: "Source imports", hint: "One way and additive: imports add titles and merge ones already here, never removing any.", content: <SourceImports /> },
-    {
-      id: "automatic-imports",
-      heading: "Automatic imports",
-      hint: "Sources set to import automatically under Sources run on this schedule, on the server and the desktop app.",
-      content: <AutomaticImports {...props} />,
-    },
-  ];
+export function automatic_imports_section(props: FeatureSettingsProps): SettingsSection {
+  return {
+    id: "automatic-imports",
+    heading: "Automatic imports",
+    hint: "Sources set to import automatically in their dialog under Sources run on this schedule, on the server and the desktop app.",
+    content: <AutomaticImports {...props} />,
+  };
 }

@@ -133,12 +133,13 @@ describe("books settings", () => {
     render(<App />);
     go("#/settings");
 
+    fireEvent.click(await screen.findByRole("button", { name: "Open StoryGraph" }));
     const picker = (await screen.findByLabelText("StoryGraph export file")) as HTMLInputElement;
     const file = new File([storygraph_csv], "storygraph.csv", { type: "text/csv" });
     fireEvent.change(picker, { target: { files: [file] } });
 
     await waitFor(() => expect(store.list_books().books).toHaveLength(2));
-    const section = screen.getByRole("heading", { name: "StoryGraph" }).closest("section")!;
+    const section = screen.getByRole("dialog", { name: "StoryGraph" });
     expect(within(section).getByRole("button", { name: "Export CSV" })).toBeTruthy();
   });
 
@@ -147,12 +148,13 @@ describe("books settings", () => {
     render(<App />);
     go("#/settings");
 
+    fireEvent.click(await screen.findByRole("button", { name: "Open LibraryThing" }));
     const picker = (await screen.findByLabelText("LibraryThing export file")) as HTMLInputElement;
     const tsv = ["Title\tPrimary Author\tDate Read\tCollections", "Piranesi\tClarke, Susanna\t[2021-03-04]\tYour library"].join("\n");
     fireEvent.change(picker, { target: { files: [new File([tsv], "librarything.tsv", { type: "text/tab-separated-values" })] } });
 
     await waitFor(() => expect(store.list_books().books).toHaveLength(1));
-    const section = screen.getByRole("heading", { name: "LibraryThing" }).closest("section")!;
+    const section = screen.getByRole("dialog", { name: "LibraryThing" });
     expect(within(section).getByRole("button", { name: "Export CSV" })).toBeTruthy();
   });
 });

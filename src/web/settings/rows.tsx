@@ -1,14 +1,49 @@
-// Setting rows that more than one feature's settings use: a key or token typed in and kept secret, and a line of text
-// saved once the field is left.
+// Setting rows that more than one feature's settings use: a source's row that opens its own dialog, a key or token
+// typed in and kept secret, and a line of text saved once the field is left.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { CommitInput } from "@x-tech-laboratories/x-libs/web/react/controls";
+import { Dialog } from "@x-tech-laboratories/x-libs/web/react/dialog";
 import { SettingRow } from "@x-tech-laboratories/x-libs/web/react/layout";
 import { toast } from "@x-tech-laboratories/x-libs/web/react/toasts";
 
 import type { FeatureSettingsProps } from "../features.tsx";
+
+// ── Sources ──────────────────────────────────────────────────────────────────
+
+// A source's name and how it stands, such as "Key set", with a button opening every setting of that source in a dialog.
+export function SourceRow({ name, status, about, children }: { name: string; status: ReactNode; about?: ReactNode; children: ReactNode }) {
+  const [open, set_open] = useState(false);
+  return (
+    <SettingRow label={name} hint={status}>
+      <button type="button" aria-label={`Open ${name}`} onClick={() => set_open(true)}>
+        Open
+      </button>
+      {open && (
+        <Dialog
+          title={name}
+          subtitle={about}
+          wide
+          on_close={() => set_open(false)}
+          buttons={
+            <button type="button" className="accent solid" onClick={() => set_open(false)}>
+              Done
+            </button>
+          }
+        >
+          {children}
+        </Dialog>
+      )}
+    </SettingRow>
+  );
+}
+
+// Whether a key is set, for a source's row.
+export function key_status(settings: Record<string, unknown>, ...keys: string[]): string {
+  return keys.every((key) => String(settings[key] ?? "") !== "") ? "Key set" : "No key";
+}
 
 // ── Secrets ──────────────────────────────────────────────────────────────────
 

@@ -1,6 +1,5 @@
-// The games' settings: the catalogues' keys and IGDB's Twitch app, the statuses and how new games start, collections, the Steam profile whose library and
-// wishlist come in and how often, the status each Steam category gives, the itch.io and Epic Games Store accounts whose
-// libraries come in, and IGDB's import.
+// The games' settings: a dialog for each catalogue with its key, and IGDB's import, the statuses and how new games start,
+// collections, and a dialog for each store whose library comes in: Steam with its categories, itch.io and Epic.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -14,7 +13,7 @@ import { toast } from "@x-tech-laboratories/x-libs/web/react/toasts";
 import { calls, page, use_data } from "../api.ts";
 import { read_picked } from "../files.ts";
 import type { FeatureSettingsProps } from "../features.tsx";
-import { SecretRow, TextRow } from "../settings/rows.tsx";
+import { SecretRow, SourceRow, TextRow, key_status } from "../settings/rows.tsx";
 import {
   game_status_group_labels,
   game_status_groups,
@@ -35,40 +34,66 @@ import { StatusSelect } from "./StatusPicker.tsx";
 // ── Catalogues ───────────────────────────────────────────────────────────────
 
 function CatalogueSettings(props: FeatureSettingsProps) {
+  const { settings } = props;
+  const igdb_set = String(settings["games.igdb_client_id"] ?? "") !== "" && String(settings["games.igdb_client_secret"] ?? "") !== "";
   return (
     <>
-      <SecretRow {...props} label="RAWG API key" setting="games.rawg_api_key" placeholder="Paste your key" hint="The largest catalogue: search, release days, genres and descriptions. A free key comes with an account at rawg.io/apidocs." />
-      <SecretRow
-        {...props}
-        label="MobyGames API key"
-        setting="games.mobygames_api_key"
-        placeholder="Paste your key"
-        hint="The most careful catalogue, with box art. A free key for personal use is under API on your MobyGames profile; it allows about one request a second."
-      />
-      <SecretRow {...props} label="Giant Bomb API key" setting="games.giantbomb_api_key" placeholder="Paste your key" hint="Box art and short descriptions. A free key is on your Giant Bomb profile page." />
-      <TextRow
-        {...props}
-        label="IGDB client id"
-        setting="games.igdb_client_id"
-        placeholder="Paste the client id"
-        hint="The biggest catalogue, with box art. Register an application at dev.twitch.tv/console (free; Twitch asks for two-factor sign-in) and paste its client id and a new secret."
-      />
-      <SecretRow {...props} label="IGDB client secret" setting="games.igdb_client_secret" placeholder="Paste the client secret" hint="The secret of the same Twitch application." />
-      <SecretRow
-        {...props}
-        label="TheGamesDB API key"
-        setting="games.thegamesdb_api_key"
-        placeholder="Paste your key"
-        hint="Strongest on console and older games, with box art. Ask for a free key on the forums at forums.thegamesdb.net; it allows so many requests a month."
-      />
-      <SecretRow
-        {...props}
-        label="SteamGridDB API key"
-        setting="games.steamgriddb_api_key"
-        placeholder="Paste your key"
-        hint="Upright box art drawn by its users, for games the other catalogues have no cover for. A free key is under Preferences → API on steamgriddb.com."
-      />
+      <SourceRow name="RAWG" status={key_status(settings, "games.rawg_api_key")} about="The largest catalogue: search, release days, genres and descriptions.">
+        <SecretRow {...props} label="RAWG API key" setting="games.rawg_api_key" placeholder="Paste your key" hint="A free key comes with an account at rawg.io/apidocs." />
+      </SourceRow>
+      <SourceRow name="MobyGames" status={key_status(settings, "games.mobygames_api_key")} about="The most careful catalogue, with box art.">
+        <SecretRow {...props} label="MobyGames API key" setting="games.mobygames_api_key" placeholder="Paste your key" hint="A free key for personal use is under API on your MobyGames profile; it allows about one request a second." />
+      </SourceRow>
+      <SourceRow name="Giant Bomb" status={key_status(settings, "games.giantbomb_api_key")} about="Box art and short descriptions.">
+        <SecretRow {...props} label="Giant Bomb API key" setting="games.giantbomb_api_key" placeholder="Paste your key" hint="A free key is on your Giant Bomb profile page." />
+      </SourceRow>
+      <SourceRow name="IGDB" status={igdb_set ? "Twitch app set" : "No Twitch app"} about="The biggest catalogue, with box art. Its API gives only the catalogue, so your IGDB lists come in through its data export.">
+        <TextRow
+          {...props}
+          label="IGDB client id"
+          setting="games.igdb_client_id"
+          placeholder="Paste the client id"
+          hint="Register an application at dev.twitch.tv/console (free; Twitch asks for two-factor sign-in) and paste its client id and a new secret."
+        />
+        <SecretRow {...props} label="IGDB client secret" setting="games.igdb_client_secret" placeholder="Paste the client secret" hint="The secret of the same Twitch application." />
+        <IgdbImport />
+      </SourceRow>
+      <SourceRow name="TheGamesDB" status={key_status(settings, "games.thegamesdb_api_key")} about="Strongest on console and older games, with box art.">
+        <SecretRow {...props} label="TheGamesDB API key" setting="games.thegamesdb_api_key" placeholder="Paste your key" hint="Ask for a free key on the forums at forums.thegamesdb.net; it allows so many requests a month." />
+      </SourceRow>
+      <SourceRow name="SteamGridDB" status={key_status(settings, "games.steamgriddb_api_key")} about="Upright box art drawn by its users, for games the other catalogues have no cover for.">
+        <SecretRow {...props} label="SteamGridDB API key" setting="games.steamgriddb_api_key" placeholder="Paste your key" hint="A free key is under Preferences → API on steamgriddb.com." />
+      </SourceRow>
     </>
+  );
+}
+
+// ── IGDB ─────────────────────────────────────────────────────────────────────
+
+function IgdbImport() {
+  const file = useRef<HTMLInputElement>(null);
+
+  async function import_export(event: ChangeEvent<HTMLInputElement>): Promise<void> {
+    const text = await read_picked(event);
+    if (text === null) return;
+    try {
+      const report = await calls().import_igdb_export(text);
+      toast(`Imported ${report.added} new game(s) and merged ${report.updated} already here. Refresh in Games finds the new ones' details.`, { tone: "good" });
+    } catch (error) {
+      toast(`Could not import: ${(error as Error).message}`, { tone: "bad" });
+    }
+  }
+
+  return (
+    <SettingRow
+      label="Import from IGDB"
+      hint="The index.html from IGDB's data export (Settings → Privacy, unzipped): Want to Play, Playing and Played become statuses, your own lists collections, with ratings and reviews. Games are matched by title."
+    >
+      <input ref={file} type="file" accept="text/html,.html" hidden aria-label="IGDB export file" onChange={(event) => void import_export(event)} />
+      <button type="button" onClick={() => file.current?.click()}>
+        Import IGDB…
+      </button>
+    </SettingRow>
   );
 }
 
@@ -462,32 +487,34 @@ function SteamCategorySettings({ settings }: FeatureSettingsProps) {
   );
 }
 
-// ── IGDB ─────────────────────────────────────────────────────────────────────
+// ── Stores ───────────────────────────────────────────────────────────────────
 
-function IgdbSettings() {
-  const file = useRef<HTMLInputElement>(null);
-
-  async function import_export(event: ChangeEvent<HTMLInputElement>): Promise<void> {
-    const text = await read_picked(event);
-    if (text === null) return;
-    try {
-      const report = await calls().import_igdb_export(text);
-      toast(`Imported ${report.added} new game(s) and merged ${report.updated} already here. Refresh in Games finds the new ones' details.`, { tone: "good" });
-    } catch (error) {
-      toast(`Could not import: ${(error as Error).message}`, { tone: "bad" });
-    }
-  }
-
+// One row a store, its import and schedule in its dialog.
+function StoreSettings(props: FeatureSettingsProps) {
+  const { settings } = props;
+  const steam_set = String(settings["games.steam_api_key"] ?? "") !== "" && String(settings["games.steam_id"] ?? "") !== "";
+  const epic_account = String(settings["games.epic_account"] ?? "");
+  const epic_signed_in = String(settings["games.epic_refresh_token"] ?? "") !== "";
   return (
-    <SettingRow
-      label="Import from IGDB"
-      hint="The index.html from IGDB's data export (Settings → Privacy, unzipped): Want to Play, Playing and Played become statuses, your own lists collections, with ratings and reviews. Games are matched by title."
-    >
-      <input ref={file} type="file" accept="text/html,.html" hidden aria-label="IGDB export file" onChange={(event) => void import_export(event)} />
-      <button type="button" onClick={() => file.current?.click()}>
-        Import IGDB…
-      </button>
-    </SettingRow>
+    <>
+      <SourceRow name="Steam" status={steam_set ? `Profile ${String(settings["games.steam_id"])}` : "Not set up"} about="Your Steam library with its playtime, your wishlist, and the status each of your Steam categories gives.">
+        <SteamSettings {...props} />
+        <Section title="Categories" level={3}>
+          <p className="source-hint">Give each category of your Steam library a status; its tracked games take that status whenever the categories are read, the furthest along winning for a game in several.</p>
+          <SteamCategorySettings {...props} />
+        </Section>
+      </SourceRow>
+      <SourceRow name="itch.io" status={key_status(settings, "games.itchio_api_key")} about="The games your itch.io account has bought or claimed.">
+        <ItchioSettings {...props} />
+      </SourceRow>
+      <SourceRow
+        name="Epic Games Store"
+        status={epic_signed_in ? `Signed in${epic_account ? ` as ${epic_account}` : ""}` : "Not signed in"}
+        about="Reads your Epic library the way the Legendary and Heroic launchers do; Epic publishes no API for it, so it may stop working."
+      >
+        <EpicSettings {...props} />
+      </SourceRow>
+    </>
   );
 }
 
@@ -509,20 +536,6 @@ export function game_settings(props: FeatureSettingsProps): SettingsSection[] {
     },
     { id: "new-games", heading: "New games", content: <NewGameSettings {...props} /> },
     { id: "game-collections", heading: "Game collections", hint: "Your own shelves, such as Couch co-op or Backlog 2027; a game can be in several.", content: <CollectionSettings /> },
-    { id: "steam", heading: "Steam", content: <SteamSettings {...props} /> },
-    {
-      id: "steam-categories",
-      heading: "Steam categories",
-      hint: "Give each category of your Steam library a status; its tracked games take that status whenever the categories are read, the furthest along winning for a game in several.",
-      content: <SteamCategorySettings {...props} />,
-    },
-    { id: "itchio", heading: "itch.io", content: <ItchioSettings {...props} /> },
-    {
-      id: "epic",
-      heading: "Epic Games Store",
-      hint: "Reads your Epic library the way the Legendary and Heroic launchers do; Epic publishes no API for it, so it may stop working.",
-      content: <EpicSettings {...props} />,
-    },
-    { id: "igdb", heading: "IGDB", hint: "IGDB's API gives only its catalogue, so your IGDB lists come in through its data export.", content: <IgdbSettings /> },
+    { id: "game-stores", heading: "Stores", hint: "The stores whose libraries come in, adding games and merging ones already here.", content: <StoreSettings {...props} /> },
   ];
 }
