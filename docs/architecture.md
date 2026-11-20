@@ -118,16 +118,17 @@ on the Settings page.
 ## Plugins
 
 Every source and catalogue is a bundled X-Libs plugin, one per service, each named once by a manifest: the sources' in
-`src/shared/sources/manifests.ts`, the catalogues' in `src/shared/books/manifests.ts` and `src/shared/games/manifests.ts`. A manifest lists the
+`src/shared/sources/manifests.ts`, the catalogues' in `src/shared/library/manifests.ts` (TMDB), `src/shared/books/manifests.ts` and
+`src/shared/games/manifests.ts`. A manifest lists the
 service's own settings, its keys marked `secret`.
 
 - The store's side (`src/shared/plugins/host.ts`) is a plugin host that `open_plugin_host` makes afresh for each use, so
-  a plugin switched on, or given a key, on any device holds at once. Plugins provide an `importer`, a `book_catalog` or a `game_catalog`.
+  a plugin switched on, or given a key, on any device holds at once. Plugins provide an `importer`, a `title_catalog`, a `book_catalog` or a `game_catalog`.
 - Both hosts keep on or off and each plugin's settings in the synced `plugins` setting. `without_secret_settings`
   (`src/shared/settings.ts`) replaces each secret that is set with X-Libs' `hidden_secret` in what the server, the API
   and MCP give, and writing `plugins` back, or importing a settings file, gives a still hidden secret its stored value.
-- A feature's `on_open` runs each time the database opens; the books and games features' move the catalogue keys once
-  kept as their settings into their plugins (`move_settings_into_plugins`).
+- A feature's `on_open` runs each time the database opens; the library's, books' and games' move the catalogue keys
+  once kept as their settings into their plugins (`move_settings_into_plugins`).
 - The page's side (`src/web/plugins.tsx`) gives each plugin a row in its feature's settings, whose dialog shows its on or
   off, its settings and what it puts in the `panel` slot, such as Trakt's sign-in, IGDB's data export or the link to make a Hardcover key; Stremio
   also fills `title_actions` on each title's page.
@@ -140,6 +141,10 @@ Sources:
 - Every source imports through `apply_import` (`src/shared/library/importing.ts`): TMDB is asked first, then one
   transaction writes, matching on any id and merging episodes.
 - `keep_importing` (`src/shared/sources/schedule.ts`) checks the automatic imports hourly on the server and the desktop.
+
+TMDB (`src/shared/library/plugins.ts`) provides the `title_catalog`: its client with the key from its settings, or
+why it cannot be asked. `tmdb_of` refuses with that reason, or because the plugin is off, and `tmdb_if_ready` gives
+null instead, for a refresh or an import that goes on without TMDB.
 
 Book catalogues (`src/shared/books/plugins.ts`): each provides a `BookCatalog` (`src/shared/books/catalog.ts`) with
 what it can do, such as a series in order or new books by a kind of follow. Adding or refreshing a book asks them from

@@ -54,12 +54,16 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
+function set_tmdb_key(store: ReturnType<typeof bind_methods>, key: string): void {
+  store.set_setting("plugins", { "x-media-tracker.tmdb": { settings: { api_key: key } } });
+}
+
 function open_methods(on_change: () => void = () => undefined, seed: (database: DatabaseSync) => void = () => undefined) {
   const database = new DatabaseSync(":memory:");
   open_store(database);
   seed(database);
   const store = bind_methods(() => database, on_change);
-  store.set_setting("library.tmdb_api_key", "test-key");
+  set_tmdb_key(store, "test-key");
   return store;
 }
 
@@ -111,10 +115,12 @@ describe("adding titles", () => {
 
   it("asks for a key first and never repeats it in TMDB's refusals", async () => {
     const store = open_methods();
-    store.set_setting("library.tmdb_api_key", "");
+    set_tmdb_key(store, "");
     await expect(store.add_title("movie", "693134")).rejects.toThrow("Set a TMDB API key in Settings first.");
+    store.set_setting("plugins", { "x-media-tracker.tmdb": { enabled: false, settings: { api_key: "secret-key" } } });
+    await expect(store.add_title("movie", "693134")).rejects.toThrow("The TMDB plugin is off");
 
-    store.set_setting("library.tmdb_api_key", "secret-key");
+    set_tmdb_key(store, "secret-key");
     const failure = await store.add_title("movie", "404").catch((error: Error) => error.message);
     expect(failure).toBe("TMDB: The resource you requested could not be found. (HTTP 404)");
     expect(failure).not.toContain("secret-key");
@@ -272,7 +278,7 @@ describe("merging titles", () => {
     const database = new DatabaseSync(":memory:");
     open_store(database);
     const store = bind_methods(() => database, () => undefined);
-    store.set_setting("library.tmdb_api_key", "test-key");
+    set_tmdb_key(store, "test-key");
     seed_library(database);
     database.prepare("INSERT INTO library_titles (id, tmdb_id, media_type, name, status, rating) VALUES ('tmdb:1396', '1396', 'show', 'Breaking Bad', 'watching', 8)").run();
     store.set_episodes_watched("tmdb:1396", [{ season: 1, from: 1, to: 3 }], true, 0);
@@ -313,5 +319,19 @@ describe("notes", () => {
 
     store.set_title_notes("tmdb:1399", "  ");
     expect(store.get_title("tmdb:1399")!.notes).toBe("");
+  });
+});
+
+describe("the TMDB plugin", () => {
+  it("takes the TMDB key from the library settings into its plugin once", () => {
+    const database = new DatabaseSync(":memory:");
+    open_store(database);
+    const store = bind_methods(() => database, () => undefined);
+    store.set_setting("library.tmdb_api_key", "old-key");
+
+    open_store(database);
+
+    expect(store.get_settings()["library.tmdb_api_key"]).toBeUndefined();
+    expect(store.get_settings().plugins).toMatchObject({ "x-media-tracker.tmdb": { settings: { api_key: "old-key" } } });
   });
 });

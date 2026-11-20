@@ -22,7 +22,8 @@ server. Read `README.md` first, then `docs/architecture.md`. It follows the
   offer it too; describe it for someone who has never seen the page.
 - A released migration step is never edited; add a new step after it. For a feature on Drizzle, change `schema.ts` and run `npm run db:generate`.
 - Queries go through X-Libs `drizzle` (`drizzle_of(database)`), never an import of `drizzle-orm` itself.
-- TMDB is reached only through `src/shared/library/tmdb.ts`, with the key from settings; never put the key in an error or a log.
+- TMDB is reached only through `src/shared/library/tmdb.ts`, provided by its plugin with the key from the plugin's settings;
+  never put the key in an error or a log.
 - BookBrainz, Open Library and Hardcover are reached only through their clients in `src/shared/books/`; the Hardcover key
   comes from its plugin's settings and never goes in an error or a log.
 - RAWG, IGDB, MobyGames, Giant Bomb, TheGamesDB, GOG, SteamGridDB, Wikidata, Steam, itch.io and the Epic Games Store are reached only through
