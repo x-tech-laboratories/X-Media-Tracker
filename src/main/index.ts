@@ -22,15 +22,17 @@ import { create_sync_client, sync_device_methods } from "@x-tech-laboratories/x-
 import { file_sync_storage } from "@x-tech-laboratories/x-libs/sync_file_storage";
 
 import { media_backup_naming, read_schedule } from "../shared/backups.ts";
-import { certificate_bridge, device_bridge, media_bridge, media_events, steam_files_bridge } from "../shared/bridge.ts";
+import { certificate_bridge, device_bridge, launchers_bridge, media_bridge, media_events, steam_files_bridge } from "../shared/bridge.ts";
 import { keep_fetching_covers, referenced_covers, type KeepFetchingCovers } from "../shared/covers.ts";
 import { cover_scheme } from "../shared/page_api.ts";
 import { keep_checking_releases } from "../shared/books/schedule.ts";
 import { keep_syncing_stores } from "../shared/games/schedule.ts";
+import { launcher_schemes } from "../shared/games/launch.ts";
 import { games_setting } from "../shared/games/store.ts";
 import { keep_importing } from "../shared/sources/schedule.ts";
 import { stremio_scheme } from "../shared/sources/stremio/links.ts";
 import { bind_methods, needs_upgrade, open_store, sync_engine } from "../shared/store.ts";
+import { read_local_lutris_games } from "./lutris.ts";
 import { read_local_steam_categories } from "./steam_categories.ts";
 
 // ── Profile ──────────────────────────────────────────────────────────────────
@@ -141,8 +143,8 @@ function open_window(): BrowserWindow {
     min_size: { width: 360, height: 480 },
     native_theme: nativeTheme,
     shell,
-    // The title page's "Open in Stremio" button opens the installed app.
-    external_schemes: [stremio_scheme],
+    // The title page's "Open in Stremio" button and a game page's launch buttons open the installed apps.
+    external_schemes: [stremio_scheme, ...launcher_schemes],
     screen,
     state_file: join(profile, "window.json"),
   });
@@ -167,6 +169,7 @@ if (hold_single_instance(app, show_existing_window)) {
     certificate_bridge.handle(ipcMain, certificates.methods, { trusted, envelopes: true });
     trust_in_session(session.defaultSession, certificates.is_trusted);
     steam_files_bridge.handle(ipcMain, { read_steam_categories }, { trusted, envelopes: true });
+    launchers_bridge.handle(ipcMain, { list_lutris_games: read_local_lutris_games }, { trusted, envelopes: true });
     device_bridge.handle(
       ipcMain,
       {

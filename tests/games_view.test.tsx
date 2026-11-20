@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Client } from "@x-tech-laboratories/x-libs/electron/bridge";
 
+import type { LauncherMethods, PageApi } from "../src/shared/page_api.ts";
 import { bind_methods, open_store, type MediaMethods } from "../src/shared/store.ts";
 import { set_page_api } from "../src/web/api.ts";
 import { App } from "../src/web/App.tsx";
@@ -14,13 +15,13 @@ import { forget_page_plugins } from "../src/web/plugins.tsx";
 import { insert_games, type SampleGame } from "./games_sample.ts";
 
 // The page's calls answered by a real store on a throwaway database, as the desktop app would, which needs no sign-in.
-function fake_page(games: SampleGame[] = []): MediaMethods {
+function fake_page(games: SampleGame[] = [], host: Partial<PageApi> = {}): MediaMethods {
   const database = new DatabaseSync(":memory:");
   open_store(database);
   insert_games(database, games);
   const methods = bind_methods(() => database, () => undefined);
   const calls = Object.fromEntries(Object.entries(methods).map(([name, call]) => [name, async (...args: unknown[]) => (call as (...args: unknown[]) => unknown)(...args)]));
-  set_page_api({ host: "desktop", calls: calls as unknown as Client<MediaMethods>, device: null, cover_src: async () => "", on_change: () => () => undefined });
+  set_page_api({ host: "desktop", calls: calls as unknown as Client<MediaMethods>, device: null, cover_src: async () => "", on_change: () => () => undefined, ...host });
   return methods;
 }
 
@@ -131,6 +132,31 @@ describe("game page", () => {
     expect(screen.getByRole("link", { name: "Half-Life" })).toBeTruthy();
     go("#/games/game/steam%3A70");
     expect(await screen.findByRole("link", { name: "Portal 2" })).toBeTruthy();
+  });
+
+  it("starts a game in the launchers turned on that know it, finding it in Lutris on the desktop", async () => {
+    const launchers = { list_lutris_games: async () => [{ slug: "portal-2-steam", name: "Portal 2", service: "steam", service_id: "620" }] } as unknown as Client<LauncherMethods>;
+    fake_page(sample_games, { launchers });
+    render(<App />);
+    go("#/games/game/steam%3A620");
+    expect(((await screen.findByRole("link", { name: "Launch in Steam" })) as HTMLAnchorElement).href).toBe("steam://rungameid/620");
+    expect(((await screen.findByRole("link", { name: "Launch in Lutris" })) as HTMLAnchorElement).href).toBe("lutris:rungame/portal-2-steam");
+    expect(screen.queryByRole("link", { name: "Launch in Heroic" })).toBeNull();
+    cleanup();
+
+    fake_page(sample_games, { launchers }).set_setting("games.launchers", ["lutris"]);
+    render(<App />);
+    go("#/games/game/steam%3A620");
+    expect(await screen.findByRole("link", { name: "Launch in Lutris" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Launch in Steam" })).toBeNull();
+    cleanup();
+
+    // A phone runs none of the launchers.
+    fake_page(sample_games, { host: "android", launchers });
+    render(<App />);
+    go("#/games/game/steam%3A620");
+    expect(await screen.findByRole("heading", { level: 1, name: "Portal 2" })).toBeTruthy();
+    expect(screen.queryByRole("link", { name: "Launch in Steam" })).toBeNull();
   });
 
   it("says when a game is not in the library", async () => {

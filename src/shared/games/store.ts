@@ -25,6 +25,7 @@ import {
   clean_names,
   game_id_keys,
   game_key,
+  game_launch_keys,
   furthest_status,
   game_status_group_labels,
   game_status_groups,
@@ -43,6 +44,7 @@ import {
   parse_wikidata_id,
   type GameCollection,
   type GameIds,
+  type GameLaunchIds,
   type GameSource,
   type GameStatus,
   type GameStatusGroup,
@@ -320,6 +322,7 @@ function metadata_of(game: CatalogGame) {
     platforms: game.platforms,
     developers: game.developers,
     publishers: game.publishers,
+    gog_product_id: game.gog_product_id,
   };
 }
 
@@ -647,6 +650,8 @@ function import_epic_owned(database: SqlDatabase, owned: OwnedEpicGame[]): GameI
       db.update(games_games)
         .set({
           epic_id: row.epic_id || game.epic_id,
+          epic_namespace: game.epic_namespace || row.epic_namespace,
+          epic_app_name: game.epic_app_name || row.epic_app_name,
           status: owned_status(statuses_of(database), row.status, 0),
           owned_platforms: with_name(row.owned_platforms, pc_platform),
           owned_stores: with_name(row.owned_stores, epic_store),
@@ -661,6 +666,8 @@ function import_epic_owned(database: SqlDatabase, owned: OwnedEpicGame[]): GameI
       .values({
         id: game_key({ epic_id: game.epic_id }),
         epic_id: game.epic_id,
+        epic_namespace: game.epic_namespace,
+        epic_app_name: game.epic_app_name,
         title: game.title || game.epic_id,
         cover_url: game.cover_url,
         developers: game.developers,
@@ -685,7 +692,7 @@ async function import_epic_library(database: SqlDatabase): Promise<GameImportRep
   const items: EpicItem[] = await epic.library(session.access_token);
   const owned: OwnedEpicGame[] = [];
   for (const item of items) {
-    if (find_game(database, { epic_id: item.catalog_item_id })) owned.push({ epic_id: item.catalog_item_id, title: "", cover_url: "", developers: "" });
+    if (find_game(database, { epic_id: item.catalog_item_id })) owned.push({ epic_id: item.catalog_item_id, epic_namespace: item.namespace, epic_app_name: item.app_name, title: "", cover_url: "", developers: "" });
     else {
       const game = await epic.game(session.access_token, item);
       if (game) owned.push(game);
@@ -822,6 +829,16 @@ function clean_ids(ids: Partial<GameIds>): Partial<GameIds> {
   return cleaned;
 }
 
+// Each launcher id as typed; a GOG product number is digits alone, and an id left out stays.
+function clean_launch_ids(ids: Partial<GameLaunchIds>): Partial<GameLaunchIds> {
+  const cleaned: Partial<GameLaunchIds> = {};
+  for (const key of game_launch_keys) {
+    if (typeof ids[key] === "string") cleaned[key] = ids[key].trim();
+  }
+  if (cleaned.gog_product_id && !/^\d+$/.test(cleaned.gog_product_id)) throw new Error(`${cleaned.gog_product_id} is not a GOG product number, such as 1207664663.`);
+  return cleaned;
+}
+
 // The game keeps its own id and everything about it; only the catalogue ids change, and then its details are fetched again.
 async function set_ids(database: SqlDatabase, id: string, ids: Partial<GameIds>): Promise<LibraryGame> {
   require_game(database, id);
@@ -907,7 +924,7 @@ async function run_refresh(database: SqlDatabase, refresh: GamesRefresh): Promis
 // ── Merging ──────────────────────────────────────────────────────────────────
 
 const game_merge_columns = {
-  ...Object.fromEntries(game_id_keys.map((key) => [key, "text"])),
+  ...Object.fromEntries([...game_id_keys, ...game_launch_keys].map((key) => [key, "text"])),
   ...Object.fromEntries(
     ["title", "year", "release_date", "overview", "cover_url", "cover_file", "cover_file_from", "genres", "platforms", "developers", "publishers", "status", "review", "notes", "owned_platforms", "owned_stores", "edition", "last_played", "added_at", "base_game", "base_game_title"].map((key) => [
       key,
@@ -1109,6 +1126,8 @@ export const games_feature = define_feature({
     },
 
     set_game_edition: (database: SqlDatabase, id: string, edition: string): void => update_game(database, id, { edition: edition.trim() }),
+
+    set_game_launch_ids: (database: SqlDatabase, id: string, ids: Partial<GameLaunchIds>): void => update_game(database, id, clean_launch_ids(ids)),
 
     set_game_playtime: (database: SqlDatabase, id: string, minutes: number): void => {
       if (!(Number.isFinite(minutes) && minutes >= 0)) throw new Error("Playtime is a number of minutes from 0 up.");

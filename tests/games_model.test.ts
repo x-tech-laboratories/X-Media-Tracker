@@ -69,6 +69,10 @@ function game(fields: Partial<LibraryGame>): LibraryGame {
     added_at: "",
     base_game: "",
     base_game_title: "",
+    epic_namespace: "",
+    epic_app_name: "",
+    gog_product_id: "",
+    lutris_slug: "",
     collection_ids: [],
     ...fields,
   };

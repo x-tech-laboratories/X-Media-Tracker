@@ -1,11 +1,11 @@
 // The games' settings: a dialog for each catalogue with its key, and IGDB's import, the statuses and how new games start,
-// collections, a dialog for each store whose library comes in: Steam with its categories, itch.io and Epic, and the
+// collections, the launchers a game's page starts games in, a dialog for each store whose library comes in: Steam with its categories, itch.io and Epic, and the
 // games' own import and export.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
 import { useRef, useState, type ChangeEvent, type ReactNode } from "react";
-import { CommitInput, NumberField } from "@x-tech-laboratories/x-libs/web/react/controls";
+import { CommitInput, NumberField, Switch } from "@x-tech-laboratories/x-libs/web/react/controls";
 import { confirm_dialog } from "@x-tech-laboratories/x-libs/web/react/dialog";
 import { RowActions, Section, SettingRow, type SettingsSection } from "@x-tech-laboratories/x-libs/web/react/layout";
 import { Loaded } from "@x-tech-laboratories/x-libs/web/react/states";
@@ -31,6 +31,7 @@ import {
   type GameStatusInfo,
 } from "../../shared/games/model.ts";
 import { epic_sign_in_link } from "../../shared/games/epic.ts";
+import { clean_launchers, launcher_labels, launchers } from "../../shared/games/launch.ts";
 import { game_catalog_manifests } from "../../shared/games/manifests.ts";
 import type { SteamCategoryReport } from "../../shared/games/store.ts";
 import { attempt } from "./actions.tsx";
@@ -139,6 +140,30 @@ function NewGameSettings({ settings, set_setting }: FeatureSettingsProps) {
         )}
       </WithStatuses>
     </SettingRow>
+  );
+}
+
+// ── Launchers ────────────────────────────────────────────────────────────────
+
+const launcher_hints: Record<(typeof launchers)[number], string> = {
+  steam: "Games with a Steam app id.",
+  heroic: "Epic games from the Epic import and GOG games refreshed from GOG, on Linux, macOS and Windows.",
+  epic: "Games from the Epic import, on Windows and macOS.",
+  gog_galaxy: "GOG games refreshed from GOG; Galaxy opens the game's page, with its Play button.",
+  lutris: "Games installed in Lutris on this computer, found by their store or title, or any with a Lutris slug set under Change ids.",
+};
+
+function LauncherSettings({ settings, set_setting }: FeatureSettingsProps) {
+  const chosen = clean_launchers(settings["games.launchers"]);
+  const set = (launcher: (typeof launchers)[number], on: boolean) => set_setting("games.launchers", on ? [...chosen, launcher] : chosen.filter((each) => each !== launcher));
+  return (
+    <>
+      {launchers.map((launcher) => (
+        <SettingRow key={launcher} label={launcher_labels[launcher]} hint={launcher_hints[launcher]}>
+          <Switch label={launcher_labels[launcher]} checked={chosen.includes(launcher)} on_change={(on) => set(launcher, on)} />
+        </SettingRow>
+      ))}
+    </>
   );
 }
 
@@ -481,6 +506,12 @@ export function game_settings(props: FeatureSettingsProps): SettingsSection[] {
     },
     { id: "new-games", heading: "New games", content: <NewGameSettings {...props} /> },
     { id: "game-collections", heading: "Game collections", hint: "Your own shelves, such as Couch co-op or Backlog 2027; a game can be in several.", content: <CollectionSettings /> },
+    {
+      id: "game-launchers",
+      heading: "Launchers",
+      hint: "A game's page has a button to start it in each launcher turned on here that knows the game. It starts the game on the computer the page is open on, so it is left out on a phone.",
+      content: <LauncherSettings {...props} />,
+    },
     { id: "game-stores", heading: "Stores", hint: "The stores whose libraries come in, adding games and merging ones already here.", content: <StoreSettings {...props} /> },
     transfer_section({
       name: "games",

@@ -93,6 +93,7 @@ export function create_gog(fetcher: Fetch = fetch): Gog {
       return {
         ...empty_game("gog"),
         gog_id: slug,
+        gog_product_id: product,
         title: text_of(details.title),
         year: release_date.slice(0, 4),
         release_date,

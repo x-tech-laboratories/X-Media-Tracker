@@ -112,6 +112,12 @@ on the Settings page.
 - `steam_collections.ts` reads the Steam client's library categories file; `import_steam_categories` gives games in a
   category mapped in `games.steam_category_statuses` its status. The desktop finds the file in Steam's folder
   (`src/main/steam_categories.ts`), offers it to the page through its own bridge and imports it on the Steam schedule.
+- `launch.ts` makes a game's links into the launchers turned on in `games.launchers`: Steam by the Steam app id, Heroic
+  and the Epic Games launcher by `epic_namespace` and `epic_app_name`, which the Epic import keeps, GOG Galaxy and Heroic
+  by `gog_product_id`, which GOG's details give, and Lutris by `lutris_slug`. These never name a game in the library. The
+  desktop reads the games installed in Lutris from its `pga.db` (`src/main/lutris.ts`) through its own bridge, so the
+  page finds a game's slug there by its store's id or title, and its window lets each launcher's scheme out to the
+  installed app. The page leaves the buttons out on a phone.
 - `igdb_export.ts` reads IGDB's data export page, by its tables' headers and without a DOM: lists as statuses or
   collections, ratings and reviews, each game by its title alone.
 

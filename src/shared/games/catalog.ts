@@ -39,6 +39,8 @@ export interface CatalogGame extends GameIds {
   // The game this is DLC of, by its key such as "steam:620", with its title.
   base_game: string;
   base_game_title: string;
+  // GOG's product number, which GOG Galaxy and Heroic start the game by.
+  gog_product_id: string;
 }
 
 // A catalogue as its plugin provides it to the games store.
@@ -72,6 +74,7 @@ export function empty_game(source: GameSource): CatalogGame {
     publishers: "",
     base_game: "",
     base_game_title: "",
+    gog_product_id: "",
   };
 }
 
@@ -200,6 +203,7 @@ export function merge_games(first: CatalogGame, second: CatalogGame): CatalogGam
     publishers: fill(first.publishers, second.publishers),
     base_game: first.base_game || second.base_game,
     base_game_title: first.base_game ? first.base_game_title : second.base_game_title,
+    gog_product_id: fill(first.gog_product_id, second.gog_product_id),
   };
 }
 

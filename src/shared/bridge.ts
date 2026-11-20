@@ -11,10 +11,13 @@ import {
   device_api_name,
   device_method_names,
   events_api_name,
+  launcher_method_names,
+  launchers_api_name,
   media_api_name,
   steam_file_method_names,
   steam_files_api_name,
   type DeviceMethods,
+  type LauncherMethods,
   type MediaEvents,
   type SteamFileMethods,
 } from "./page_api.ts";
@@ -30,5 +33,7 @@ export const device_bridge = define_bridge<DeviceMethods>(device_api_name, devic
 export const certificate_bridge = define_bridge<CertificateMethods>(certificates_api_name, certificate_method_names);
 
 export const steam_files_bridge = define_bridge<SteamFileMethods>(steam_files_api_name, steam_file_method_names);
+
+export const launchers_bridge = define_bridge<LauncherMethods>(launchers_api_name, launcher_method_names);
 
 export const media_events = define_events<MediaEvents>(events_api_name);
