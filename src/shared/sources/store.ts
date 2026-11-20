@@ -123,7 +123,7 @@ export const sources_feature = define_feature({
     },
     run_source_import: {
       description: "Imports from one source now; adds new titles or games and merges ones already here, never removing any.",
-      params: [{ name: "source", schema: { ...text("The source's id from list_sources."), enum: ["trakt", "stremio", "steam", "itchio", "epic"] } }],
+      params: [{ name: "source", schema: text("The source's id from list_sources, such as trakt, stremio, steam, itchio or epic, or one a plugin from the plugins folder adds.") }],
     },
     run_due_imports: {
       description: "Runs the automatic imports when the hours set under Settings have passed since the last; gives what each did, or null when none were due.",

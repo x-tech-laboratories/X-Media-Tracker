@@ -725,6 +725,15 @@ function moved_on(statuses: GameStatusInfo[], stored: string, imported: GameStat
 
 // IGDB's export names games only by title: one already here, matched by title, gains the status, rating, review,
 // platforms and collections it lacks; a new one waits for Refresh to find it on Wikidata by its title.
+// Games known only by their title, such as IGDB's data export lists them, in one transaction.
+export function import_games_by_title(database: SqlDatabase, games: IgdbGame[]): GameImportReport {
+  return in_transaction(database, () => {
+    const report: GameImportReport = { added: 0, updated: 0 };
+    for (const game of games) report[import_igdb_game(database, game)]++;
+    return report;
+  });
+}
+
 function import_igdb_game(database: SqlDatabase, game: IgdbGame): "added" | "updated" {
   const db = drizzle_of(database);
   const existing = find_by_title(database, game.title, "");
@@ -1184,11 +1193,7 @@ export const games_feature = define_feature({
       require_switched_on(database, igdb_manifest);
       const games = read_igdb_export(html);
       if (games.length === 0) throw new Error("No games found; pick the index.html from IGDB's data export.");
-      return in_transaction(database, () => {
-        const report: GameImportReport = { added: 0, updated: 0 };
-        for (const game of games) report[import_igdb_game(database, game)]++;
-        return report;
-      });
+      return import_games_by_title(database, games);
     },
 
     // Starts fetching every game's details again in the background, or answers with the refresh already running.
