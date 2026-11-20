@@ -3,7 +3,7 @@
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
-import type { BookIds, CatalogRef, SeriesEntry } from "./model.ts";
+import type { BookIds, CatalogRef, FollowKind, SeriesEntry } from "./model.ts";
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
 
@@ -42,6 +42,27 @@ export interface CatalogRelease {
   cover_url: string;
   openlibrary_id: string;
   hardcover_id: string;
+}
+
+// A catalogue as its plugin provides it to the books store; what it cannot do is left out.
+export interface BookCatalog {
+  source: CatalogSource;
+  // Why it cannot be asked now, such as "no key set"; "" when it can.
+  missing: string;
+  // A book by this catalogue's own id.
+  book: (id: string) => Promise<CatalogBook>;
+  by_isbn?: (isbn: string) => Promise<CatalogBook>;
+  // A book by the name in its page's address, for a pasted link.
+  by_slug?: (slug: string) => Promise<CatalogBook>;
+  // Its own id from one typed or pasted, such as an edition's work; throws when it is none of its ids.
+  own_id?: (input: string) => Promise<string>;
+  search: (query: string) => Promise<CatalogBook[]>;
+  search_refs: (query: string, kind: FollowKind) => Promise<CatalogRef[]>;
+  // A series in order, by this catalogue's id for it.
+  series?: (id: string) => Promise<CatalogSeries>;
+  // The kinds of follow it finds new books for, and those books first out on or after the day given.
+  release_kinds?: FollowKind[];
+  releases?: (kind: FollowKind, id: string, since: string) => Promise<CatalogRelease[]>;
 }
 
 export function empty_book(source: CatalogSource): CatalogBook {

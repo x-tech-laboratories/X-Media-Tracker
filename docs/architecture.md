@@ -67,8 +67,8 @@ on the Settings page.
 - `bookbrainz.ts`, `openlibrary.ts` and `hardcover.ts` are the catalogues' clients, each answering in `catalog.ts`'s
   shape. Adding a book asks BookBrainz, then Open Library (whose work names its BookBrainz work, and BookBrainz its Open
   Library work), then Hardcover when a key is set, each filling what the one before lacks; search asks them all at once
-  and joins the same book into one result. Hardcover is reached only with the user's key from settings, which never
-  appears in an error or a log.
+  and joins the same book into one result. Hardcover is reached only with the user's key from its plugin's settings, which
+  never appears in an error or a log.
 - `storygraph.ts` reads StoryGraph's export CSV and writes the Goodreads library CSV StoryGraph and LibraryThing
   import; `librarything.ts` reads LibraryThing's tab-separated or CSV export into the same shape, both through X-Libs'
   `csv`.
@@ -118,18 +118,18 @@ on the Settings page.
 ## Plugins
 
 Every source and catalogue is a bundled X-Libs plugin, one per service, each named once by a manifest: the sources' in
-`src/shared/sources/manifests.ts`, the game catalogues' in `src/shared/games/manifests.ts`. A manifest lists the
+`src/shared/sources/manifests.ts`, the catalogues' in `src/shared/books/manifests.ts` and `src/shared/games/manifests.ts`. A manifest lists the
 service's own settings, its keys marked `secret`.
 
 - The store's side (`src/shared/plugins/host.ts`) is a plugin host that `open_plugin_host` makes afresh for each use, so
-  a plugin switched on, or given a key, on any device holds at once. Plugins provide an `importer` or a `game_catalog`.
+  a plugin switched on, or given a key, on any device holds at once. Plugins provide an `importer`, a `book_catalog` or a `game_catalog`.
 - Both hosts keep on or off and each plugin's settings in the synced `plugins` setting. `without_secret_settings`
   (`src/shared/settings.ts`) replaces each secret that is set with X-Libs' `hidden_secret` in what the server, the API
   and MCP give, and writing `plugins` back, or importing a settings file, gives a still hidden secret its stored value.
-- A feature's `on_open` runs each time the database opens; the games feature's moves the catalogue keys once kept as
-  games settings into their plugins (`move_settings_into_plugins`).
+- A feature's `on_open` runs each time the database opens; the books and games features' move the catalogue keys once
+  kept as their settings into their plugins (`move_settings_into_plugins`).
 - The page's side (`src/web/plugins.tsx`) gives each plugin a row in its feature's settings, whose dialog shows its on or
-  off, its settings and what it puts in the `import_panel` slot, such as Trakt's sign-in or IGDB's data export; Stremio
+  off, its settings and what it puts in the `panel` slot, such as Trakt's sign-in, IGDB's data export or the link to make a Hardcover key; Stremio
   also fills `title_actions` on each title's page.
 
 Sources:
@@ -140,6 +140,11 @@ Sources:
 - Every source imports through `apply_import` (`src/shared/library/importing.ts`): TMDB is asked first, then one
   transaction writes, matching on any id and merging episodes.
 - `keep_importing` (`src/shared/sources/schedule.ts`) checks the automatic imports hourly on the server and the desktop.
+
+Book catalogues (`src/shared/books/plugins.ts`): each provides a `BookCatalog` (`src/shared/books/catalog.ts`) with
+what it can do, such as a series in order or new books by a kind of follow. Adding or refreshing a book asks them from
+the most curated, BookBrainz, then Open Library, then Hardcover, each by its own id or else the ISBN, and one skipped
+is asked once another names its id; search asks them all, joined in the manifests' order.
 
 Game catalogues (`src/shared/games/plugins.ts`): each provides a `GameCatalog` (`src/shared/games/catalog.ts`) built
 with the key from its settings, or saying the key is missing, which search reports. Adding or refreshing a game asks the

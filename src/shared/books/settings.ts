@@ -1,8 +1,6 @@
 // The books' settings and their defaults, in a file with no imports so the page can read them too.
 
 export const books_setting_defaults = {
-  // A Hardcover key with the read:catalog scope; search, series order and series alerts use it when set.
-  "books.hardcover_api_key": "",
   // The status a book added by hand starts with.
   "books.default_status": "want_to_read",
   // Whether a StoryGraph import's rating replaces one already set.
@@ -29,4 +27,4 @@ export const books_setting_defaults = {
 };
 
 // Settings that hold another service's key or a private address, kept out of what other programs read.
-export const books_secret_settings = ["books.hardcover_api_key", "books.alerts_ntfy_topic", "books.alerts_ntfy_token", "books.alerts_webhook_url", "books.alerts_mail_password"];
+export const books_secret_settings = ["books.alerts_ntfy_topic", "books.alerts_ntfy_token", "books.alerts_webhook_url", "books.alerts_mail_password"];
