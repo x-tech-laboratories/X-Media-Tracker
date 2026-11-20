@@ -15,6 +15,7 @@ import { calls, use_data } from "../api.ts";
 import type { FeatureSettingsProps } from "../features.tsx";
 import { title_catalog_manifests } from "../../shared/library/manifests.ts";
 import { source_manifests } from "../../shared/sources/manifests.ts";
+import { GridSizeRow } from "../settings/rows.tsx";
 import { list_genres, poster_sizes, saved_poster_sizes, status_labels, statuses, type Collection, type CollectionGroup } from "../../shared/library/model.ts";
 import type { Library } from "../../shared/library/store.ts";
 import { PluginRows } from "../plugins.tsx";
@@ -215,6 +216,7 @@ export function library_settings(props: FeatureSettingsProps): SettingsSection[]
         </>
       ),
     },
+    { id: "library-view", heading: "Library view", content: <GridSizeRow {...props} setting="library.grid_size" hint="How big each poster is in the Library; smaller fits more to a row." /> },
     { id: "titles", heading: "New titles", content: <TitleSettings {...props} /> },
     { id: "genres", heading: "Genres", hint: "Genres come from TMDB and are refreshed with the Library's Refresh.", content: <GenreSettings {...props} /> },
     {

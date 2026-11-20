@@ -8,6 +8,8 @@ export const games_setting_defaults = {
   "games.statuses": [] as { id: string; label: string; group: string }[],
   // The status a game added by hand starts with.
   "games.default_status": "backlog",
+  // How big each cover is in the library's grid: "small", "medium" or "large".
+  "games.grid_size": "medium",
   // The status each Steam library category gives its games, by the category's name, such as { "Finished": "finished" }.
   "games.steam_category_statuses": {} as Record<string, string>,
   // The launchers a game's page offers to start it in, where the game is known to them.

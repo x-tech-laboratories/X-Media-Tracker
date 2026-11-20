@@ -4,7 +4,7 @@
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
-import { MediaGrid, MediaTile } from "@x-tech-laboratories/x-libs/web/react/media";
+import { MediaGrid, MediaTile, type MediaGridSize } from "@x-tech-laboratories/x-libs/web/react/media";
 import { MenuButton } from "@x-tech-laboratories/x-libs/web/react/menu_button";
 import { Segmented, Select } from "@x-tech-laboratories/x-libs/web/react/controls";
 import { PageHeading, Stack, Toolbar } from "@x-tech-laboratories/x-libs/web/react/layout";
@@ -38,6 +38,7 @@ import type { Library, RefreshReport } from "../../shared/library/store.ts";
 import { status_menu_items } from "./status.tsx";
 import { use_cover } from "../covers.tsx";
 import { GroupedList, parts_of, rating_key, type Grouping } from "../grouping.tsx";
+import { grid_size_of } from "../settings/rows.tsx";
 
 // ── Remembered view ──────────────────────────────────────────────────────────
 
@@ -103,11 +104,11 @@ function TitleTable({ titles }: { titles: LibraryTitle[] }) {
   return <DataTable caption="Titles" columns={table_columns} rows={titles} row_key={(title) => title.id} />;
 }
 
-function Titles({ titles, grouping, poster_size, layout }: { titles: LibraryTitle[]; grouping: Grouping<LibraryTitle> | undefined; poster_size: string; layout: Layout }) {
+function Titles({ titles, grouping, poster_size, size, layout }: { titles: LibraryTitle[]; grouping: Grouping<LibraryTitle> | undefined; poster_size: string; size: MediaGridSize; layout: Layout }) {
   const tile = (title: LibraryTitle) => <TitleTile key={title.id} title={title} poster_size={poster_size} />;
-  if (grouping) return <GroupedList items={titles} grouping={grouping} as_table={layout === "table"} tile={tile} table={(members) => <TitleTable titles={members} />} />;
+  if (grouping) return <GroupedList items={titles} grouping={grouping} as_table={layout === "table"} size={size} tile={tile} table={(members) => <TitleTable titles={members} />} />;
   if (layout === "table") return <TitleTable titles={titles} />;
-  return <MediaGrid label="Titles">{titles.map(tile)}</MediaGrid>;
+  return <MediaGrid label="Titles" size={size}>{titles.map(tile)}</MediaGrid>;
 }
 
 type Layout = "posters" | "table";
@@ -262,7 +263,7 @@ function LibraryPage({ library, settings }: { library: Library; settings: Record
       ) : shown.length === 0 ? (
         <Empty title="No titles match these filters." />
       ) : (
-        <Titles titles={shown} grouping={group_by === "none" ? undefined : groupings[group_by]} poster_size={poster_size} layout={layout} />
+        <Titles titles={shown} grouping={group_by === "none" ? undefined : groupings[group_by]} poster_size={poster_size} size={grid_size_of(settings["library.grid_size"])} layout={layout} />
       )}
     </Stack>
   );

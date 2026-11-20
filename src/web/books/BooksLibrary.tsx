@@ -3,7 +3,7 @@
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
-import { MediaGrid, MediaTile } from "@x-tech-laboratories/x-libs/web/react/media";
+import { MediaGrid, MediaTile, type MediaGridSize } from "@x-tech-laboratories/x-libs/web/react/media";
 import { MenuButton } from "@x-tech-laboratories/x-libs/web/react/menu_button";
 import { Segmented, Select } from "@x-tech-laboratories/x-libs/web/react/controls";
 import { PageHeading, Stack, Toolbar } from "@x-tech-laboratories/x-libs/web/react/layout";
@@ -14,7 +14,7 @@ import { is_boolean, one_of } from "@x-tech-laboratories/x-libs/web/prefs";
 import { use_pref } from "@x-tech-laboratories/x-libs/web/react/prefs";
 import { toast } from "@x-tech-laboratories/x-libs/web/react/toasts";
 
-import { calls, use_data } from "../api.ts";
+import { calls, use_data, use_settings } from "../api.ts";
 import { use_refresh } from "../refresh.ts";
 import {
   book_facet_counts,
@@ -39,6 +39,7 @@ import type { Books, BooksRefreshReport } from "../../shared/books/store.ts";
 import { book_href, book_status_menu_items, stars_text } from "./actions.tsx";
 import { use_cover } from "../covers.tsx";
 import { GroupedList, parts_of, rating_key, type Grouping } from "../grouping.tsx";
+import { grid_size_of } from "../settings/rows.tsx";
 
 // ── Remembered view ──────────────────────────────────────────────────────────
 
@@ -99,11 +100,11 @@ function BookTable({ books }: { books: LibraryBook[] }) {
   return <DataTable caption="Books" columns={table_columns} rows={books} row_key={(book) => book.id} />;
 }
 
-function BookList({ books, grouping, layout }: { books: LibraryBook[]; grouping: Grouping<LibraryBook> | undefined; layout: Layout }) {
+function BookList({ books, grouping, size, layout }: { books: LibraryBook[]; grouping: Grouping<LibraryBook> | undefined; size: MediaGridSize; layout: Layout }) {
   const tile = (book: LibraryBook) => <BookTile key={book.id} book={book} />;
-  if (grouping) return <GroupedList items={books} grouping={grouping} as_table={layout === "table"} tile={tile} table={(members) => <BookTable books={members} />} />;
+  if (grouping) return <GroupedList items={books} grouping={grouping} as_table={layout === "table"} size={size} tile={tile} table={(members) => <BookTable books={members} />} />;
   if (layout === "table") return <BookTable books={books} />;
-  return <MediaGrid label="Books">{books.map(tile)}</MediaGrid>;
+  return <MediaGrid label="Books" size={size}>{books.map(tile)}</MediaGrid>;
 }
 
 // ── Groups ───────────────────────────────────────────────────────────────────
@@ -146,7 +147,7 @@ function use_books_refresh() {
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
-function LibraryPage({ library }: { library: Books }) {
+function LibraryPage({ library, settings }: { library: Books; settings: Record<string, unknown> }) {
   const [remembered, set_remembered] = use_pref("x-media-tracker-books-filters", remembered_defaults, is_filters);
   const [sort_key, set_sort_key] = use_pref<BookSortKey>("x-media-tracker-books-sort", "title", one_of(...book_sort_keys));
   const [descending, set_descending] = use_pref("x-media-tracker-books-descending", false, is_boolean);
@@ -234,7 +235,7 @@ function LibraryPage({ library }: { library: Books }) {
       ) : shown.length === 0 ? (
         <Empty title="No books match these filters." />
       ) : (
-        <BookList books={shown} grouping={group_by === "none" ? undefined : groupings[group_by]} layout={layout} />
+        <BookList books={shown} grouping={group_by === "none" ? undefined : groupings[group_by]} size={grid_size_of(settings["books.grid_size"])} layout={layout} />
       )}
     </Stack>
   );
@@ -242,9 +243,10 @@ function LibraryPage({ library }: { library: Books }) {
 
 export function BooksLibrary() {
   const library = use_data((api) => api.list_books());
+  const settings = use_settings();
   return (
     <div className="books-page">
-      <Loaded resource={library}>{(loaded) => <LibraryPage library={loaded} />}</Loaded>
+      <Loaded resource={library}>{(loaded) => <Loaded resource={settings}>{(values) => <LibraryPage library={loaded} settings={values} />}</Loaded>}</Loaded>
     </div>
   );
 }
