@@ -264,7 +264,14 @@ describe("IGDB, TheGamesDB, GOG and SteamGridDB", () => {
     };
     const methods = open_methods();
     expect(await methods.add_game_from_link("https://www.gog.com/en/game/lone_island")).toMatchObject({ id: "gog:lone_island", title: "Lone Island" });
-    expect(methods.get_game("gog:lone_island")).toMatchObject({ overview: "Island life.", release_date: "1994-03-01", genres: "Adventure", developers: "Islanders", cover_url: "https://images.gog-statics.com/box.jpg" });
+    expect(methods.get_game("gog:lone_island")).toMatchObject({
+      overview: "Island life.",
+      release_date: "1994-03-01",
+      genres: "Adventure",
+      developers: "Islanders",
+      cover_url: "https://images.gog-statics.com/box.jpg",
+      gog_product_id: "1234",
+    });
   });
 });
 
@@ -319,6 +326,9 @@ describe("keeping a game", () => {
     methods.set_game_rating("rawg:portal-2", 8.6);
     methods.set_game_platforms("rawg:portal-2", ["PC", " pc ", "Nintendo Switch"]);
     methods.set_game_stores("rawg:portal-2", ["GOG", " gog ", "Epic Games Store"]);
+    methods.set_game_launch_ids("rawg:portal-2", { gog_product_id: " 1207664663 ", lutris_slug: "portal-2" });
+    expect(() => methods.set_game_launch_ids("rawg:portal-2", { gog_product_id: "portal_2" })).toThrow("not a GOG product number");
+    expect(methods.get_game("rawg:portal-2")).toMatchObject({ gog_product_id: "1207664663", lutris_slug: "portal-2", epic_app_name: "" });
     methods.set_game_edition("rawg:portal-2", " Complete ");
     methods.set_game_playtime("rawg:portal-2", 125.4);
     methods.set_game_last_played("rawg:portal-2", "2026-11-01");
@@ -529,6 +539,8 @@ describe("the Epic Games Store", () => {
     expect(methods.get_game(`epic:${epic_id(1)}`)).toMatchObject({
       title: "Hades",
       epic_id: epic_id(1),
+      epic_namespace: "ns1",
+      epic_app_name: "App1",
       status: "backlog",
       owned_platforms: ["PC"],
       owned_stores: ["Epic Games Store"],
@@ -552,7 +564,7 @@ describe("the Epic Games Store", () => {
     epic_pages = [[epic_record(7)]];
     epic_catalog(7, "Portal 2");
     expect(await methods.import_epic_library()).toEqual({ added: 0, updated: 1 });
-    expect(methods.get_game("rawg:portal-2")).toMatchObject({ epic_id: epic_id(7), status: "backlog", owned_platforms: ["PC"], owned_stores: ["Epic Games Store"] });
+    expect(methods.get_game("rawg:portal-2")).toMatchObject({ epic_id: epic_id(7), epic_app_name: "App7", status: "backlog", owned_platforms: ["PC"], owned_stores: ["Epic Games Store"] });
   });
 
   it("says to sign in again once the sign-in has run out", async () => {

@@ -209,6 +209,27 @@ export const games_api = {
       { name: "edition", schema: text("Such as Game of the Year Edition.") },
     ],
   },
+  set_game_launch_ids: {
+    description:
+      "Sets what the game launchers on a computer know the game by, so the game's page can start it in them: Epic's namespace and app name " +
+      "(the Epic Games launcher and Heroic), GOG's product number (GOG Galaxy and Heroic) and Lutris's slug. Steam needs only the Steam app id, " +
+      "which set_game_ids sets. An id left out stays as it is and an empty one is cleared. The Epic import and refreshing from GOG fill these in themselves.",
+    params: [
+      { name: "id", schema: game_id },
+      {
+        name: "ids",
+        schema: {
+          type: "object",
+          properties: {
+            epic_namespace: text("An Epic Games Store namespace, 32 letters and digits, or empty to clear it."),
+            epic_app_name: text("An Epic Games Store app name, such as Fortnite, or empty to clear it."),
+            gog_product_id: text("A GOG product number, such as 1207664663, or empty to clear it."),
+            lutris_slug: text("A Lutris game's slug, such as portal-2, or empty to clear it."),
+          },
+        },
+      },
+    ],
+  },
   set_game_playtime: {
     description: "Sets how long the game has been played, in minutes.",
     params: [

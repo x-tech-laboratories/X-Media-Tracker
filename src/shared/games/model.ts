@@ -128,7 +128,20 @@ export interface GameIds {
 // New catalogues go last, so a tracked game's id, made from the first id it has, never changes.
 export const game_id_keys = ["rawg_id", "mobygames_id", "giantbomb_id", "wikidata_id", "steam_app_id", "igdb_id", "thegamesdb_id", "gog_id", "steamgriddb_id", "itchio_id", "epic_id"] as const satisfies readonly (keyof GameIds)[];
 
-export interface Game extends GameIds {
+// What the launchers know a game by, which never names it in the library.
+export interface GameLaunchIds {
+  // An Epic Games Store namespace and app name, such as Fortnite, which the Epic launcher and Heroic start a game by.
+  epic_namespace: string;
+  epic_app_name: string;
+  // A GOG product number, such as 1207664663, which GOG Galaxy and Heroic know a game by.
+  gog_product_id: string;
+  // A Lutris game's slug, such as portal-2.
+  lutris_slug: string;
+}
+
+export const game_launch_keys = ["epic_namespace", "epic_app_name", "gog_product_id", "lutris_slug"] as const satisfies readonly (keyof GameLaunchIds)[];
+
+export interface Game extends GameIds, GameLaunchIds {
   id: string;
   title: string;
   year: string;

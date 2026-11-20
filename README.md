@@ -77,6 +77,7 @@ search, series in order and new books in the series you follow. Make the key wit
   and your library's categories, each mapped to a status.
 - **itch.io:** the games you have bought or claimed, imported by hand or on a schedule.
 - **Epic Games Store:** the games your account owns, imported by hand or on a schedule.
+- **Launchers:** a game's page starts it in Steam, Heroic, the Epic Games launcher, GOG Galaxy or Lutris.
 
 Wikidata, Steam's store and GOG need no key; GOG is read through the answers its own store uses, which it does not
 publish as an API, so they may change. Wikidata matters most: its items name a game's RAWG, MobyGames, Giant Bomb,
@@ -131,6 +132,16 @@ and the desktop app import on that schedule, as for Steam. Each import renews th
 out, and then you sign in again, so keep the schedule to a few hours.
 
 EA's games cannot come in: EA offers no API for a player's library.
+
+## Launchers
+
+A game's page has a button for each launcher turned on under **Settings → Games → Launchers** that knows the game, and
+it starts the game on the computer the page is open on; a browser asks first. **Launch in Steam** needs the game's Steam
+app id. **Launch in Heroic** and **Launch in Epic Games launcher** need Epic's namespace and app name, which the Epic
+import keeps. **Launch in Heroic** and **Open in GOG Galaxy** also work from GOG's product number, which refreshing a
+game with a GOG id fills in; Galaxy opens the game's page, with its Play button. **Launch in Lutris** needs the game's
+Lutris slug: the desktop app finds games installed in Lutris by their store's id or title, and **Change ids** sets the
+slug, or any of the others, by hand. The buttons are left out on a phone.
 
 ## Coming from StoryGraph
 

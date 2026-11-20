@@ -7,7 +7,7 @@ import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sq
 
 import { drizzle_of, new_id } from "../feature.ts";
 import { meet_row, read_transfer, transfer_csv, transfer_file, type ImportConflict, type Row, type TransferFile, type TransferInput, type TransferReport, type TransferTable } from "../transfer.ts";
-import { game_id_keys, game_key, is_game_status } from "./model.ts";
+import { game_id_keys, game_key, game_launch_keys, is_game_status } from "./model.ts";
 import { games_collections, games_game_collections, games_games } from "./schema.ts";
 import { find_by_title, find_game, statuses_of } from "./store.ts";
 
@@ -26,7 +26,7 @@ const tables: TransferTable[] = [
       rating: "nullable_number",
       ...text_columns(["review", "notes", "owned_platforms", "owned_stores", "edition"]),
       playtime_minutes: "number",
-      ...text_columns(["last_played", "added_at", "base_game", "base_game_title"]),
+      ...text_columns(["last_played", "added_at", "base_game", "base_game_title", ...game_launch_keys]),
     },
   },
   { name: "collections", columns: text_columns(["id", "name"]) },

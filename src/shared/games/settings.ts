@@ -42,6 +42,8 @@ export const games_setting_defaults = {
   "games.last_steam_result": "",
   // The status each Steam library category gives its games, by the category's name, such as { "Finished": "finished" }.
   "games.steam_category_statuses": {} as Record<string, string>,
+  // The launchers a game's page offers to start it in, where the game is known to them.
+  "games.launchers": ["steam", "heroic", "epic", "gog_galaxy", "lutris"] as string[],
   // The category names last read from Steam, A-Z, offered for the mapping.
   "games.steam_categories": [] as string[],
 };

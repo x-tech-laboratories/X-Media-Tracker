@@ -40,10 +40,14 @@ export interface EpicSession {
 export interface EpicItem {
   namespace: string;
   catalog_item_id: string;
+  // What the Epic launcher and Heroic start the game by, such as Fortnite.
+  app_name: string;
 }
 
 export interface OwnedEpicGame {
   epic_id: string;
+  epic_namespace: string;
+  epic_app_name: string;
   title: string;
   cover_url: string;
   developers: string;
@@ -132,7 +136,7 @@ export function create_epic(client: EpicClient, fetcher: Fetch = fetch): Epic {
           const namespace = text_of(record.namespace);
           const catalog_item_id = text_of(record.catalogItemId);
           if (!namespace || !catalog_item_id || namespace === unreal_namespace || text_of(record.sandboxType) === "PRIVATE") continue;
-          items.set(catalog_item_id, { namespace, catalog_item_id });
+          items.set(catalog_item_id, { namespace, catalog_item_id, app_name: text_of(record.appName) });
         }
         cursor = text_of(((json.responseMetadata ?? {}) as Json).nextCursor);
         if (!cursor) break;
@@ -144,7 +148,7 @@ export function create_epic(client: EpicClient, fetcher: Fetch = fetch): Epic {
       const address = `${catalog_base}/${encodeURIComponent(item.namespace)}/bulk/items?${search.toString()}`;
       const json = ((await fetch_json(fetcher, service, address, bearer(access_token)))[item.catalog_item_id] ?? null) as Json | null;
       if (!json || !is_game(json)) return null;
-      return { epic_id: item.catalog_item_id, title: text_of(json.title), cover_url: cover_of(list_of(json.keyImages)), developers: text_of(json.developer) };
+      return { epic_id: item.catalog_item_id, epic_namespace: item.namespace, epic_app_name: item.app_name, title: text_of(json.title), cover_url: cover_of(list_of(json.keyImages)), developers: text_of(json.developer) };
     },
   };
 }

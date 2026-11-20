@@ -84,5 +84,14 @@ export const migrations: DrizzleMigration[] = [
       "ALTER TABLE `games_games` ADD `epic_id` text DEFAULT '' NOT NULL;",
       "CREATE INDEX `games_games_by_epic` ON `games_games` (`epic_id`);"
     ]
+  },
+  {
+    "name": "20261120012946_launch_ids",
+    "statements": [
+      "ALTER TABLE `games_games` ADD `epic_namespace` text DEFAULT '' NOT NULL;",
+      "ALTER TABLE `games_games` ADD `epic_app_name` text DEFAULT '' NOT NULL;",
+      "ALTER TABLE `games_games` ADD `gog_product_id` text DEFAULT '' NOT NULL;",
+      "ALTER TABLE `games_games` ADD `lutris_slug` text DEFAULT '' NOT NULL;"
+    ]
   }
 ];

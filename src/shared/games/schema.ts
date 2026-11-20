@@ -58,6 +58,11 @@ export const games_games = sqliteTable(
     // The game this is DLC of, by its key such as "steam:620" or a library id; "none" once set by hand as not DLC.
     base_game: text().notNull().default(""),
     base_game_title: text().notNull().default(""),
+    // What the launchers know the game by: Epic's namespace and app name, GOG's product number and Lutris's slug.
+    epic_namespace: text().notNull().default(""),
+    epic_app_name: text().notNull().default(""),
+    gog_product_id: text().notNull().default(""),
+    lutris_slug: text().notNull().default(""),
   },
   (table) => [
     index("games_games_by_rawg").on(table.rawg_id),

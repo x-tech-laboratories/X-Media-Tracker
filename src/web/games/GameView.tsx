@@ -1,5 +1,6 @@
 // One game's page: its cover, status, rating, the platforms and stores a copy is owned on and from, edition, playtime, last day played and
-// collections, the game it is DLC of or its own DLC, what the catalogues say of it with links to each, and the review.
+// collections, the game it is DLC of or its own DLC, what the catalogues say of it with links to each, the review, and
+// buttons that start it in the launchers that know it.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -27,11 +28,13 @@ import {
   owned_stores_of,
   type GameCollection,
   type GameIds,
+  type GameLaunchIds,
   type GameStatusInfo,
   type LibraryGame,
 } from "../../shared/games/model.ts";
 import { attempt, game_href, set_game_status } from "./actions.tsx";
 import { HeadPoster, use_cover } from "../covers.tsx";
+import { LaunchButtons } from "./LaunchButtons.tsx";
 import { MergeButton } from "../merging.tsx";
 import { NotesBox } from "../notes.tsx";
 import { game_merge } from "./merge.tsx";
@@ -102,6 +105,13 @@ const id_fields: [keyof GameIds, string, string][] = [
   ["epic_id", "Epic Games Store", "A catalogue item id, 32 letters and digits"],
 ];
 
+const launch_fields: [keyof GameLaunchIds, string, string][] = [
+  ["epic_namespace", "Epic namespace", "Filled in by the Epic import; 32 letters and digits"],
+  ["epic_app_name", "Epic app name", "Filled in by the Epic import, such as Fortnite"],
+  ["gog_product_id", "GOG product number", "Filled in from GOG, such as 1207664663"],
+  ["lutris_slug", "Lutris slug", "Such as portal-2; the desktop app finds games installed in Lutris without it"],
+];
+
 function IdsDialog({ game, close }: { game: LibraryGame; close: () => void }) {
   const [ids, set_ids] = useState<GameIds>({
     rawg_id: game.rawg_id,
@@ -116,6 +126,12 @@ function IdsDialog({ game, close }: { game: LibraryGame; close: () => void }) {
     itchio_id: game.itchio_id,
     epic_id: game.epic_id,
   });
+  const [launch_ids, set_launch_ids] = useState<GameLaunchIds>({
+    epic_namespace: game.epic_namespace,
+    epic_app_name: game.epic_app_name,
+    gog_product_id: game.gog_product_id,
+    lutris_slug: game.lutris_slug,
+  });
   const [busy, set_busy] = useState(false);
   return (
     <Dialog
@@ -129,7 +145,8 @@ function IdsDialog({ game, close }: { game: LibraryGame; close: () => void }) {
           set_busy(true);
           attempt(
             calls()
-              .set_game_ids(game.id, ids)
+              .set_game_launch_ids(game.id, launch_ids)
+              .then(() => calls().set_game_ids(game.id, ids))
               .then(close)
               .finally(() => set_busy(false)),
           );
@@ -139,6 +156,11 @@ function IdsDialog({ game, close }: { game: LibraryGame; close: () => void }) {
       {id_fields.map(([key, label, hint]) => (
         <FormRow key={key} label={label} id={`game-${key}`} hint={hint}>
           <input id={`game-${key}`} autoComplete="off" spellCheck={false} value={ids[key]} onChange={(event) => set_ids({ ...ids, [key]: event.currentTarget.value })} />
+        </FormRow>
+      ))}
+      {launch_fields.map(([key, label, hint]) => (
+        <FormRow key={key} label={label} id={`game-${key}`} hint={hint}>
+          <input id={`game-${key}`} autoComplete="off" spellCheck={false} value={launch_ids[key]} onChange={(event) => set_launch_ids({ ...launch_ids, [key]: event.currentTarget.value })} />
         </FormRow>
       ))}
     </Dialog>
@@ -249,6 +271,7 @@ function GamePage({ game, games, collections, statuses }: { game: LibraryGame; g
         subtitle={[game.developers, game.year].filter(Boolean).join(" · ")}
         actions={
           <>
+            <LaunchButtons game={game} />
             <HistoryButton kind="game" item_id={game.id} name={game.title} />
             <button type="button" onClick={() => open_dialog((close) => <IdsDialog game={game} close={close} />)}>
               Change ids

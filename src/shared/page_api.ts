@@ -8,6 +8,7 @@ import { backup_method_names, type BackupClient, type BackupMethods } from "@x-t
 import type { CertificateClient } from "@x-tech-laboratories/x-libs/certificate_protocol";
 import { sync_device_method_names, type SyncDeviceMethods, type SyncStatus } from "@x-tech-laboratories/x-libs/sync_protocol";
 
+import type { LutrisGame } from "./games/launch.ts";
 import type { MediaMethods } from "./store.ts";
 
 // ── Names ────────────────────────────────────────────────────────────────────
@@ -17,6 +18,7 @@ export const device_api_name = "x_media_tracker_device";
 export const events_api_name = "x_media_tracker_events";
 export const certificates_api_name = "x_media_tracker_certificates";
 export const steam_files_api_name = "x_media_tracker_steam_files";
+export const launchers_api_name = "x_media_tracker_launchers";
 // The desktop page's scheme for the covers kept on the device, as x-media-cover://<name>.
 export const cover_scheme = "x-media-cover";
 
@@ -34,6 +36,14 @@ export interface SteamFileMethods {
 }
 
 export const steam_file_method_names = ["read_steam_categories"] as const;
+
+// The game launchers installed on the desktop's own computer.
+export interface LauncherMethods {
+  // The games installed in Lutris, or none when Lutris is not installed here.
+  list_lutris_games: () => LutrisGame[];
+}
+
+export const launcher_method_names = ["list_lutris_games"] as const;
 
 // What the main process tells the page on its own: the data changed elsewhere, or sync's status moved.
 export type MediaEvents = { changed: null; sync_status: SyncStatus };
@@ -56,6 +66,8 @@ export interface PageApi {
   certificates?: CertificateClient;
   // Set on the desktop, which can read the Steam client's files.
   steam_files?: Client<SteamFileMethods>;
+  // Set on the desktop, which can see the launchers installed on it.
+  launchers?: Client<LauncherMethods>;
   // Where the page shows a kept cover from, by its file's name, or "" while this device does not have it yet.
   cover_src: (name: string) => Promise<string>;
   // Runs whenever the data changed somewhere else; returns the function that stops listening.
