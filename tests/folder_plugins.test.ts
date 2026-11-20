@@ -27,7 +27,7 @@ const shelf_plugin = define_plugin<MediaPluginApi>({
       is_ready: () => true,
       run: async (database) =>
         context.services.import_books(database, [
-          { title: "Piranesi", authors: "Susanna Clarke", isbn: "", format: "hardcover", status: "read", added_at: "2026-11-01", last_read: "", reads: [], rating: 9, review: "", moods: "", pace: "", tags: [], owned: true },
+          { title: "Piranesi", authors: "Susanna Clarke", isbn: "", format: "print", status: "read", added_at: "2026-11-01", last_read: "", reads: [], rating: 9, review: "", moods: "", pace: "", tags: [], owned: true },
         ]),
       imports_automatically: () => false,
     }),
