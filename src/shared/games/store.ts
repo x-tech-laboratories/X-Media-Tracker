@@ -12,7 +12,7 @@ import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sq
 import { custom_cover, serves_image } from "../covers.ts";
 import { Background, define_feature, drizzle_of, new_id } from "../feature.ts";
 import { merge_columns, merge_ids, type SourceAnswers } from "../merging.ts";
-import { move_settings_into_plugins, open_plugin_host } from "../plugins/host.ts";
+import { move_settings_into_plugins, open_plugin_host, plugin_settings, require_switched_on } from "../plugins/host.ts";
 import type { TransferFile, TransferInput, TransferReport } from "../transfer.ts";
 import { games_api } from "./api.ts";
 import { catalog_labels, cover_rank, empty_game, join_results, merge_games, same_game, title_words, type CatalogGame, type GameCatalog } from "./catalog.ts";
@@ -52,7 +52,7 @@ import {
   type LibraryGame,
 } from "./model.ts";
 import { games_collections, games_game_collections, games_games, games_tables } from "./schema.ts";
-import { moved_game_keys } from "./manifests.ts";
+import { epic_manifest, igdb_manifest, itchio_manifest, moved_game_keys, steam_manifest } from "./manifests.ts";
 import { game_catalog_plugins } from "./plugins.ts";
 import { games_secret_settings, games_setting_defaults } from "./settings.ts";
 import { export_games_csv, export_games_json, import_games_file } from "./transfer.ts";
@@ -89,21 +89,6 @@ export interface GameImportReport {
   added: number;
   updated: number;
 }
-
-export interface SteamSync {
-  ran_at: string;
-  library: GameImportReport | null;
-  wishlist: GameImportReport | null;
-  failures: string[];
-}
-
-export interface ItchioSync {
-  ran_at: string;
-  library: GameImportReport | null;
-  failures: string[];
-}
-
-export type EpicSync = ItchioSync;
 
 export interface SteamCategoryReport {
   // Categories read, games whose status changed, and games in a mapped category that are not tracked.
@@ -152,23 +137,23 @@ async function catalogs_of(database: SqlDatabase): Promise<GameCatalog[]> {
 }
 
 // The key and the profile as set: its 64-bit id, its custom URL name, or a link to either.
-function steam_settings(database: SqlDatabase): { key: string; profile: string } {
-  const key = String(games_setting(database, "games.steam_api_key")).trim();
-  const profile = String(games_setting(database, "games.steam_id")).trim();
-  if (!key || !(parse_steam_id(profile) || parse_steam_name(profile))) throw new Error("Set a Steam Web API key and your Steam profile in Settings → Games first.");
+export function steam_settings(database: SqlDatabase): { key: string; profile: string } {
+  const settings = plugin_settings(database, steam_manifest);
+  const key = String(settings.api_key).trim();
+  const profile = String(settings.profile).trim();
+  if (!key || !(parse_steam_id(profile) || parse_steam_name(profile))) throw new Error("Set a Steam Web API key and your Steam profile in Steam's dialog under Settings → Games first.");
   return { key, profile };
 }
 
 // A custom URL name is turned into the profile's 64-bit id by asking Steam.
 async function steam_account(database: SqlDatabase): Promise<{ key: string; steam_id: string }> {
+  require_switched_on(database, steam_manifest);
   const { key, profile } = steam_settings(database);
   return { key, steam_id: parse_steam_id(profile) || (await create_steam().profile_id(key, parse_steam_name(profile))) };
 }
 
 // How many games a refresh asks the catalogues about at once.
 const refresh_concurrency = 4;
-
-const hour_in_milliseconds = 60 * 60 * 1000;
 
 const pc_platform = "PC";
 
@@ -515,34 +500,33 @@ async function import_wishlist(database: SqlDatabase): Promise<GameImportReport>
   return in_transaction(database, () => import_wished(database, wished));
 }
 
-async function sync_steam(database: SqlDatabase): Promise<SteamSync> {
-  const sync: SteamSync = { ran_at: new Date().toISOString(), library: null, wishlist: null, failures: [] };
+// The library, then the wishlist, as one import.
+export async function import_steam(database: SqlDatabase): Promise<GameImportReport> {
+  const library = await import_library(database);
+  const wishlist = await import_wishlist(database);
+  return { added: library.added + wishlist.added, updated: library.updated + wishlist.updated };
+}
+
+export function is_steam_ready(database: SqlDatabase): boolean {
   try {
-    sync.library = await import_library(database);
-  } catch (error) {
-    sync.failures.push(`Library: ${(error as Error).message}`);
+    steam_settings(database);
+    return true;
+  } catch {
+    return false;
   }
-  try {
-    sync.wishlist = await import_wishlist(database);
-  } catch (error) {
-    sync.failures.push(`Wishlist: ${(error as Error).message}`);
-  }
-  const said = [
-    sync.library && `library ${sync.library.added} added, ${sync.library.updated} updated`,
-    sync.wishlist && `wishlist ${sync.wishlist.added} added`,
-    ...sync.failures,
-  ].filter(Boolean);
-  set_games_setting(database, "games.last_steam_sync", sync.ran_at);
-  set_games_setting(database, "games.last_steam_result", said.join("; "));
-  return sync;
 }
 
 // ── itch.io ──────────────────────────────────────────────────────────────────
 
 function itchio_key(database: SqlDatabase): string {
-  const key = String(games_setting(database, "games.itchio_api_key")).trim();
-  if (!key) throw new Error("Set an itch.io API key in Settings → Games first.");
+  require_switched_on(database, itchio_manifest);
+  const key = String(plugin_settings(database, itchio_manifest).api_key).trim();
+  if (!key) throw new Error("Set an itch.io API key in itch.io's dialog under Settings → Games first.");
   return key;
+}
+
+export function is_itchio_ready(database: SqlDatabase): boolean {
+  return String(plugin_settings(database, itchio_manifest).api_key).trim() !== "";
 }
 
 // A copy for Windows, macOS or Linux, or one that plays in the browser, is owned on PC; one for Android on Android too.
@@ -603,30 +587,19 @@ function import_itchio_owned(database: SqlDatabase, owned: OwnedItchGame[]): Gam
   return report;
 }
 
-async function import_itchio_library(database: SqlDatabase): Promise<GameImportReport> {
+export async function import_itchio_library(database: SqlDatabase): Promise<GameImportReport> {
   const owned = await create_itchio().owned(itchio_key(database));
   return in_transaction(database, () => import_itchio_owned(database, owned));
-}
-
-async function sync_itchio(database: SqlDatabase): Promise<ItchioSync> {
-  const sync: ItchioSync = { ran_at: new Date().toISOString(), library: null, failures: [] };
-  try {
-    sync.library = await import_itchio_library(database);
-  } catch (error) {
-    sync.failures.push(`Library: ${(error as Error).message}`);
-  }
-  const said = [sync.library && `library ${sync.library.added} added, ${sync.library.updated} updated`, ...sync.failures].filter(Boolean);
-  set_games_setting(database, "games.last_itchio_sync", sync.ran_at);
-  set_games_setting(database, "games.last_itchio_result", said.join("; "));
-  return sync;
 }
 
 // ── Epic Games Store ─────────────────────────────────────────────────────────
 
 function epic_of(database: SqlDatabase) {
-  const id = String(games_setting(database, "games.epic_client_id")).trim();
-  const secret = String(games_setting(database, "games.epic_client_secret")).trim();
-  if (!id || !secret) throw new Error("Set the Epic Games launcher's client id and secret in Settings → Games first.");
+  require_switched_on(database, epic_manifest);
+  const settings = plugin_settings(database, epic_manifest);
+  const id = String(settings.client_id).trim();
+  const secret = String(settings.client_secret).trim();
+  if (!id || !secret) throw new Error("Set the Epic Games launcher's client id and secret in its dialog under Settings → Games first.");
   return create_epic({ id, secret });
 }
 
@@ -683,7 +656,7 @@ function import_epic_owned(database: SqlDatabase, owned: OwnedEpicGame[]): GameI
 }
 
 // The sign-in is renewed first and kept at once, since the old one is spent; only games not yet tracked by their Epic id are looked up.
-async function import_epic_library(database: SqlDatabase): Promise<GameImportReport> {
+export async function import_epic_library(database: SqlDatabase): Promise<GameImportReport> {
   const epic = epic_of(database);
   const refresh_token = String(games_setting(database, "games.epic_refresh_token")).trim();
   if (!refresh_token) throw new Error("Sign in to the Epic Games Store in Settings → Games first.");
@@ -701,17 +674,9 @@ async function import_epic_library(database: SqlDatabase): Promise<GameImportRep
   return in_transaction(database, () => import_epic_owned(database, owned));
 }
 
-async function sync_epic(database: SqlDatabase): Promise<EpicSync> {
-  const sync: EpicSync = { ran_at: new Date().toISOString(), library: null, failures: [] };
-  try {
-    sync.library = await import_epic_library(database);
-  } catch (error) {
-    sync.failures.push(`Library: ${(error as Error).message}`);
-  }
-  const said = [sync.library && `library ${sync.library.added} added, ${sync.library.updated} updated`, ...sync.failures].filter(Boolean);
-  set_games_setting(database, "games.last_epic_sync", sync.ran_at);
-  set_games_setting(database, "games.last_epic_result", said.join("; "));
-  return sync;
+export function is_epic_ready(database: SqlDatabase): boolean {
+  const settings = plugin_settings(database, epic_manifest);
+  return String(settings.client_id).trim() !== "" && String(settings.client_secret).trim() !== "" && String(games_setting(database, "games.epic_refresh_token")).trim() !== "";
 }
 
 // ── Steam categories ─────────────────────────────────────────────────────────
@@ -1178,35 +1143,7 @@ export const games_feature = define_feature({
 
     import_steam_wishlist: (database: SqlDatabase): Promise<GameImportReport> => import_wishlist(database),
 
-    // Imports the Steam library and wishlist when the hours set have passed, or now when forced; gives what it did, or
-    // null when it was not due or no Steam account is set.
-    run_steam_sync: async (database: SqlDatabase, force: boolean): Promise<SteamSync | null> => {
-      const hours = Number(games_setting(database, "games.steam_sync_hours"));
-      if (!force && !(hours > 0)) return null;
-      const last = Date.parse(String(games_setting(database, "games.last_steam_sync")));
-      if (!force && Number.isFinite(last) && Date.now() - last < hours * hour_in_milliseconds) return null;
-      if (!force) {
-        try {
-          steam_settings(database);
-        } catch {
-          return null;
-        }
-      }
-      return sync_steam(database);
-    },
-
     import_itchio_library: (database: SqlDatabase): Promise<GameImportReport> => import_itchio_library(database),
-
-    // Imports the itch.io library when the hours set have passed, or now when forced; gives what it did, or null when it
-    // was not due or no key is set.
-    run_itchio_sync: async (database: SqlDatabase, force: boolean): Promise<ItchioSync | null> => {
-      const hours = Number(games_setting(database, "games.itchio_sync_hours"));
-      if (!force && !(hours > 0)) return null;
-      const last = Date.parse(String(games_setting(database, "games.last_itchio_sync")));
-      if (!force && Number.isFinite(last) && Date.now() - last < hours * hour_in_milliseconds) return null;
-      if (!force && !String(games_setting(database, "games.itchio_api_key")).trim()) return null;
-      return sync_itchio(database);
-    },
 
     // Trades the one-time code from Epic's sign-in page for a sign-in kept in settings; gives the account's name.
     sign_in_epic: async (database: SqlDatabase, code: string): Promise<string> => {
@@ -1225,19 +1162,9 @@ export const games_feature = define_feature({
 
     import_epic_library: (database: SqlDatabase): Promise<GameImportReport> => import_epic_library(database),
 
-    // Imports the Epic library when the hours set have passed, or now when forced; gives what it did, or null when it
-    // was not due or no one is signed in.
-    run_epic_sync: async (database: SqlDatabase, force: boolean): Promise<EpicSync | null> => {
-      const hours = Number(games_setting(database, "games.epic_sync_hours"));
-      if (!force && !(hours > 0)) return null;
-      const last = Date.parse(String(games_setting(database, "games.last_epic_sync")));
-      if (!force && Number.isFinite(last) && Date.now() - last < hours * hour_in_milliseconds) return null;
-      if (!force && !String(games_setting(database, "games.epic_refresh_token")).trim()) return null;
-      return sync_epic(database);
-    },
-
     // The Steam client's categories file; games in a category mapped in Settings take its status.
     import_steam_categories: (database: SqlDatabase, categories_json: string): SteamCategoryReport => {
+      require_switched_on(database, steam_manifest);
       const categories = read_steam_categories(categories_json);
       if (categories.length === 0) throw new Error("No categories found; pick cloud-storage-namespace-1.json from Steam's userdata/<account>/config/cloudstorage folder.");
       return in_transaction(database, () => import_categories(database, categories));
@@ -1254,6 +1181,7 @@ export const games_feature = define_feature({
 
     // IGDB's data export page; adds and merges, never removes.
     import_igdb_export: (database: SqlDatabase, html: string): GameImportReport => {
+      require_switched_on(database, igdb_manifest);
       const games = read_igdb_export(html);
       if (games.length === 0) throw new Error("No games found; pick the index.html from IGDB's data export.");
       return in_transaction(database, () => {

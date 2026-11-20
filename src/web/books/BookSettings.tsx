@@ -1,22 +1,20 @@
-// The books' settings: a dialog for each source, each catalogue plugin with its settings and StoryGraph and LibraryThing
-// with their import and export, how new books start, collections, how often new books are looked for and where alerts for them go, and the
+// The books' settings: a dialog for each source plugin, the catalogues with their settings and StoryGraph and
+// LibraryThing with their import and export, how new books start, collections, how often new books are looked for and where alerts for them go, and the
 // books' own import and export.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
-import { useRef, useState, type ChangeEvent } from "react";
+import { useState } from "react";
 import { CommitInput, NumberField, Segmented, Select, Switch } from "@x-tech-laboratories/x-libs/web/react/controls";
 import { confirm_dialog } from "@x-tech-laboratories/x-libs/web/react/dialog";
 import { SettingRow, type SettingsSection } from "@x-tech-laboratories/x-libs/web/react/layout";
 import { Loaded } from "@x-tech-laboratories/x-libs/web/react/states";
-import { toast } from "@x-tech-laboratories/x-libs/web/react/toasts";
 
 import { calls, use_data } from "../api.ts";
-import { read_picked, save_text } from "../files.ts";
 import { PluginRows } from "../plugins.tsx";
-import { SecretRow, SourceRow, TextRow } from "../settings/rows.tsx";
+import { SecretRow, TextRow } from "../settings/rows.tsx";
 import type { FeatureSettingsProps } from "../features.tsx";
-import { book_catalog_manifests } from "../../shared/books/manifests.ts";
+import { book_catalog_manifests, book_file_manifests } from "../../shared/books/manifests.ts";
 import { book_status_labels, book_statuses, type BookCollection } from "../../shared/books/model.ts";
 import { transfer_section } from "../transfer.tsx";
 import { attempt } from "./actions.tsx";
@@ -151,92 +149,20 @@ function AlertSettings(props: FeatureSettingsProps) {
   );
 }
 
-// ── StoryGraph ───────────────────────────────────────────────────────────────
-
-function StoryGraphSettings() {
-  const file = useRef<HTMLInputElement>(null);
-
-  async function import_file(event: ChangeEvent<HTMLInputElement>): Promise<void> {
-    const text = await read_picked(event);
-    if (text === null) return;
-    try {
-      const report = await calls().import_storygraph(text);
-      toast(`Imported ${report.added} new book(s) and merged ${report.updated} already here. Refresh in Books fills in covers and details.`, { tone: "good" });
-    } catch (error) {
-      toast(`Could not import: ${(error as Error).message}`, { tone: "bad" });
-    }
-  }
-
-  return (
-    <>
-      <SettingRow label="Import from StoryGraph" hint="StoryGraph's export from its Manage Account page, a .csv file: statuses, read days, ratings, reviews, owned and tags as collections. New books are added and ones already here are merged.">
-        <input ref={file} type="file" accept="text/csv,.csv" hidden aria-label="StoryGraph export file" onChange={(event) => void import_file(event)} />
-        <button type="button" onClick={() => file.current?.click()}>
-          Import StoryGraph…
-        </button>
-      </SettingRow>
-      <SettingRow label="Export for StoryGraph" hint="The library as a Goodreads library export, which StoryGraph's Goodreads import (and Hardcover's) reads.">
-        <button type="button" onClick={() => attempt(calls().export_storygraph().then((csv) => save_text("x-media-tracker-books.csv", csv)))}>
-          Export CSV
-        </button>
-      </SettingRow>
-    </>
-  );
-}
-
-// ── LibraryThing ─────────────────────────────────────────────────────────────
-
-function LibraryThingSettings() {
-  const file = useRef<HTMLInputElement>(null);
-
-  async function import_file(event: ChangeEvent<HTMLInputElement>): Promise<void> {
-    const text = await read_picked(event);
-    if (text === null) return;
-    try {
-      const report = await calls().import_librarything(text);
-      toast(`Imported ${report.added} new book(s) and merged ${report.updated} already here. Refresh in Books fills in covers and details.`, { tone: "good" });
-    } catch (error) {
-      toast(`Could not import: ${(error as Error).message}`, { tone: "bad" });
-    }
-  }
-
-  return (
-    <>
-      <SettingRow label="Import from LibraryThing" hint="LibraryThing's export from its Import/Export page, tab-separated (.tsv) or CSV: read days, ratings, reviews, owned, status from its Currently reading, To read and Wishlist collections, and its other collections and tags as collections. New books are added and ones already here are merged.">
-        <input ref={file} type="file" accept="text/tab-separated-values,text/csv,.tsv,.csv,.txt" hidden aria-label="LibraryThing export file" onChange={(event) => void import_file(event)} />
-        <button type="button" onClick={() => file.current?.click()}>
-          Import LibraryThing…
-        </button>
-      </SettingRow>
-      <SettingRow label="Export for LibraryThing" hint="The library as a Goodreads library export, which LibraryThing's Goodreads import reads.">
-        <button type="button" onClick={() => attempt(calls().export_storygraph().then((csv) => save_text("x-media-tracker-books.csv", csv)))}>
-          Export CSV
-        </button>
-      </SettingRow>
-    </>
-  );
-}
-
 // ── Sections ─────────────────────────────────────────────────────────────────
 
 // One row a source, everything it needs in its dialog.
-function SourceSettings() {
+function SourceSettings(props: FeatureSettingsProps) {
   return (
     <>
-      <PluginRows manifests={book_catalog_manifests} />
-      <SourceRow name="StoryGraph" status="Import and export files" about="StoryGraph has no API, so books travel through its export files.">
-        <StoryGraphSettings />
-      </SourceRow>
-      <SourceRow name="LibraryThing" status="Import and export files" about="LibraryThing's library travels through its export files.">
-        <LibraryThingSettings />
-      </SourceRow>
+      <PluginRows manifests={[...book_catalog_manifests, ...book_file_manifests]} {...props} />
     </>
   );
 }
 
 export function book_settings(props: FeatureSettingsProps): SettingsSection[] {
   return [
-    { id: "book-sources", heading: "Sources", hint: "Each catalogue is a plugin: turn it off to leave it out of search and details. Open Library and BookBrainz need no key; Hardcover answers once its key is set.", content: <SourceSettings /> },
+    { id: "book-sources", heading: "Sources", hint: "Each catalogue and source is a plugin: turn it off to leave it out. Open Library and BookBrainz need no key; Hardcover answers once its key is set; StoryGraph and LibraryThing travel through their export files.", content: <SourceSettings {...props} /> },
     { id: "new-books", heading: "New books", content: <NewBookSettings {...props} /> },
     { id: "book-collections", heading: "Book collections", hint: "Your own shelves, such as Book club or Favourites; a book can be in several.", content: <CollectionSettings /> },
     { id: "book-alerts", heading: "New books and alerts", content: <AlertSettings {...props} /> },

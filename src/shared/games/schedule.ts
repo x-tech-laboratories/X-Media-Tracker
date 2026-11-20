@@ -1,6 +1,5 @@
-// Imports the Steam library and wishlist and the itch.io and Epic libraries on the schedules set in Settings, and on the desktop the
-// Steam client's categories, checked hourly, the first three minutes after start, wherever a database runs for long: the
-// server and the desktop app. A phone, which the system may close at any moment, leaves it to them.
+// Reads the Steam client's categories hourly, the first three minutes after start, on the desktop app, where Steam's
+// files are; a mapped category gives its games their status. The store imports run on the sources' one schedule.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -11,32 +10,15 @@ import type { MediaMethods } from "../store.ts";
 const first_check_in_milliseconds = 3 * 60 * 1000;
 const check_every_in_milliseconds = 60 * 60 * 1000;
 
-// Games in mapped Steam categories take their statuses on every check where read_categories finds the Steam client's file.
-function import_categories(methods: () => MediaMethods, read_categories: () => string): boolean {
-  const raw = read_categories();
-  return !!raw && methods().import_steam_categories(raw).updated > 0;
-}
-
-// Returns the function that stops checking; on_ran is told only when an import ran or a category changed a game.
-export function keep_syncing_stores(methods: () => MediaMethods, on_ran: () => void, read_categories?: () => string): () => void {
+// Returns the function that stops reading; on_ran is told only when a category changed a game.
+export function keep_reading_steam_categories(methods: () => MediaMethods, on_ran: () => void, read_categories: () => string): () => void {
   const check = (): void => {
-    const steam = Promise.resolve(methods().run_steam_sync(false))
-      .then((ran) => {
-        const changed = read_categories ? import_categories(methods, read_categories) : false;
-        if (ran || changed) on_ran();
-      })
-      .catch((error: unknown) => console.warn("steam import:", error));
-    void steam
-      .then(() => methods().run_itchio_sync(false))
-      .then((ran) => {
-        if (ran) on_ran();
-      })
-      .catch((error: unknown) => console.warn("itch.io import:", error))
-      .then(() => methods().run_epic_sync(false))
-      .then((ran) => {
-        if (ran) on_ran();
-      })
-      .catch((error: unknown) => console.warn("Epic import:", error));
+    try {
+      const raw = read_categories();
+      if (raw && methods().import_steam_categories(raw).updated > 0) on_ran();
+    } catch (error) {
+      console.warn("steam categories:", error);
+    }
   };
   const first = setTimeout(check, first_check_in_milliseconds);
   const every = setInterval(check, check_every_in_milliseconds);

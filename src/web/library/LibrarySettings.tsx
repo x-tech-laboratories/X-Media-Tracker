@@ -14,10 +14,11 @@ import { toast } from "@x-tech-laboratories/x-libs/web/react/toasts";
 import { calls, use_data } from "../api.ts";
 import type { FeatureSettingsProps } from "../features.tsx";
 import { title_catalog_manifests } from "../../shared/library/manifests.ts";
+import { source_manifests } from "../../shared/sources/manifests.ts";
 import { list_genres, poster_sizes, saved_poster_sizes, status_labels, statuses, type Collection, type CollectionGroup } from "../../shared/library/model.ts";
 import type { Library } from "../../shared/library/store.ts";
 import { PluginRows } from "../plugins.tsx";
-import { SourcePluginRows, automatic_imports_section } from "../sources/SourceSettings.tsx";
+import { automatic_imports_section } from "../sources/SourceSettings.tsx";
 import { transfer_section } from "../transfer.tsx";
 import { title_merge } from "./merge.tsx";
 
@@ -210,8 +211,7 @@ export function library_settings(props: FeatureSettingsProps): SettingsSection[]
       hint: "Each source's dialog holds its key or sign-in and its import. Imports are one way and additive: they add titles and merge ones already here, never removing any.",
       content: (
         <>
-          <PluginRows manifests={title_catalog_manifests} />
-          <SourcePluginRows />
+          <PluginRows manifests={[...title_catalog_manifests, ...source_manifests]} {...props} />
         </>
       ),
     },

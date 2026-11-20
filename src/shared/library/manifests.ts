@@ -6,6 +6,7 @@
 import type { PluginManifest } from "@x-tech-laboratories/x-libs/plugins";
 
 import { app_info } from "../plugins/app.ts";
+import type { SettingMove } from "../plugins/host.ts";
 
 // ── Catalogue ────────────────────────────────────────────────────────────────
 
@@ -21,6 +22,6 @@ export const tmdb_manifest: PluginManifest = {
 export const title_catalog_manifests = [tmdb_manifest];
 
 // The library setting TMDB's key was kept in before it was a plugin, and the plugin field it moves to.
-export const moved_library_keys: Record<string, { plugin: string; field: string }> = {
+export const moved_library_keys: Record<string, SettingMove> = {
   "library.tmdb_api_key": { plugin: tmdb_manifest.id, field: "api_key" },
 };

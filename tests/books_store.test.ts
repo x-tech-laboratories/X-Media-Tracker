@@ -511,3 +511,14 @@ describe("book catalogue plugins", () => {
     expect(search.results[0]!.sources).toEqual(["openlibrary"]);
   });
 });
+
+describe("file source plugins", () => {
+  it("refuse StoryGraph's and LibraryThing's imports while their plugins are off, and still export", async () => {
+    const store = open_methods();
+    store.set_setting("plugins", { "x-media-tracker.storygraph": { enabled: false }, "x-media-tracker.librarything": { enabled: false } });
+
+    expect(() => store.import_storygraph(storygraph_csv)).toThrow("The StoryGraph plugin is off");
+    expect(() => store.import_librarything("")).toThrow("The LibraryThing plugin is off");
+    expect(store.export_storygraph()).toContain("Title");
+  });
+});

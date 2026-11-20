@@ -105,10 +105,9 @@ on the Settings page.
   itch.io has no search, so it answers only by that page's `data.json`. The keys come from each catalogue's plugin settings and never appear in an error or a log.
 - `steam.ts` also reads a profile's owned games, with playtime, and its wishlist, and `itchio.ts` an account's owned
   keys through itch.io's API, page by page until one is empty, and `epic.ts` an Epic Games Store account's library
-  through the launcher's sign-in, with the launcher's client id and secret from settings, renewing the kept sign-in on
-  every import and asking the catalogue only about games not yet tracked by their Epic id; `schedule.ts` runs
-  `run_steam_sync`, `run_itchio_sync` and then `run_epic_sync` hourly on the server and the desktop, and the last import syncs, so they do not both run it. Neither is a source
-  plugin, since those import into Movies & Series.
+  through the launcher's sign-in, with the launcher's client id and secret from its plugin's settings, renewing the kept
+  sign-in on every import and asking the catalogue only about games not yet tracked by their Epic id. The Steam,
+  itch.io and Epic plugins provide these imports as importers, run on the sources' one schedule.
 - `steam_collections.ts` reads the Steam client's library categories file; `import_steam_categories` gives games in a
   category mapped in `games.steam_category_statuses` its status. The desktop finds the file in Steam's folder
   (`src/main/steam_categories.ts`), offers it to the page through its own bridge and imports it on the Steam schedule.
@@ -141,12 +140,16 @@ service's own settings, its keys marked `secret`.
 
 Sources:
 
-- `list_sources`, `run_source_import` and `run_due_imports` (`src/shared/sources/store.ts`) go through the host's importers.
+- `list_sources`, `run_source_import` and `run_due_imports` (`src/shared/sources/store.ts`) go through the importers of
+  Trakt, Stremio, Steam, itch.io and the Epic Games Store; each importer gives the counts added and updated.
 - Each source is also a feature, `src/shared/sources/<source>/`, with its calls and their specs, its settings (its keys
   and tokens listed as secret settings) and, for Trakt, its archive table. Its calls refuse while its plugin is off.
-- Every source imports through `apply_import` (`src/shared/library/importing.ts`): TMDB is asked first, then one
-  transaction writes, matching on any id and merging episodes.
-- `keep_importing` (`src/shared/sources/schedule.ts`) checks the automatic imports hourly on the server and the desktop.
+- Trakt and Stremio import through `apply_import` (`src/shared/library/importing.ts`): TMDB is asked first, then one
+  transaction writes, matching on any id and merging episodes. The stores import into Games through the games store.
+- StoryGraph and LibraryThing are plugins with no provider: their import calls refuse while they are off. IGDB's data
+  export and Steam's categories likewise need the IGDB and Steam plugins.
+- `keep_importing` (`src/shared/sources/schedule.ts`) checks the automatic imports hourly on the server and the desktop;
+  `keep_reading_steam_categories` (`src/shared/games/schedule.ts`) reads Steam's categories file hourly on the desktop.
 
 TMDB (`src/shared/library/plugins.ts`) provides the `title_catalog`: its client with the key from its settings, or
 why it cannot be asked. `tmdb_of` refuses with that reason, or because the plugin is off, and `tmdb_if_ready` gives

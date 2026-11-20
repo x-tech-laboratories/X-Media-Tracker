@@ -1,5 +1,6 @@
-// The game catalogues as bundled plugins, each providing its catalogue to the games store with the key from its own
-// settings; a catalogue whose key is not set is still provided, saying so, so search can tell the user.
+// The game catalogues and stores as bundled plugins: each catalogue provides itself to the games store with the key from
+// its own settings, still provided while that key is missing so search can say so; Steam, itch.io and the Epic Games
+// Store provide importers for the sources' schedule.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -12,6 +13,7 @@ import { create_gog } from "./gog.ts";
 import { create_igdb } from "./igdb.ts";
 import { create_itchio } from "./itchio.ts";
 import {
+  epic_manifest,
   giantbomb_manifest,
   gog_manifest,
   igdb_manifest,
@@ -28,6 +30,7 @@ import { create_rawg } from "./rawg.ts";
 import { create_steam } from "./steam.ts";
 import { create_steamgriddb } from "./steamgriddb.ts";
 import { create_thegamesdb } from "./thegamesdb.ts";
+import { import_epic_library, import_itchio_library, import_steam, is_epic_ready, is_itchio_ready, is_steam_ready } from "./store.ts";
 import { create_wikidata } from "./wikidata.ts";
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -70,9 +73,14 @@ export const giantbomb_plugin = catalog_plugin(giantbomb_manifest, (settings) =>
 
 export const thegamesdb_plugin = catalog_plugin(thegamesdb_manifest, (settings) => keyed("thegamesdb", setting(settings, "api_key"), create_thegamesdb));
 
-export const steam_plugin = catalog_plugin(steam_manifest, () => {
-  const steam = create_steam();
-  return { source: "steam", missing: "", stage: "details", game: steam.game, search: steam.search };
+// Steam is a catalogue for every game it sells and, with a key and profile, the source of the library and wishlist.
+export const steam_plugin = define_plugin<MediaPluginApi>({
+  ...steam_manifest,
+  start: (context) => {
+    const steam = create_steam();
+    context.provide("game_catalog", "steam", { source: "steam", missing: "", stage: "details", game: steam.game, search: steam.search });
+    context.provide("importer", "steam", { label: "Steam", is_ready: is_steam_ready, run: import_steam, imports_automatically: () => context.settings().auto_import === true });
+  },
 });
 
 export const gog_plugin = catalog_plugin(gog_manifest, () => {
@@ -85,7 +93,20 @@ export const wikidata_plugin = catalog_plugin(wikidata_manifest, () => {
   return { source: "wikidata", missing: "", stage: "ids", game: wikidata.game, search: wikidata.search, find: (ids) => wikidata.find(ids) };
 });
 
-export const itchio_plugin = catalog_plugin(itchio_manifest, () => ({ source: "itchio", missing: "", stage: "details", game: create_itchio().game }));
+// itch.io is a catalogue by a game's page and, with a key, the source of the games the account owns.
+export const itchio_plugin = define_plugin<MediaPluginApi>({
+  ...itchio_manifest,
+  start: (context) => {
+    context.provide("game_catalog", "itchio", { source: "itchio", missing: "", stage: "details", game: create_itchio().game });
+    context.provide("importer", "itchio", { label: "itch.io", is_ready: is_itchio_ready, run: import_itchio_library, imports_automatically: () => context.settings().auto_import === true });
+  },
+});
+
+export const epic_plugin = define_plugin<MediaPluginApi>({
+  ...epic_manifest,
+  start: (context) =>
+    context.provide("importer", "epic", { label: "Epic Games Store", is_ready: is_epic_ready, run: import_epic_library, imports_automatically: () => context.settings().auto_import === true }),
+});
 
 // SteamGridDB finds a game by its Steam app, else by the same title and year, and is asked last, for art.
 export const steamgriddb_plugin = catalog_plugin(steamgriddb_manifest, (settings) => {
@@ -105,6 +126,9 @@ export const steamgriddb_plugin = catalog_plugin(steamgriddb_manifest, (settings
     },
   };
 });
+
+// The stores whose libraries come in, for the sources' schedule.
+export const game_store_plugins: MediaPlugin[] = [steam_plugin, itchio_plugin, epic_plugin];
 
 // In the order their searches are joined.
 export const game_catalog_plugins: MediaPlugin[] = [rawg_plugin, igdb_plugin, mobygames_plugin, giantbomb_plugin, thegamesdb_plugin, steam_plugin, gog_plugin, wikidata_plugin, itchio_plugin, steamgriddb_plugin];

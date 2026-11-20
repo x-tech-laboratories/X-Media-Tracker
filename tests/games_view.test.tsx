@@ -170,14 +170,12 @@ describe("game page", () => {
 describe("games settings", () => {
   it("signs in to the Epic Games Store from the code pasted and then offers to sign out", async () => {
     const store = fake_page();
-    store.set_setting("games.epic_client_id", "launcher-id");
-    store.set_setting("games.epic_client_secret", "launcher-secret");
+    store.set_setting("plugins", { "x-media-tracker.epic": { settings: { client_id: "launcher-id", client_secret: "launcher-secret" } } });
     vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ access_token: "epic-access", refresh_token: "epic-refresh", displayName: "Player One" }), { status: 200 })));
     render(<App />);
     go("#/settings");
 
-    expect(await screen.findByText("Not signed in")).toBeTruthy();
-    fireEvent.click(screen.getByRole("button", { name: "Open Epic Games Store" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Open Epic Games Store" }));
     const section = screen.getByRole("dialog", { name: "Epic Games Store" });
     expect(within(section).getByRole("link", { name: "Open sign-in page" }).getAttribute("href")).toContain("clientId%3Dlauncher-id");
     fireEvent.change(within(section).getByLabelText("Epic sign-in code"), { target: { value: "abcdef0123456789abcdef" } });
@@ -185,7 +183,7 @@ describe("games settings", () => {
 
     await waitFor(() => expect(store.get_settings()["games.epic_account"]).toBe("Player One"));
     expect(await within(section).findByRole("button", { name: "Sign out" })).toBeTruthy();
-    expect(screen.getByText("Signed in as Player One")).toBeTruthy();
+    expect(within(section).getByText(/Signed in as Player One/)).toBeTruthy();
     vi.unstubAllGlobals();
   });
 
