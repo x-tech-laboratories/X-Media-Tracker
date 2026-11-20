@@ -12,7 +12,7 @@ import { apply_import } from "../../library/importing.ts";
 import { has_episode, parse_episodes } from "../../library/model.ts";
 import { find_title, list_titles, type ImportReport } from "../../library/store.ts";
 import { settings_feature } from "../../settings.ts";
-import { require_switched_on } from "../host.ts";
+import { require_switched_on } from "../../plugins/host.ts";
 import { trakt_manifest } from "../manifests.ts";
 import { trakt_api } from "./api.ts";
 import { create_trakt, type DeviceCode, type TraktClient, type TraktCredentials, type TraktTokens } from "./client.ts";

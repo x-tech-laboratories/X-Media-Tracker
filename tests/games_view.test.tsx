@@ -10,7 +10,7 @@ import type { Client } from "@x-tech-laboratories/x-libs/electron/bridge";
 import { bind_methods, open_store, type MediaMethods } from "../src/shared/store.ts";
 import { set_page_api } from "../src/web/api.ts";
 import { App } from "../src/web/App.tsx";
-import { forget_page_plugins } from "../src/web/sources/plugins.tsx";
+import { forget_page_plugins } from "../src/web/plugins.tsx";
 import { insert_games, type SampleGame } from "./games_sample.ts";
 
 // The page's calls answered by a real store on a throwaway database, as the desktop app would, which needs no sign-in.
@@ -161,5 +161,23 @@ describe("games settings", () => {
     expect(await within(section).findByRole("button", { name: "Sign out" })).toBeTruthy();
     expect(screen.getByText("Signed in as Player One")).toBeTruthy();
     vi.unstubAllGlobals();
+  });
+
+  it("opens each catalogue plugin's dialog, saying when its key is missing, and keeps the key typed in its plugin's settings", async () => {
+    const store = fake_page();
+    render(<App />);
+    go("#/settings");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Open RAWG" }));
+    const dialog = screen.getByRole("dialog", { name: "RAWG" });
+    const key = within(dialog).getByPlaceholderText("Paste your key") as HTMLInputElement;
+    expect(key.type).toBe("password");
+    fireEvent.change(key, { target: { value: "rawg-key" } });
+    await act(async () => void fireEvent.blur(key));
+
+    await waitFor(() => expect(store.get_settings().plugins).toMatchObject({ "x-media-tracker.rawg": { settings: { api_key: "rawg-key" } } }));
+    expect(screen.getByRole("button", { name: "Open Wikidata" })).toBeTruthy();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+    expect(screen.getAllByText("No key").length).toBeGreaterThan(0);
   });
 });

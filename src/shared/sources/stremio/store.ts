@@ -8,7 +8,7 @@ import { define_feature } from "../../feature.ts";
 import { apply_import } from "../../library/importing.ts";
 import type { ImportReport } from "../../library/store.ts";
 import { settings_feature } from "../../settings.ts";
-import { require_switched_on } from "../host.ts";
+import { require_switched_on } from "../../plugins/host.ts";
 import { stremio_manifest } from "../manifests.ts";
 import { stremio_api } from "./api.ts";
 import { read_stremio_library, stremio_sign_in } from "./client.ts";

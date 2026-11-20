@@ -3,17 +3,10 @@
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
-import type { AppInfo, PluginManifest } from "@x-tech-laboratories/x-libs/plugins";
+import type { PluginManifest } from "@x-tech-laboratories/x-libs/plugins";
 
-import package_json from "../../../package.json" with { type: "json" };
+import { app_info } from "../plugins/app.ts";
 import { default_stremio_web } from "./stremio/links.ts";
-
-// ── App ──────────────────────────────────────────────────────────────────────
-
-export const app_info: AppInfo = { id: "x-media-tracker", version: package_json.version };
-
-// The setting holding every plugin's on or off and its own settings, synced like any other.
-export const plugins_setting = "plugins";
 
 // ── Sources ──────────────────────────────────────────────────────────────────
 

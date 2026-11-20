@@ -2,10 +2,13 @@
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
+import { hide_secrets, keep_secrets, type PluginRecords } from "@x-tech-laboratories/x-libs/plugins";
 import type { SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 
 import { text } from "./api_schemas.ts";
 import { define_feature } from "./feature.ts";
+import { plugins_setting } from "./plugins/app.ts";
+import { plugin_manifests } from "./plugins/manifests.ts";
 import { read_settings_file, settings_file, type SettingsFile } from "./transfer.ts";
 
 // ── Settings ─────────────────────────────────────────────────────────────────
@@ -17,7 +20,17 @@ function stored_settings(database: SqlDatabase): Settings {
   return Object.fromEntries(rows.map((row) => [row.key, JSON.parse(row.value)]));
 }
 
+function records_of(value: unknown): PluginRecords {
+  return value && typeof value === "object" && !Array.isArray(value) ? (value as PluginRecords) : {};
+}
+
+// A plugin's secret still hidden, as another program or the page wrote it back, keeps its stored value.
+function value_to_store(stored: Settings, key: string, value: unknown): unknown {
+  return key === plugins_setting ? keep_secrets(plugin_manifests, records_of(stored[key]), records_of(value)) : value;
+}
+
 function write_setting(database: SqlDatabase, key: string, value: unknown): void {
+  value = value_to_store(stored_settings(database), key, value);
   database.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value").run(key, JSON.stringify(value));
 }
 
@@ -28,8 +41,11 @@ export function know_secret_settings(keys: string[]): void {
   secret_keys = keys;
 }
 
+// Leaves out the secret settings and hides the plugins' secret fields.
 export function without_secret_settings(settings: Settings): Settings {
-  return Object.fromEntries(Object.entries(settings).filter(([key]) => !secret_keys.includes(key)));
+  const kept = Object.fromEntries(Object.entries(settings).filter(([key]) => !secret_keys.includes(key)));
+  if (plugins_setting in kept) kept[plugins_setting] = hide_secrets(plugin_manifests, records_of(kept[plugins_setting]));
+  return kept;
 }
 
 // ── Store ────────────────────────────────────────────────────────────────────
@@ -54,7 +70,7 @@ export const settings_feature = define_feature({
       const stored = stored_settings(database);
       let changed = 0;
       for (const [key, value] of Object.entries(settings)) {
-        if (!key || value === undefined || JSON.stringify(stored[key]) === JSON.stringify(value)) continue;
+        if (!key || value === undefined || JSON.stringify(stored[key]) === JSON.stringify(value_to_store(stored, key, value))) continue;
         write_setting(database, key, value);
         changed += 1;
       }

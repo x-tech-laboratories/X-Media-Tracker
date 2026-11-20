@@ -1,0 +1,12 @@
+// Every bundled plugin's manifest, for the settings that hide their secret fields from other programs.
+
+// ── Imports ──────────────────────────────────────────────────────────────────
+
+import type { PluginManifest } from "@x-tech-laboratories/x-libs/plugins";
+
+import { game_catalog_manifests } from "../games/manifests.ts";
+import { source_manifests } from "../sources/manifests.ts";
+
+// ── Manifests ────────────────────────────────────────────────────────────────
+
+export const plugin_manifests: PluginManifest[] = [...source_manifests, ...game_catalog_manifests];

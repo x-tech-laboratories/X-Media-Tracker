@@ -12,7 +12,7 @@ import { zip_text_files } from "@x-tech-laboratories/x-libs/zip";
 import { bind_methods, open_store, type MediaMethods } from "../src/shared/store.ts";
 import { set_page_api } from "../src/web/api.ts";
 import { SettingsView } from "../src/web/settings/SettingsView.tsx";
-import { forget_page_plugins } from "../src/web/sources/plugins.tsx";
+import { forget_page_plugins } from "../src/web/plugins.tsx";
 import { transfer_input } from "../src/web/transfer.tsx";
 import { seed_library } from "./library_sample.ts";
 

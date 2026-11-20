@@ -102,7 +102,7 @@ on the Settings page.
   and MobyGames are asked one request at a time and IGDB four a second, as they ask; IGDB's Twitch access is asked for
   once and kept in memory. A GOG id is a store page's slug, as Wikidata keeps it without its `game/`, and the client
   reads the product number from that page. An itch.io id is a page as `creator/slug`, which Wikidata keeps as its link;
-  itch.io has no search, so it answers only by that page's `data.json`. The keys come from settings and never appear in an error or a log.
+  itch.io has no search, so it answers only by that page's `data.json`. The keys come from each catalogue's plugin settings and never appear in an error or a log.
 - `steam.ts` also reads a profile's owned games, with playtime, and its wishlist, and `itchio.ts` an account's owned
   keys through itch.io's API, page by page until one is empty, and `epic.ts` an Epic Games Store account's library
   through the launcher's sign-in, with the launcher's client id and secret from settings, renewing the kept sign-in on
@@ -115,21 +115,37 @@ on the Settings page.
 - `igdb_export.ts` reads IGDB's data export page, by its tables' headers and without a DOM: lists as statuses or
   collections, ratings and reviews, each game by its title alone.
 
-## Sources and plugins
+## Plugins
 
-Trakt and Stremio are bundled X-Libs plugins, each named once by a manifest in `src/shared/sources/manifests.ts`:
+Every source and catalogue is a bundled X-Libs plugin, one per service, each named once by a manifest: the sources' in
+`src/shared/sources/manifests.ts`, the game catalogues' in `src/shared/games/manifests.ts`. A manifest lists the
+service's own settings, its keys marked `secret`.
 
-- The store's side (`src/shared/sources/store.ts`) provides an `importer` to a plugin host that `open_source_host`
-  makes afresh for each use, so a plugin switched on any device holds at once. `list_sources`, `run_source_import` and
-  `run_due_imports` go through it.
+- The store's side (`src/shared/plugins/host.ts`) is a plugin host that `open_plugin_host` makes afresh for each use, so
+  a plugin switched on, or given a key, on any device holds at once. Plugins provide an `importer` or a `game_catalog`.
+- Both hosts keep on or off and each plugin's settings in the synced `plugins` setting. `without_secret_settings`
+  (`src/shared/settings.ts`) replaces each secret that is set with X-Libs' `hidden_secret` in what the server, the API
+  and MCP give, and writing `plugins` back, or importing a settings file, gives a still hidden secret its stored value.
+- A feature's `on_open` runs each time the database opens; the games feature's moves the catalogue keys once kept as
+  games settings into their plugins (`move_settings_into_plugins`).
+- The page's side (`src/web/plugins.tsx`) gives each plugin a row in its feature's settings, whose dialog shows its on or
+  off, its settings and what it puts in the `import_panel` slot, such as Trakt's sign-in or IGDB's data export; Stremio
+  also fills `title_actions` on each title's page.
+
+Sources:
+
+- `list_sources`, `run_source_import` and `run_due_imports` (`src/shared/sources/store.ts`) go through the host's importers.
 - Each source is also a feature, `src/shared/sources/<source>/`, with its calls and their specs, its settings (its keys
   and tokens listed as secret settings) and, for Trakt, its archive table. Its calls refuse while its plugin is off.
-- The page's side (`src/web/sources/plugins.tsx`) fills the `import_panel` slot in the Movies & Series settings, beside
-  `PluginSettings` and the automatic imports' schedule (`src/web/sources/SourceSettings.tsx`). Both hosts keep on or
-  off and each plugin's settings in the synced `plugins` setting.
 - Every source imports through `apply_import` (`src/shared/library/importing.ts`): TMDB is asked first, then one
   transaction writes, matching on any id and merging episodes.
 - `keep_importing` (`src/shared/sources/schedule.ts`) checks the automatic imports hourly on the server and the desktop.
+
+Game catalogues (`src/shared/games/plugins.ts`): each provides a `GameCatalog` (`src/shared/games/catalog.ts`) built
+with the key from its settings, or saying the key is missing, which search reports. Adding or refreshing a game asks the
+catalogues that are on by stage: `ids` (Wikidata, which finds the ids the others know the game by), then `details`, each
+by its own id, then `art` (SteamGridDB, which finds its own id from what the others said). Search asks each that has a
+`search`, in the manifests' order.
 
 ## Merging
 

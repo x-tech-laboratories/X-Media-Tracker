@@ -41,6 +41,20 @@ export interface CatalogGame extends GameIds {
   base_game_title: string;
 }
 
+// A catalogue as its plugin provides it to the games store.
+export interface GameCatalog {
+  source: GameSource;
+  // Why it cannot be asked now, such as "no key set"; "" when it can.
+  missing: string;
+  // When adding or refreshing a game asks it: "ids" first, for the ids the others know the game by, then "details", then "art" with what the others said.
+  stage: "ids" | "details" | "art";
+  game: (id: string) => Promise<CatalogGame>;
+  // Left out by a catalogue that is not searched for new games.
+  search?: (query: string) => Promise<CatalogGame[]>;
+  // Its own id for a game known by other ids and what the catalogues say of it, or "" when it finds none.
+  find?: (ids: CatalogGame, known: CatalogGame) => Promise<string>;
+}
+
 export function empty_game(source: GameSource): CatalogGame {
   return {
     sources: [source],

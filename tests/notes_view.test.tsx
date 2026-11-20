@@ -10,7 +10,7 @@ import type { Client } from "@x-tech-laboratories/x-libs/electron/bridge";
 import { bind_methods, open_store, type MediaMethods } from "../src/shared/store.ts";
 import { set_page_api } from "../src/web/api.ts";
 import { App } from "../src/web/App.tsx";
-import { forget_page_plugins } from "../src/web/sources/plugins.tsx";
+import { forget_page_plugins } from "../src/web/plugins.tsx";
 import { insert_games, type SampleGame } from "./games_sample.ts";
 import { seed_library } from "./library_sample.ts";
 

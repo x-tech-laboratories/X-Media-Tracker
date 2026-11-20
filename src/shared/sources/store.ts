@@ -11,26 +11,26 @@ import { text } from "../api_schemas.ts";
 import { define_feature } from "../feature.ts";
 import type { ImportReport } from "../library/store.ts";
 import { settings_feature } from "../settings.ts";
-import { open_source_host, type SourceApi, type SourcePlugin } from "./host.ts";
+import { open_plugin_host, type MediaPlugin, type MediaPluginApi } from "../plugins/host.ts";
 import { stremio_manifest, trakt_manifest } from "./manifests.ts";
 import { import_stremio, is_stremio_ready } from "./stremio/store.ts";
 import { import_trakt, is_trakt_ready } from "./trakt/store.ts";
 
 // ── Plugins ──────────────────────────────────────────────────────────────────
 
-export const trakt_source = define_plugin<SourceApi>({
+export const trakt_source = define_plugin<MediaPluginApi>({
   ...trakt_manifest,
   start: (context) =>
     context.provide("importer", "trakt", { label: "Trakt", is_ready: is_trakt_ready, run: import_trakt, imports_automatically: () => context.settings().auto_import === true }),
 });
 
-export const stremio_source = define_plugin<SourceApi>({
+export const stremio_source = define_plugin<MediaPluginApi>({
   ...stremio_manifest,
   start: (context) =>
     context.provide("importer", "stremio", { label: "Stremio", is_ready: is_stremio_ready, run: import_stremio, imports_automatically: () => context.settings().auto_import === true }),
 });
 
-export const source_plugins: SourcePlugin[] = [trakt_source, stremio_source];
+export const source_plugins: MediaPlugin[] = [trakt_source, stremio_source];
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
 
@@ -64,7 +64,7 @@ function report_line(label: string, report: ImportReport): string {
 }
 
 async function running_importers(database: SqlDatabase) {
-  return (await open_source_host(database, source_plugins)).providers("importer");
+  return (await open_plugin_host(database, source_plugins)).providers("importer");
 }
 
 // ── Feature ──────────────────────────────────────────────────────────────────
