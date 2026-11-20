@@ -6,6 +6,7 @@
 import type { PluginManifest, SettingField } from "@x-tech-laboratories/x-libs/plugins";
 
 import { app_info } from "../plugins/app.ts";
+import type { SettingMove } from "../plugins/host.ts";
 
 // ── Catalogues ───────────────────────────────────────────────────────────────
 
@@ -21,10 +22,17 @@ export const hardcover_manifest = catalog("hardcover", "Hardcover", "Optional: a
 
 export const bookbrainz_manifest = catalog("bookbrainz", "BookBrainz", "MetaBrainz's open, curated catalogue of works, authors and series.");
 
+export const storygraph_manifest = catalog("storygraph", "StoryGraph", "StoryGraph has no API, so books travel through its export files: its export comes in, and the library goes out as the Goodreads file StoryGraph and LibraryThing import.");
+
+export const librarything_manifest = catalog("librarything", "LibraryThing", "LibraryThing's library travels through its export files.");
+
+// The sources whose files come in, each in its own dialog under Settings → Books → Sources.
+export const book_file_manifests = [storygraph_manifest, librarything_manifest];
+
 // In the order their searches are joined, so the first to answer about a book wins where they differ.
 export const book_catalog_manifests = [openlibrary_manifest, hardcover_manifest, bookbrainz_manifest];
 
 // The books setting Hardcover's key was kept in before it was a plugin, and the plugin field it moves to.
-export const moved_book_keys: Record<string, { plugin: string; field: string }> = {
+export const moved_book_keys: Record<string, SettingMove> = {
   "books.hardcover_api_key": { plugin: hardcover_manifest.id, field: "api_key" },
 };

@@ -11,6 +11,7 @@ import { text } from "../api_schemas.ts";
 import { define_feature } from "../feature.ts";
 import type { ImportReport } from "../library/store.ts";
 import { settings_feature } from "../settings.ts";
+import { game_store_plugins } from "../games/plugins.ts";
 import { open_plugin_host, type MediaPlugin, type MediaPluginApi } from "../plugins/host.ts";
 import { stremio_manifest, trakt_manifest } from "./manifests.ts";
 import { import_stremio, is_stremio_ready } from "./stremio/store.ts";
@@ -30,7 +31,8 @@ export const stremio_source = define_plugin<MediaPluginApi>({
     context.provide("importer", "stremio", { label: "Stremio", is_ready: is_stremio_ready, run: import_stremio, imports_automatically: () => context.settings().auto_import === true }),
 });
 
-export const source_plugins: MediaPlugin[] = [trakt_source, stremio_source];
+// Every plugin that provides an importer, in the order the schedule runs them.
+export const source_plugins: MediaPlugin[] = [trakt_source, stremio_source, ...game_store_plugins];
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
 
@@ -116,12 +118,12 @@ export const sources_feature = define_feature({
   },
   api: {
     list_sources: {
-      description: "Lists the sources that are on, such as Trakt and Stremio: whether each is signed in and imports automatically.",
+      description: "Lists the sources that are on, such as Trakt, Stremio and Steam: whether each is signed in and imports automatically.",
       params: [],
     },
     run_source_import: {
-      description: "Imports from one source now; adds new titles and merges ones already here, never removing any.",
-      params: [{ name: "source", schema: { ...text("The source's id from list_sources."), enum: ["trakt", "stremio"] } }],
+      description: "Imports from one source now; adds new titles or games and merges ones already here, never removing any.",
+      params: [{ name: "source", schema: { ...text("The source's id from list_sources."), enum: ["trakt", "stremio", "steam", "itchio", "epic"] } }],
     },
     run_due_imports: {
       description: "Runs the automatic imports when the hours set under Settings have passed since the last; gives what each did, or null when none were due.",

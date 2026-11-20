@@ -210,7 +210,7 @@ describe("Trakt", () => {
     store.set_setting("plugins", { "x-media-tracker.trakt": { enabled: false } });
 
     await expect(store.import_trakt()).rejects.toThrow(/Trakt plugin is off/);
-    expect((await store.list_sources()).map((source) => source.id)).toEqual(["stremio"]);
+    expect((await store.list_sources()).map((source) => source.id)).toEqual(["stremio", "steam", "itchio", "epic"]);
     await expect(store.run_source_import("trakt")).rejects.toThrow("No source named trakt is on.");
   });
 });

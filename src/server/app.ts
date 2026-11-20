@@ -22,7 +22,6 @@ import { media_bridge } from "../shared/bridge.ts";
 import { keep_fetching_covers, type KeepFetchingCovers } from "../shared/covers.ts";
 import { send_book_alerts } from "./book_alerts.ts";
 import { keep_checking_releases } from "../shared/books/schedule.ts";
-import { keep_syncing_stores } from "../shared/games/schedule.ts";
 import { keep_importing } from "../shared/sources/schedule.ts";
 import { bind_methods, media_api, is_read_only, sync_engine, type MediaMethods } from "../shared/store.ts";
 import { without_secret_settings } from "../shared/settings.ts";
@@ -150,14 +149,7 @@ export async function build_app(options: AppOptions): Promise<FastifyInstance> {
       () => bind_methods(database, () => undefined),
       () => announce(),
     );
-    const stop_syncing_stores = keep_syncing_stores(
-      () => bind_methods(database, () => undefined),
-      () => announce(),
-    );
-    app.addHook("onClose", async () => {
-      stop_importing();
-      stop_syncing_stores();
-    });
+    app.addHook("onClose", async () => stop_importing());
   }
 
   if (options.release_checks !== false) {

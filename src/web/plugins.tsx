@@ -10,14 +10,17 @@ import { PluginSettings, PluginSlot, use_plugins } from "@x-tech-laboratories/x-
 import { Skeleton } from "@x-tech-laboratories/x-libs/web/react/states";
 
 import { calls } from "./api.ts";
+import { LibraryThingPanel, StoryGraphPanel } from "./books/FilePanels.tsx";
 import { HardcoverKeyLink } from "./books/HardcoverKeyLink.tsx";
+import type { FeatureSettingsProps } from "./features.tsx";
 import { IgdbImport } from "./games/IgdbImport.tsx";
+import { EpicPanel, ItchioPanel, SteamPanel } from "./games/StorePanels.tsx";
 import { SourceRow } from "./settings/rows.tsx";
 import { StremioPanel } from "./sources/StremioPanel.tsx";
 import { StremioTitleLinks } from "./sources/StremioTitleLinks.tsx";
 import { TraktPanel } from "./sources/TraktPanel.tsx";
-import { book_catalog_manifests, hardcover_manifest } from "../shared/books/manifests.ts";
-import { game_catalog_manifests, igdb_manifest } from "../shared/games/manifests.ts";
+import { book_catalog_manifests, book_file_manifests, hardcover_manifest, librarything_manifest, storygraph_manifest } from "../shared/books/manifests.ts";
+import { epic_manifest, game_catalog_manifests, igdb_manifest, itchio_manifest, steam_manifest } from "../shared/games/manifests.ts";
 import { title_catalog_manifests } from "../shared/library/manifests.ts";
 import type { MediaType } from "../shared/library/model.ts";
 import { app_info, plugins_setting } from "../shared/plugins/app.ts";
@@ -28,7 +31,7 @@ import { stremio_manifest, trakt_manifest } from "../shared/sources/manifests.ts
 export interface PagePluginApi {
   slots: {
     // What the plugin's dialog in Settings shows below its settings, such as signing in and importing.
-    panel: ComponentType<Record<string, never>>;
+    panel: ComponentType<FeatureSettingsProps>;
     // Buttons beside a title's name; imdb_id is "" when neither the title nor TMDB has one.
     title_actions: ComponentType<{ media_type: MediaType; imdb_id: string }>;
   };
@@ -45,15 +48,23 @@ const stremio_page = define_plugin<PagePluginApi>({
   },
 });
 
-// What a catalogue's dialog shows below its settings, by plugin id: IGDB takes its data export, Hardcover links to its key form.
-const catalog_panels: Record<string, ComponentType<Record<string, never>>> = { [igdb_manifest.id]: IgdbImport, [hardcover_manifest.id]: HardcoverKeyLink };
+// What a dialog shows below the plugin's settings, by plugin id, such as IGDB's data export or Epic's sign-in.
+const panels: Record<string, ComponentType<FeatureSettingsProps>> = {
+  [igdb_manifest.id]: IgdbImport,
+  [hardcover_manifest.id]: HardcoverKeyLink,
+  [steam_manifest.id]: SteamPanel,
+  [itchio_manifest.id]: ItchioPanel,
+  [epic_manifest.id]: EpicPanel,
+  [storygraph_manifest.id]: StoryGraphPanel,
+  [librarything_manifest.id]: LibraryThingPanel,
+};
 
-// A catalogue's page side has only its settings and, for some, a panel.
-const catalog_pages = [...title_catalog_manifests, ...book_catalog_manifests, ...game_catalog_manifests].map((manifest) =>
+// A catalogue's or store's page side has only its settings and, for some, a panel.
+const catalog_pages = [...title_catalog_manifests, ...book_catalog_manifests, ...book_file_manifests, ...game_catalog_manifests, epic_manifest].map((manifest) =>
   define_plugin<PagePluginApi>({
     ...manifest,
     start: (context) => {
-      const panel = catalog_panels[manifest.id];
+      const panel = panels[manifest.id];
       if (panel) context.fill_slot("panel", panel);
     },
   }),
@@ -112,7 +123,7 @@ function status_of(host: PluginHost<PagePluginApi>, manifest: PluginManifest, st
   return (manifest.settings ?? []).some((field) => field.type === "text" && field.secret && values[field.key] === "") ? "No key" : "On";
 }
 
-function Rows({ host, manifests }: { host: PluginHost<PagePluginApi>; manifests: PluginManifest[] }) {
+function Rows({ host, manifests, settings, set_setting }: { host: PluginHost<PagePluginApi>; manifests: PluginManifest[] } & FeatureSettingsProps) {
   const statuses = use_plugins(host);
   return (
     <>
@@ -123,7 +134,7 @@ function Rows({ host, manifests }: { host: PluginHost<PagePluginApi>; manifests:
         return (
           <SourceRow key={manifest.id} name={manifest.name} status={status_of(host, manifest, state)} about={manifest.description}>
             <PluginSettings host={one} heading={null} />
-            {state === "running" ? <PluginSlot host={one} name="panel" props={{}} /> : <p className="source-hint">Turn {manifest.name} on to use it.</p>}
+            {state === "running" ? <PluginSlot host={one} name="panel" props={{ settings, set_setting }} /> : <p className="source-hint">Turn {manifest.name} on to use it.</p>}
           </SourceRow>
         );
       })}
@@ -132,7 +143,13 @@ function Rows({ host, manifests }: { host: PluginHost<PagePluginApi>; manifests:
 }
 
 // A row for each of the plugins given, in their order, each opening its own dialog.
-export function PluginRows({ manifests }: { manifests: PluginManifest[] }) {
+export function PluginRows({ manifests, settings, set_setting }: { manifests: PluginManifest[] } & FeatureSettingsProps) {
   const host = use_page_plugins();
-  return host ? <Rows host={host} manifests={manifests} /> : <Skeleton lines={2} />;
+  return host ? <Rows host={host} manifests={manifests} settings={settings} set_setting={set_setting} /> : <Skeleton lines={2} />;
+}
+
+// One of a plugin's settings as the page's settings hold it, or its manifest's default.
+export function plugin_value(settings: Record<string, unknown>, manifest: PluginManifest, key: string): unknown {
+  const stored = (settings[plugins_setting] as PluginRecords | undefined)?.[manifest.id]?.settings?.[key];
+  return stored ?? manifest.settings?.find((field) => field.key === key)?.default ?? "";
 }

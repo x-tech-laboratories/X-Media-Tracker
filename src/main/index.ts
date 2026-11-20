@@ -26,9 +26,10 @@ import { certificate_bridge, device_bridge, launchers_bridge, media_bridge, medi
 import { keep_fetching_covers, referenced_covers, type KeepFetchingCovers } from "../shared/covers.ts";
 import { cover_scheme } from "../shared/page_api.ts";
 import { keep_checking_releases } from "../shared/books/schedule.ts";
-import { keep_syncing_stores } from "../shared/games/schedule.ts";
+import { keep_reading_steam_categories } from "../shared/games/schedule.ts";
 import { launcher_schemes } from "../shared/games/launch.ts";
-import { games_setting } from "../shared/games/store.ts";
+import { steam_manifest } from "../shared/games/manifests.ts";
+import { is_switched_on, plugin_settings } from "../shared/plugins/host.ts";
 import { keep_importing } from "../shared/sources/schedule.ts";
 import { stremio_scheme } from "../shared/sources/stremio/links.ts";
 import { bind_methods, needs_upgrade, open_store, sync_engine } from "../shared/store.ts";
@@ -90,11 +91,12 @@ let fetching_covers: KeepFetchingCovers | undefined;
 
 let stop_importing = (): void => undefined;
 let stop_checking_releases = (): void => undefined;
-let stop_syncing_stores = (): void => undefined;
+let stop_reading_categories = (): void => undefined;
 
-// The Steam client's categories of the profile set in Settings, read from this computer.
+// The Steam client's categories of the profile set in Steam's plugin, read from this computer; none while it is off.
 function read_steam_categories(): string {
-  return read_local_steam_categories(String(games_setting(database, "games.steam_id")).trim());
+  if (!is_switched_on(database, steam_manifest)) return "";
+  return read_local_steam_categories(String(plugin_settings(database, steam_manifest).profile).trim());
 }
 
 function announce_change(): void {
@@ -196,13 +198,13 @@ if (hold_single_instance(app, show_existing_window)) {
     fetching_covers = keep_fetching_covers({ database: () => database, store: covers, on_change: announce_change });
     stop_importing = keep_importing(() => bind_methods(() => database, () => undefined), after_write);
     stop_checking_releases = keep_checking_releases(() => bind_methods(() => database, () => undefined), after_write);
-    stop_syncing_stores = keep_syncing_stores(() => bind_methods(() => database, () => undefined), after_write, read_steam_categories);
+    stop_reading_categories = keep_reading_steam_categories(() => bind_methods(() => database, () => undefined), after_write, read_steam_categories);
   });
 
   app.on("window-all-closed", () => {
     stop_importing();
     stop_checking_releases();
-    stop_syncing_stores();
+    stop_reading_categories();
     fetching_covers?.stop();
     sync.stop();
     backing_up.stop();

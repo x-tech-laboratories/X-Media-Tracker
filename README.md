@@ -95,16 +95,16 @@ or GOG's store art, else from SteamGridDB.
 
 ## Steam
 
-Set a [Steam Web API key](https://steamcommunity.com/dev/apikey) and your Steam profile under **Settings → Games →
+Set a [Steam Web API key](https://steamcommunity.com/dev/apikey) and your Steam profile in **Settings → Games → Stores →
 Steam**: its 64-bit id (shown at the top of store.steampowered.com/account), its custom URL name, or a link to it; the profile's **Game details** must be public. **Import library** adds
 every game you own, owned on PC from Steam, as Currently playing once played and Backlog before; a game already here takes Steam's
 playtime and last day played when they are later, leaves the Wishlist for the Backlog, and keeps its status unless it
 was still wanted and has now been played. **Import wishlist** adds wished games as Wishlist, and leaves the
-status of a game already here alone. With **Import from Steam every** set to some hours, the server and the desktop
-app import both on that schedule; the last import syncs, so they do not both run it. New games from Steam have their
+status of a game already here alone. With **Import automatically** on, both come in on the schedule under **Settings →
+Movies & Series → Automatic imports**, with every other source set to. New games from Steam have their
 names and box art at once; **Refresh** in Games fills in the rest from the catalogues.
 
-Steam's Web API does not give your library's categories, so **Settings → Games → Steam categories** reads them from
+Steam's Web API does not give your library's categories, so the **Categories** part of Steam's dialog reads them from
 the Steam client's own file, `userdata/<account>/config/cloudstorage/cloud-storage-namespace-1.json` in Steam's folder:
 the desktop app with **Read from this computer**, and every hour on its own, or any device with **Pick file…**. Each
 category read is listed with a status to give its games, or **Leave as is**; every tracked game in a mapped category
@@ -112,26 +112,26 @@ then takes that status, the one furthest along when it is in several. Nothing is
 
 ## itch.io
 
-Make an [itch.io API key](https://itch.io/user/settings/api-keys) and set it under **Settings → Games → itch.io**.
+Make an [itch.io API key](https://itch.io/user/settings/api-keys) and set it in **Settings → Games → Stores → itch.io**.
 **Import library** adds every game your account has bought or claimed, leaving out soundtracks, comics and tools, as
 Backlog, owned from itch.io on PC, and on Android when it has an Android download; itch.io gives no playtime. A game
 already here, by its itch.io page or else by its title when no itch.io page names it yet, gains the page, the store and
-those platforms and leaves the Wishlist. With **Import from itch.io every** set to some hours, the server and the desktop app import on that
-schedule, as for Steam. A game's itch.io page is kept as its creator and slug, such as `innersloth/among-us`; its title,
+those platforms and leaves the Wishlist. With **Import automatically** on, it comes in on the sources' schedule, as for
+Steam. A game's itch.io page is kept as its creator and slug, such as `innersloth/among-us`; its title,
 creators, tags and cover are read from the page's `data.json`, which itch.io does not publish as an API, so it may change.
 
 ## Epic Games Store
 
 Epic offers no API for a player's library, so the app reads it the way the
 [Legendary](https://github.com/derrod/legendary) and Heroic launchers do, through the Epic Games launcher's own sign-in,
-and it may stop working whenever Epic changes it. Under **Settings → Games → Epic Games Store**, set the launcher's
+and it may stop working whenever Epic changes it. In **Settings → Games → Stores → Epic Games Store**, set the launcher's
 client id and secret, found in Legendary's `legendary/api/egs.py`; then **Open sign-in page**, sign in to Epic, and
 paste the `authorizationCode` the page shows, or its whole answer, into **Sign in**. **Import library** adds every game
 the account owns, leaving out DLC, add-ons and Unreal Engine assets, as Backlog, owned from the Epic Games Store on PC;
 Epic gives no playtime. A game already here, by its Epic catalogue item id or else by its title when no Epic id names it
-yet, gains the id, the store and PC and leaves the Wishlist. With **Import from Epic every** set to some hours, the server
-and the desktop app import on that schedule, as for Steam. Each import renews the sign-in; one left unused for long runs
-out, and then you sign in again, so keep the schedule to a few hours.
+yet, gains the id, the store and PC and leaves the Wishlist. With **Import automatically** on, it comes in on the
+sources' schedule, as for Steam. Each import renews the sign-in; one left unused for long runs out, and then you sign in
+again, so keep the schedule to a few hours.
 
 EA's games cannot come in: EA offers no API for a player's library.
 
@@ -223,7 +223,7 @@ title until **Refresh** in Games finds them on Wikidata.
 
 ## Importing from Trakt and Stremio
 
-**Settings → Movies & Series → Source imports** shows a panel for each source plugin that is on. Imports only add and merge: a title is
+**Settings → Movies & Series → Sources** has a row for each source plugin, whose dialog signs in and imports. Imports only add and merge: a title is
 matched on any shared id (TMDB, IMDb or Trakt), episodes are merged and never unwatched, and status and rating are kept
 unless **Settings → Movies & Series → New titles** and the import settings say otherwise. Nothing is ever written to Stremio.
 
@@ -239,15 +239,20 @@ unless **Settings → Movies & Series → New titles** and the import settings s
 - **Stremio:** sign in with the account's email and password; the password is sent once for a key and kept nowhere.
   Stremio keeps only where each show is up to, so a show's episodes up to the one last played count as watched.
 
-**Settings → Movies & Series → Sources** turns each source on or off and sets it to import automatically; **Settings → Movies & Series →
-Automatic imports** sets the hours between runs (6 unless set). The server and the desktop app check hourly; the last
+Each source's dialog turns it on or off and sets it to import automatically, Trakt and Stremio here and Steam, itch.io
+and the Epic Games Store under Games; **Settings → Movies & Series → Automatic imports** sets the hours between runs of
+all of them (6 unless set). The server and the desktop app check hourly; the last
 run syncs, so they do not both run it, and a failing source still counts as a run.
 
 ## Plugins
 
-Trakt and Stremio are plugins bundled with the app, on the X-Libs plugin host: each has a side in the store, which
-provides its importer, and a side in the page, which draws its panel. On or off and their settings are synced like any
-other setting, so a source turned off on one device is off everywhere, and its calls refuse while it is off. Plugins run
+Every source and catalogue is a plugin bundled with the app, one per service, on the X-Libs plugin host: TMDB; Trakt
+and Stremio; Open Library, Hardcover, BookBrainz, StoryGraph and LibraryThing; and RAWG, IGDB, MobyGames, Giant Bomb,
+TheGamesDB, Steam, GOG, Wikidata, itch.io, SteamGridDB and the Epic Games Store. Each has a side in the store, which
+provides its catalogue or importer, and a side in the page, a row in its section of Settings whose dialog holds its
+switch, its settings and its panel. Keys are secret settings, never shown to other programs. On or off and their
+settings are synced like any other setting, so a plugin turned off on one device is off everywhere, and its calls
+refuse while it is off. Plugins run
 with the app's full rights; only bundled plugins are loaded.
 
 ## Signing in

@@ -2,7 +2,11 @@
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
+import type { ReactNode } from "react";
 import { Segmented, Select } from "@x-tech-laboratories/x-libs/web/react/controls";
+import { Loaded } from "@x-tech-laboratories/x-libs/web/react/states";
+
+import { use_data } from "../api.ts";
 
 import { game_status_group_labels, game_status_groups, game_status_info, group_status, statuses_in_group, type GameStatus, type GameStatusInfo } from "../../shared/games/model.ts";
 
@@ -37,4 +41,10 @@ export function StatusSelect({ statuses, label, value, blank_label, on_change }:
       on_change={on_change}
     />
   );
+}
+
+// The user's statuses, loaded with the games, for the parts that pick one.
+export function WithStatuses({ children }: { children: (statuses: GameStatusInfo[]) => ReactNode }) {
+  const games = use_data((api) => api.list_games());
+  return <Loaded resource={games}>{(loaded) => children(loaded.statuses)}</Loaded>;
 }

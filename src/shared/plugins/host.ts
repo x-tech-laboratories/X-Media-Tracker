@@ -3,7 +3,7 @@
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
-import { create_plugin_host, type Plugin, type PluginHost, type PluginManifest, type PluginRecords, type PluginStorage } from "@x-tech-laboratories/x-libs/plugins";
+import { create_plugin_host, type Plugin, type PluginHost, type PluginManifest, type PluginRecords, type PluginStorage, type SettingValues } from "@x-tech-laboratories/x-libs/plugins";
 import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 
 import type { BookCatalog } from "../books/catalog.ts";
@@ -44,22 +44,34 @@ function settings_storage(database: SqlDatabase): PluginStorage {
   };
 }
 
+// Where a setting kept before its service was a plugin goes: a field of that plugin's settings, as text or, for an old
+// number of hours between imports, as its automatic import switch; null drops it.
+export type SettingMove = { plugin: string; field: string; as?: "switch" } | null;
+
 // Moves settings kept before their service was a plugin into that plugin's settings, once: a value set there already wins.
-export function move_settings_into_plugins(database: SqlDatabase, moves: Record<string, { plugin: string; field: string }>): void {
+export function move_settings_into_plugins(database: SqlDatabase, moves: Record<string, SettingMove>): void {
   const stored = settings_feature.methods.get_settings(database);
   const found = Object.keys(moves).filter((key) => key in stored);
   if (found.length === 0) return;
   const records = { ...plugin_records(database) };
   for (const key of found) {
-    const { plugin, field } = moves[key]!;
-    const value = stored[key];
-    const settings = { ...records[plugin]?.settings };
-    if (typeof value === "string" && value.trim() !== "" && !settings[field]) records[plugin] = { ...records[plugin], settings: { ...settings, [field]: value.trim() } };
+    const move = moves[key];
+    if (!move) continue;
+    const old = stored[key];
+    const value = move.as === "switch" ? Number(old) > 0 : typeof old === "string" ? old.trim() : "";
+    const settings = { ...records[move.plugin]?.settings };
+    if (value !== "" && value !== false && !settings[move.field]) records[move.plugin] = { ...records[move.plugin], settings: { ...settings, [move.field]: value } };
   }
   in_transaction(database, () => {
     settings_feature.methods.set_setting(database, plugins_setting, records);
     for (const key of found) database.prepare("DELETE FROM settings WHERE key = ?").run(key);
   });
+}
+
+// A plugin's settings as stored, each missing one at its manifest's default.
+export function plugin_settings(database: SqlDatabase, manifest: PluginManifest): SettingValues {
+  const stored = plugin_records(database)[manifest.id]?.settings ?? {};
+  return Object.fromEntries((manifest.settings ?? []).map((field) => [field.key, stored[field.key] ?? field.default]));
 }
 
 // The host's own rule for a plugin with no saved choice: on unless its manifest says otherwise.

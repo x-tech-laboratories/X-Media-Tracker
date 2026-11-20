@@ -276,24 +276,16 @@ export const games_api = {
       "Gives the counts added and already tracked.",
     params: [],
   },
-  run_steam_sync: {
-    description: "Imports the Steam library and wishlist when the hours set in Settings have passed since the last time, or now when forced. Gives what it did, or null when it was not due.",
-    params: [{ name: "force", schema: { type: "boolean", description: "True to import now whatever the schedule." } }],
-  },
   import_itchio_library: {
     description:
-      "Imports every game the itch.io account whose API key is set in Settings has bought or claimed, leaving out soundtracks, comics and tools: new ones " +
+      "Imports every game the itch.io account whose API key is set in itch.io's plugin has bought or claimed, leaving out soundtracks, comics and tools: new ones " +
       "are added as Backlog, owned from itch.io on PC (and on Android when it has an Android download); ones already here, matched by their itch.io page or " +
       "else by a title no itch.io page names yet, gain the page, the store and those platforms and leave the Wishlist. itch.io gives no playtime. Gives the counts added and updated.",
     params: [],
   },
-  run_itchio_sync: {
-    description: "Imports the itch.io library when the hours set in Settings have passed since the last time, or now when forced. Gives what it did, or null when it was not due.",
-    params: [{ name: "force", schema: { type: "boolean", description: "True to import now whatever the schedule." } }],
-  },
   sign_in_epic: {
     description:
-      "Signs in to the Epic Games Store with the one-time code its sign-in page shows, using the launcher's client id and secret set in Settings, " +
+      "Signs in to the Epic Games Store with the one-time code its sign-in page shows, using the launcher's client id and secret set in its plugin, " +
       "and keeps the sign-in for imports. Gives the account's name.",
     params: [{ name: "code", schema: text("The authorizationCode from Epic's page, or the whole answer it shows.") }],
   },
@@ -307,10 +299,6 @@ export const games_api = {
       "owned from the Epic Games Store on PC; ones already here, matched by their Epic catalogue item id or else by a title no Epic id names yet, gain the id, " +
       "the store and PC and leave the Wishlist. Epic gives no playtime. Gives the counts added and updated.",
     params: [],
-  },
-  run_epic_sync: {
-    description: "Imports the Epic Games Store library when the hours set in Settings have passed since the last time, or now when forced. Gives what it did, or null when it was not due.",
-    params: [{ name: "force", schema: { type: "boolean", description: "True to import now whatever the schedule." } }],
   },
   import_steam_categories: {
     description:

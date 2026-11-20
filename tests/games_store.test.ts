@@ -126,8 +126,8 @@ function open_methods(games: SampleGame[] = []) {
 }
 
 // Sets catalogue plugins' settings, such as { rawg: { api_key: "rawg-key" } }, leaving the others' as they were.
-function set_plugin_settings(methods: ReturnType<typeof open_methods>, settings: Record<string, Record<string, string>>): void {
-  const records = (methods.get_settings().plugins ?? {}) as Record<string, { settings?: Record<string, string> }>;
+function set_plugin_settings(methods: ReturnType<typeof open_methods>, settings: Record<string, Record<string, string | boolean>>): void {
+  const records = (methods.get_settings().plugins ?? {}) as Record<string, { settings?: Record<string, string | boolean> }>;
   for (const [id, values] of Object.entries(settings)) records[`x-media-tracker.${id}`] = { ...records[`x-media-tracker.${id}`], settings: { ...records[`x-media-tracker.${id}`]?.settings, ...values } };
   methods.set_setting("plugins", records);
 }
@@ -413,7 +413,7 @@ function itch_key(id: number, url: string, title: string, fields: Record<string,
 describe("itch.io", () => {
   function with_key() {
     const methods = open_methods();
-    methods.set_setting("games.itchio_api_key", "itch-key");
+    set_plugin_settings(methods, { itchio: { api_key: "itch-key" } });
     return methods;
   }
 
@@ -456,14 +456,19 @@ describe("itch.io", () => {
     expect(await methods.import_itchio_library()).toEqual({ added: 0, updated: 1 });
   });
 
-  it("imports on its schedule only when one is set and due", async () => {
+  it("imports on the sources' schedule once set to import automatically", async () => {
     const methods = with_key();
     itch_pages = [[itch_key(1, "https://devolverdigital.itch.io/pikuniku", "Pikuniku")]];
-    expect(await methods.run_itchio_sync(false)).toBeNull();
-    methods.set_setting("games.itchio_sync_hours", 6);
-    expect(await methods.run_itchio_sync(false)).toMatchObject({ library: { added: 1, updated: 0 }, failures: [] });
-    expect(await methods.run_itchio_sync(false)).toBeNull();
-    expect(methods.get_settings()["games.last_itchio_result"]).toBe("library 1 added, 0 updated");
+    expect(await methods.run_due_imports()).toBeNull();
+    set_plugin_settings(methods, { itchio: { auto_import: true } });
+    expect(await methods.run_due_imports()).toMatchObject({ result: "itch.io: 1 added, 0 updated" });
+    expect(await methods.run_due_imports()).toBeNull();
+  });
+
+  it("refuses to import while its plugin is off", async () => {
+    const methods = with_key();
+    methods.set_setting("plugins", { ...(methods.get_settings().plugins as object), "x-media-tracker.itchio": { enabled: false, settings: { api_key: "itch-key" } } });
+    await expect(methods.import_itchio_library()).rejects.toThrow("The itch.io plugin is off");
   });
 
   it("adds a game from its page's link", async () => {
@@ -508,8 +513,7 @@ function epic_catalog(number: number, title: string, fields: Record<string, unkn
 describe("the Epic Games Store", () => {
   function with_client() {
     const methods = open_methods();
-    methods.set_setting("games.epic_client_id", "launcher-id");
-    methods.set_setting("games.epic_client_secret", "launcher-secret");
+    set_plugin_settings(methods, { epic: { client_id: "launcher-id", client_secret: "launcher-secret" } });
     return methods;
   }
 
@@ -580,15 +584,12 @@ describe("the Epic Games Store", () => {
     await expect(methods.import_epic_library()).rejects.toThrow("sign in again");
   });
 
-  it("imports on its schedule only when one is set and due", async () => {
+  it("imports on the sources' schedule once set to import automatically", async () => {
     const methods = await signed_in();
     epic_pages = [[epic_record(1)]];
     epic_catalog(1, "Hades");
-    expect(await methods.run_epic_sync(false)).toBeNull();
-    methods.set_setting("games.epic_sync_hours", 6);
-    expect(await methods.run_epic_sync(false)).toMatchObject({ library: { added: 1, updated: 0 }, failures: [] });
-    expect(await methods.run_epic_sync(false)).toBeNull();
-    expect(methods.get_settings()["games.last_epic_result"]).toBe("library 1 added, 0 updated");
+    set_plugin_settings(methods, { epic: { auto_import: true } });
+    expect(await methods.run_due_imports()).toMatchObject({ result: "Epic Games Store: 1 added, 0 updated" });
   });
 
   it("takes an Epic id typed by hand", async () => {
@@ -605,15 +606,13 @@ describe("the Epic Games Store", () => {
 describe("Steam", () => {
   function with_account() {
     const methods = open_methods();
-    methods.set_setting("games.steam_api_key", "steam-key");
-    methods.set_setting("games.steam_id", "https://steamcommunity.com/profiles/76561197960287930/");
+    set_plugin_settings(methods, { steam: { api_key: "steam-key", profile: "https://steamcommunity.com/profiles/76561197960287930/" } });
     return methods;
   }
 
   it("finds a profile by its custom URL name", async () => {
     const methods = open_methods();
-    methods.set_setting("games.steam_api_key", "steam-key");
-    methods.set_setting("games.steam_id", "https://steamcommunity.com/id/OperationLeader/");
+    set_plugin_settings(methods, { steam: { api_key: "steam-key", profile: "https://steamcommunity.com/id/OperationLeader/" } });
     answers["api.steampowered.com/ISteamUser/ResolveVanityURL/v1/"] = { response: { success: 1, steamid: "76561197960287930" } };
     owned = [{ appid: 400, name: "Portal", playtime_forever: 10, rtime_last_played: 0 }];
     expect(await methods.import_steam_library()).toEqual({ added: 1, updated: 0 });
@@ -623,8 +622,7 @@ describe("Steam", () => {
 
   it("says when no profile has that custom URL name", async () => {
     const methods = open_methods();
-    methods.set_setting("games.steam_api_key", "steam-key");
-    methods.set_setting("games.steam_id", "NoSuchName");
+    set_plugin_settings(methods, { steam: { api_key: "steam-key", profile: "NoSuchName" } });
     answers["api.steampowered.com/ISteamUser/ResolveVanityURL/v1/"] = { response: { success: 42, message: "No match" } };
     await expect(methods.import_steam_library()).rejects.toThrow("no profile with the custom URL NoSuchName");
   });
@@ -690,15 +688,12 @@ describe("Steam", () => {
     expect(methods.get_game("steam:70")).toMatchObject({ status: "backlog", owned_platforms: ["PC"] });
   });
 
-  it("imports on its schedule only when one is set and due", async () => {
+  it("imports the library and wishlist on the sources' schedule once set to import automatically", async () => {
     const methods = with_account();
     owned = [{ appid: 400, name: "Portal", playtime_forever: 10, rtime_last_played: 0 }];
-    expect(await methods.run_steam_sync(false)).toBeNull();
-    methods.set_setting("games.steam_sync_hours", 6);
-    const ran = await methods.run_steam_sync(false);
-    expect(ran).toMatchObject({ library: { added: 1, updated: 0 }, wishlist: { added: 0, updated: 0 }, failures: [] });
-    expect(await methods.run_steam_sync(false)).toBeNull();
-    expect(methods.get_settings()["games.last_steam_result"]).toBe("library 1 added, 0 updated; wishlist 0 added");
+    set_plugin_settings(methods, { steam: { auto_import: true } });
+    expect(await methods.list_sources()).toContainEqual(expect.objectContaining({ id: "steam", ready: true, imports_automatically: true }));
+    expect(await methods.run_due_imports()).toMatchObject({ result: "Steam: 1 added, 0 updated" });
   });
 
   it("gives games in a mapped category its status, the furthest along winning", async () => {
@@ -746,6 +741,12 @@ describe("the IGDB export import", () => {
 
   it("refuses a page with no games", () => {
     expect(() => open_methods().import_igdb_export("<h1>Nope</h1>")).toThrow("No games found");
+  });
+
+  it("refuses while the IGDB plugin is off", () => {
+    const methods = open_methods();
+    methods.set_setting("plugins", { "x-media-tracker.igdb": { enabled: false } });
+    expect(() => methods.import_igdb_export(page)).toThrow("The IGDB plugin is off");
   });
 });
 
@@ -861,6 +862,10 @@ describe("catalogue plugins", () => {
     methods.set_setting("games.rawg_api_key", " rawg-key ");
     methods.set_setting("games.igdb_client_id", "twitch-app");
     methods.set_setting("games.thegamesdb_api_key", "old-key");
+    methods.set_setting("games.steam_id", "76561197960287930");
+    methods.set_setting("games.steam_sync_hours", 6);
+    methods.set_setting("games.itchio_sync_hours", 0);
+    methods.set_setting("games.last_steam_result", "library 1 added");
     set_plugin_settings(methods, { thegamesdb: { api_key: "new-key" } });
 
     open_store(database);
@@ -873,7 +878,11 @@ describe("catalogue plugins", () => {
       "x-media-tracker.rawg": { settings: { api_key: "rawg-key" } },
       "x-media-tracker.igdb": { settings: { client_id: "twitch-app" } },
       "x-media-tracker.thegamesdb": { settings: { api_key: "new-key" } },
+      "x-media-tracker.steam": { settings: { profile: "76561197960287930", auto_import: true } },
     });
+    expect(settings["games.last_steam_result"]).toBeUndefined();
+    expect(settings["games.steam_sync_hours"]).toBeUndefined();
+    expect((settings.plugins as Record<string, unknown>)["x-media-tracker.itchio"]).toBeUndefined();
   });
 
   it("hide a catalogue's key from other programs and keep it when its settings are written back hidden", () => {

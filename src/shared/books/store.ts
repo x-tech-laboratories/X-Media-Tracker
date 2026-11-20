@@ -10,7 +10,7 @@ import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sq
 
 import { Background, define_feature, drizzle_of, new_id } from "../feature.ts";
 import { merge_columns, merge_ids, type SourceAnswers } from "../merging.ts";
-import { move_settings_into_plugins, open_plugin_host } from "../plugins/host.ts";
+import { move_settings_into_plugins, open_plugin_host, require_switched_on } from "../plugins/host.ts";
 import type { TransferFile, TransferInput, TransferReport } from "../transfer.ts";
 import { books_api } from "./api.ts";
 import { catalog_labels, empty_book, join_results, merge_books, merge_refs, same_book, title_words, type CatalogBook, type CatalogRelease, type BookCatalog, type CatalogSeries, type CatalogSource } from "./catalog.ts";
@@ -42,7 +42,7 @@ import {
   type Release,
 } from "./model.ts";
 import { books_book_collections, books_books, books_collections, books_follows, books_goals, books_journal, books_reads, books_releases, books_tables } from "./schema.ts";
-import { moved_book_keys } from "./manifests.ts";
+import { librarything_manifest, moved_book_keys, storygraph_manifest } from "./manifests.ts";
 import { book_catalog_plugins } from "./plugins.ts";
 import { books_secret_settings, books_setting_defaults } from "./settings.ts";
 import { read_librarything_export } from "./librarything.ts";
@@ -990,6 +990,7 @@ export const books_feature = define_feature({
 
     // StoryGraph's own export; adds and merges, never removes.
     import_storygraph: (database: SqlDatabase, csv: string): BookImportReport => {
+      require_switched_on(database, storygraph_manifest);
       const books = read_storygraph_csv(csv);
       return in_transaction(database, () => {
         const report: BookImportReport = { added: 0, updated: 0 };
@@ -1000,6 +1001,7 @@ export const books_feature = define_feature({
 
     // LibraryThing's own export, tab-separated or CSV; adds and merges, never removes.
     import_librarything: (database: SqlDatabase, text: string): BookImportReport => {
+      require_switched_on(database, librarything_manifest);
       const books = read_librarything_export(text);
       return in_transaction(database, () => {
         const report: BookImportReport = { added: 0, updated: 0 };

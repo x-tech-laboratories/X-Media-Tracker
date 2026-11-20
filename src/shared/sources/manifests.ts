@@ -5,18 +5,10 @@
 
 import type { PluginManifest } from "@x-tech-laboratories/x-libs/plugins";
 
-import { app_info } from "../plugins/app.ts";
+import { app_info, auto_import_field } from "../plugins/app.ts";
 import { default_stremio_web } from "./stremio/links.ts";
 
 // ── Sources ──────────────────────────────────────────────────────────────────
-
-const auto_import = (service: string) => ({
-  key: "auto_import",
-  label: "Import automatically",
-  hint: `Imports from ${service} on the schedule under Settings → Movies & Series → Automatic imports.`,
-  type: "switch" as const,
-  default: false,
-});
 
 export const trakt_manifest: PluginManifest = {
   id: "x-media-tracker.trakt",
@@ -24,7 +16,7 @@ export const trakt_manifest: PluginManifest = {
   version: app_info.version,
   app: app_info.id,
   description: "Imports watched movies and every episode's history from Trakt, archives everything Trakt holds, and compares Trakt's history with the library.",
-  settings: [auto_import("Trakt")],
+  settings: [auto_import_field("Trakt")],
 };
 
 export const stremio_manifest: PluginManifest = {
@@ -34,7 +26,7 @@ export const stremio_manifest: PluginManifest = {
   app: app_info.id,
   description: "Imports the Stremio library: watched movies, and each show up to the episode last played.",
   settings: [
-    auto_import("Stremio"),
+    auto_import_field("Stremio"),
     {
       key: "web_address",
       label: "Stremio Web address",
