@@ -71,7 +71,7 @@ describe("importing in Settings", () => {
 
     expect(await screen.findByText("Settle Dune: Part Two from the file (1 of 1)")).toBeTruthy();
     expect(screen.getAllByText("From the file").length).toBeGreaterThan(0);
-    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Save" }));
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(methods.get_title("tmdb:693134")!.rating).toBe(7));
   });
 
@@ -90,9 +90,9 @@ describe("importing in Settings", () => {
 
     fireEvent.change(await screen.findByLabelText("movies export file"), { target: { files: [new File([JSON.stringify(file)], "movies.json")] } });
     expect(await screen.findByText(/from the file \(1 of 3\)/)).toBeTruthy();
-    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Skip" }));
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Skip" }));
     expect(await screen.findByText(/from the file \(2 of 3\)/)).toBeTruthy();
-    fireEvent.click(within(screen.getByRole("dialog")).getByRole("button", { name: "Skip the rest" }));
+    fireEvent.click(within(await screen.findByRole("dialog")).getByRole("button", { name: "Skip the rest" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
     expect(methods.list_library().titles.map((title) => title.notes)).toEqual(["Mine", "Mine", "Mine"]);
   });
