@@ -252,7 +252,12 @@ TheGamesDB, Steam, GOG, Wikidata, itch.io, SteamGridDB and the Epic Games Store.
 provides its catalogue or importer, and a side in the page, a row in its section of Settings whose dialog holds its
 switch, its settings and its panel. Keys are secret settings, never shown to other programs. On or off and their
 settings are synced like any other setting, so a plugin turned off on one device is off everywhere, and its calls
-refuse while it is off. Plugins run
+refuse while it is off.
+
+More plugins can be installed in a plugins folder: `plugins/` beside the server's database, or in the desktop app's
+profile folder; the Android app loads none. They are listed under **Settings → Plugins** after a restart. A plugin from
+the folder runs with the app's full rights and is not sandboxed, so install only ones you trust. To serve their page
+side, the page allows `data:` scripts. [docs/plugins.md](docs/plugins.md) explains how to write one. Plugins run
 with the app's full rights; only bundled plugins are loaded.
 
 ## Signing in

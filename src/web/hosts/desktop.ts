@@ -13,11 +13,13 @@ import {
   events_api_name,
   launchers_api_name,
   media_api_name,
+  plugin_files_api_name,
   steam_files_api_name,
   type DeviceMethods,
   type LauncherMethods,
   type MediaEvents,
   type PageApi,
+  type PluginFileMethods,
   type SteamFileMethods,
 } from "../../shared/page_api.ts";
 import type { MediaMethods } from "../../shared/store.ts";
@@ -42,6 +44,7 @@ export function desktop_api(): PageApi {
     certificates: desktop[certificates_api_name] as CertificateClient,
     steam_files: desktop[steam_files_api_name] as Client<SteamFileMethods>,
     launchers: desktop[launchers_api_name] as Client<LauncherMethods>,
+    plugin_files: desktop[plugin_files_api_name] as Client<PluginFileMethods>,
     cover_src: async (name) => `${cover_scheme}://${name}`,
     on_change: (listener) => events.on("changed", listener),
   };

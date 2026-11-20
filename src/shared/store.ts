@@ -8,11 +8,13 @@ import { migrate, type SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 import { create_sync_engine } from "@x-tech-laboratories/x-libs/sync_engine";
 
 import { Background } from "./feature.ts";
-import { books_feature } from "./books/store.ts";
-import { games_feature } from "./games/store.ts";
+import { books_feature, import_books } from "./books/store.ts";
+import { games_feature, import_games_by_title } from "./games/store.ts";
 import { forget_synced_changes, history_feature, install_history, record_history } from "./history/store.ts";
 import { is_read_only } from "./page_api.ts";
+import { apply_import } from "./library/importing.ts";
 import { library_feature } from "./library/store.ts";
+import { know_plugin_services } from "./plugins/host.ts";
 import { know_secret_settings, settings_feature } from "./settings.ts";
 import { sources_feature } from "./sources/store.ts";
 import { stremio_feature } from "./sources/stremio/store.ts";
@@ -27,6 +29,8 @@ export const sync_engine = create_sync_engine({ tables: features.flatMap((featur
 // Settings holding another service's key or token, left out of what other programs read.
 export const secret_settings = features.flatMap((feature) => feature.secret_settings ?? []);
 know_secret_settings(secret_settings);
+
+know_plugin_services({ import_titles: (database, items) => apply_import(database, items), import_books, import_games: import_games_by_title });
 
 export const setting_defaults = Object.assign({}, ...features.map((feature) => feature.setting_defaults ?? {})) as Record<string, unknown>;
 

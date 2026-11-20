@@ -14,11 +14,14 @@ import {
   launcher_method_names,
   launchers_api_name,
   media_api_name,
+  plugin_file_method_names,
+  plugin_files_api_name,
   steam_file_method_names,
   steam_files_api_name,
   type DeviceMethods,
   type LauncherMethods,
   type MediaEvents,
+  type PluginFileMethods,
   type SteamFileMethods,
 } from "./page_api.ts";
 import { method_names, type MediaMethods } from "./store.ts";
@@ -35,5 +38,6 @@ export const certificate_bridge = define_bridge<CertificateMethods>(certificates
 export const steam_files_bridge = define_bridge<SteamFileMethods>(steam_files_api_name, steam_file_method_names);
 
 export const launchers_bridge = define_bridge<LauncherMethods>(launchers_api_name, launcher_method_names);
+export const plugin_files_bridge = define_bridge<PluginFileMethods>(plugin_files_api_name, plugin_file_method_names);
 
 export const media_events = define_events<MediaEvents>(events_api_name);

@@ -7,6 +7,11 @@ import { create_plugin_host, type Plugin, type PluginHost, type PluginManifest, 
 import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 
 import type { BookCatalog } from "../books/catalog.ts";
+import type { BookImportReport } from "../books/store.ts";
+import type { ImportedBook } from "../books/storygraph.ts";
+import type { IgdbGame } from "../games/igdb_export.ts";
+import type { GameImportReport } from "../games/store.ts";
+import type { ImportItem } from "../library/importing.ts";
 import type { GameCatalog } from "../games/catalog.ts";
 import type { TitleCatalog } from "../library/plugins.ts";
 import type { ImportReport } from "../library/store.ts";
@@ -24,8 +29,19 @@ export interface Importer {
   imports_automatically: () => boolean;
 }
 
+// What the app hands every plugin, so one from the plugins folder can write into the library without reaching into the store.
+export interface MediaServices {
+  // Movies and shows matched on any id, TMDB asked first for new ones, episodes merged; never removes anything.
+  import_titles: (database: SqlDatabase, items: ImportItem[]) => Promise<ImportReport>;
+  // Books matched on their ISBN, else their title and author, as a StoryGraph import does.
+  import_books: (database: SqlDatabase, books: ImportedBook[]) => BookImportReport;
+  // Games matched on their title, as IGDB's data export is.
+  import_games: (database: SqlDatabase, games: IgdbGame[]) => GameImportReport;
+}
+
 export interface MediaPluginApi {
   providers: { importer: Importer; game_catalog: GameCatalog; book_catalog: BookCatalog; title_catalog: TitleCatalog };
+  services: MediaServices;
 }
 
 export type MediaPlugin = Plugin<MediaPluginApi>;
@@ -85,10 +101,24 @@ export function require_switched_on(database: SqlDatabase, manifest: PluginManif
 
 // ── Host ─────────────────────────────────────────────────────────────────────
 
-// Made afresh for each use, so a plugin turned on or off on any device, or given a new key, holds at once.
+// The services and the plugins from the plugins folder, which the store and the host that loads the folder hand over once.
+let services: MediaServices | undefined;
+let folder_plugins: MediaPlugin[] = [];
+
+export function know_plugin_services(given: MediaServices): void {
+  services = given;
+}
+
+export function use_folder_plugins(plugins: MediaPlugin[]): void {
+  folder_plugins = plugins;
+}
+
+// Made afresh for each use, so a plugin turned on or off on any device, or given a new key, holds at once; the folder's
+// plugins join every host after the bundled ones.
 export async function open_plugin_host(database: SqlDatabase, plugins: MediaPlugin[]): Promise<PluginHost<MediaPluginApi>> {
-  const host = create_plugin_host<MediaPluginApi>({ app: app_info, storage: settings_storage(database), on_error: (plugin_id, error) => console.warn(`plugin ${plugin_id}:`, error) });
-  for (const plugin of plugins) await host.add(plugin);
+  if (!services) throw new Error("The store has not handed over its plugin services yet.");
+  const host = create_plugin_host<MediaPluginApi>({ app: app_info, storage: settings_storage(database), services, on_error: (plugin_id, error) => console.warn(`plugin ${plugin_id}:`, error) });
+  for (const plugin of [...plugins, ...folder_plugins]) await host.add(plugin);
   await host.start();
   return host;
 }
