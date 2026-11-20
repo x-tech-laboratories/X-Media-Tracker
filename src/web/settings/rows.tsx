@@ -1,12 +1,13 @@
 // Setting rows that more than one feature's settings use: a source's row that opens its own dialog, a key or token
-// typed in and kept secret, and a line of text saved once the field is left.
+// typed in and kept secret, a line of text saved once the field is left, and how big a library's covers are in its grid.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
 import { useState, type ReactNode } from "react";
-import { CommitInput } from "@x-tech-laboratories/x-libs/web/react/controls";
+import { CommitInput, Segmented } from "@x-tech-laboratories/x-libs/web/react/controls";
 import { Dialog } from "@x-tech-laboratories/x-libs/web/react/dialog";
 import { SettingRow } from "@x-tech-laboratories/x-libs/web/react/layout";
+import { media_grid_sizes, type MediaGridSize } from "@x-tech-laboratories/x-libs/web/react/media";
 import { toast } from "@x-tech-laboratories/x-libs/web/react/toasts";
 
 import type { FeatureSettingsProps } from "../features.tsx";
@@ -85,6 +86,28 @@ export function TextRow({ label, hint, setting, placeholder, settings, set_setti
   return (
     <SettingRow label={label} hint={hint}>
       <CommitInput aria-label={label} placeholder={placeholder} value={String(settings[setting] ?? "")} on_commit={(event) => void set_setting(setting, event.currentTarget.value.trim()).catch((error: unknown) => toast((error as Error).message, { tone: "bad" }))} />
+    </SettingRow>
+  );
+}
+
+// ── Grid size ────────────────────────────────────────────────────────────────
+
+const grid_size_labels: Record<MediaGridSize, string> = { small: "Small", medium: "Medium", large: "Large" };
+
+// A stored grid size, or medium when it is none.
+export function grid_size_of(value: unknown): MediaGridSize {
+  return media_grid_sizes.find((size) => size === value) ?? "medium";
+}
+
+export function GridSizeRow({ hint, setting, settings, set_setting }: FeatureSettingsProps & { hint: string; setting: string }) {
+  return (
+    <SettingRow label="Grid size" hint={hint}>
+      <Segmented
+        label="Grid size"
+        choices={media_grid_sizes.map((size) => ({ value: size, label: grid_size_labels[size] }))}
+        value={grid_size_of(settings[setting])}
+        on_change={(size) => void set_setting(setting, size)}
+      />
     </SettingRow>
   );
 }

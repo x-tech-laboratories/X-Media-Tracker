@@ -15,7 +15,7 @@ import { calls, page, use_data } from "../api.ts";
 import { read_picked } from "../files.ts";
 import type { FeatureSettingsProps } from "../features.tsx";
 import { PluginRows } from "../plugins.tsx";
-import { SecretRow, SourceRow, TextRow, key_status } from "../settings/rows.tsx";
+import { GridSizeRow, SecretRow, SourceRow, TextRow, key_status } from "../settings/rows.tsx";
 import { transfer_section } from "../transfer.tsx";
 import { game_merge } from "./merge.tsx";
 import {
@@ -498,6 +498,7 @@ export function game_settings(props: FeatureSettingsProps): SettingsSection[] {
       hint: "Each catalogue is a plugin: turn it off to leave it out of search and details. Wikidata, Steam, GOG and itch.io need no key; the others answer once their key is set.",
       content: <CatalogueSettings />,
     },
+    { id: "games-view", heading: "Library view", content: <GridSizeRow {...props} setting="games.grid_size" hint="How big each cover is in the library; smaller fits more to a row." /> },
     {
       id: "game-statuses",
       heading: "Game statuses",
