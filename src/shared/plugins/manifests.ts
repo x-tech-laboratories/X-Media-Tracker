@@ -4,9 +4,10 @@
 
 import type { PluginManifest } from "@x-tech-laboratories/x-libs/plugins";
 
+import { book_catalog_manifests } from "../books/manifests.ts";
 import { game_catalog_manifests } from "../games/manifests.ts";
 import { source_manifests } from "../sources/manifests.ts";
 
 // ── Manifests ────────────────────────────────────────────────────────────────
 
-export const plugin_manifests: PluginManifest[] = [...source_manifests, ...game_catalog_manifests];
+export const plugin_manifests: PluginManifest[] = [...source_manifests, ...book_catalog_manifests, ...game_catalog_manifests];

@@ -6,6 +6,7 @@
 import { create_plugin_host, type Plugin, type PluginHost, type PluginManifest, type PluginRecords, type PluginStorage } from "@x-tech-laboratories/x-libs/plugins";
 import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 
+import type { BookCatalog } from "../books/catalog.ts";
 import type { GameCatalog } from "../games/catalog.ts";
 import type { ImportReport } from "../library/store.ts";
 import { settings_feature } from "../settings.ts";
@@ -23,7 +24,7 @@ export interface Importer {
 }
 
 export interface MediaPluginApi {
-  providers: { importer: Importer; game_catalog: GameCatalog };
+  providers: { importer: Importer; game_catalog: GameCatalog; book_catalog: BookCatalog };
 }
 
 export type MediaPlugin = Plugin<MediaPluginApi>;

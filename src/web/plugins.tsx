@@ -10,11 +10,13 @@ import { PluginSettings, PluginSlot, use_plugins } from "@x-tech-laboratories/x-
 import { Skeleton } from "@x-tech-laboratories/x-libs/web/react/states";
 
 import { calls } from "./api.ts";
+import { HardcoverKeyLink } from "./books/HardcoverKeyLink.tsx";
 import { IgdbImport } from "./games/IgdbImport.tsx";
 import { SourceRow } from "./settings/rows.tsx";
 import { StremioPanel } from "./sources/StremioPanel.tsx";
 import { StremioTitleLinks } from "./sources/StremioTitleLinks.tsx";
 import { TraktPanel } from "./sources/TraktPanel.tsx";
+import { book_catalog_manifests, hardcover_manifest } from "../shared/books/manifests.ts";
 import { game_catalog_manifests, igdb_manifest } from "../shared/games/manifests.ts";
 import type { MediaType } from "../shared/library/model.ts";
 import { app_info, plugins_setting } from "../shared/plugins/app.ts";
@@ -25,26 +27,35 @@ import { stremio_manifest, trakt_manifest } from "../shared/sources/manifests.ts
 export interface PagePluginApi {
   slots: {
     // What the plugin's dialog in Settings shows below its settings, such as signing in and importing.
-    import_panel: ComponentType<Record<string, never>>;
+    panel: ComponentType<Record<string, never>>;
     // Buttons beside a title's name; imdb_id is "" when neither the title nor TMDB has one.
     title_actions: ComponentType<{ media_type: MediaType; imdb_id: string }>;
   };
 }
 
-const trakt_page = define_plugin<PagePluginApi>({ ...trakt_manifest, start: (context) => context.fill_slot("import_panel", TraktPanel) });
+const trakt_page = define_plugin<PagePluginApi>({ ...trakt_manifest, start: (context) => context.fill_slot("panel", TraktPanel) });
 
 const stremio_page = define_plugin<PagePluginApi>({
   ...stremio_manifest,
   start: (context) => {
-    context.fill_slot("import_panel", StremioPanel);
+    context.fill_slot("panel", StremioPanel);
     // The Web button follows the address in the plugin's settings, read again on each draw.
     context.fill_slot("title_actions", (props) => <StremioTitleLinks {...props} web_address={String(context.settings().web_address ?? "")} />);
   },
 });
 
-// A game catalogue's page side has only its settings, but IGDB's dialog also takes its data export.
-const game_catalog_pages = game_catalog_manifests.map((manifest) =>
-  define_plugin<PagePluginApi>({ ...manifest, start: (context) => (manifest.id === igdb_manifest.id ? context.fill_slot("import_panel", IgdbImport) : undefined) }),
+// What a catalogue's dialog shows below its settings, by plugin id: IGDB takes its data export, Hardcover links to its key form.
+const catalog_panels: Record<string, ComponentType<Record<string, never>>> = { [igdb_manifest.id]: IgdbImport, [hardcover_manifest.id]: HardcoverKeyLink };
+
+// A catalogue's page side has only its settings and, for some, a panel.
+const catalog_pages = [...book_catalog_manifests, ...game_catalog_manifests].map((manifest) =>
+  define_plugin<PagePluginApi>({
+    ...manifest,
+    start: (context) => {
+      const panel = catalog_panels[manifest.id];
+      if (panel) context.fill_slot("panel", panel);
+    },
+  }),
 );
 
 // ── Host ─────────────────────────────────────────────────────────────────────
@@ -62,7 +73,7 @@ export function start_page_plugins(): Promise<PluginHost<PagePluginApi>> {
       },
       on_error: (plugin_id, error) => console.warn(`plugin ${plugin_id}:`, error),
     });
-    for (const plugin of [trakt_page, stremio_page, ...game_catalog_pages]) await host.add(plugin);
+    for (const plugin of [trakt_page, stremio_page, ...catalog_pages]) await host.add(plugin);
     await host.start();
     return host;
   })();
@@ -111,7 +122,7 @@ function Rows({ host, manifests }: { host: PluginHost<PagePluginApi>; manifests:
         return (
           <SourceRow key={manifest.id} name={manifest.name} status={status_of(host, manifest, state)} about={manifest.description}>
             <PluginSettings host={one} heading={null} />
-            {state === "running" ? <PluginSlot host={one} name="import_panel" props={{}} /> : <p className="source-hint">Turn {manifest.name} on to use it.</p>}
+            {state === "running" ? <PluginSlot host={one} name="panel" props={{}} /> : <p className="source-hint">Turn {manifest.name} on to use it.</p>}
           </SourceRow>
         );
       })}

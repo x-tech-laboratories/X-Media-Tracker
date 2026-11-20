@@ -1,5 +1,5 @@
-// The books' settings: a dialog for each source, Hardcover with its key and StoryGraph and LibraryThing with their import
-// and export, how new books start, collections, how often new books are looked for and where alerts for them go, and the
+// The books' settings: a dialog for each source, each catalogue plugin with its settings and StoryGraph and LibraryThing
+// with their import and export, how new books start, collections, how often new books are looked for and where alerts for them go, and the
 // books' own import and export.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
@@ -13,33 +13,16 @@ import { toast } from "@x-tech-laboratories/x-libs/web/react/toasts";
 
 import { calls, use_data } from "../api.ts";
 import { read_picked, save_text } from "../files.ts";
-import { SecretRow, SourceRow, TextRow, key_status } from "../settings/rows.tsx";
+import { PluginRows } from "../plugins.tsx";
+import { SecretRow, SourceRow, TextRow } from "../settings/rows.tsx";
 import type { FeatureSettingsProps } from "../features.tsx";
+import { book_catalog_manifests } from "../../shared/books/manifests.ts";
 import { book_status_labels, book_statuses, type BookCollection } from "../../shared/books/model.ts";
 import { transfer_section } from "../transfer.tsx";
 import { attempt } from "./actions.tsx";
 import { book_merge } from "./merge.tsx";
 
-// ── Hardcover and new books ──────────────────────────────────────────────────
-
-function HardcoverSettings(props: FeatureSettingsProps) {
-  return (
-    <>
-      <SecretRow
-        {...props}
-        label="Hardcover API key"
-        setting="books.hardcover_api_key"
-        placeholder="Paste your key"
-        hint="Make one at hardcover.app/account/api with only the read:catalog scope."
-      />
-      <SettingRow label="Make a Hardcover key" hint="Opens Hardcover's form with read:catalog ticked, so the key can read books but nothing of your account.">
-        <a href="https://hardcover.app/account/api/keys/new?scope=read:catalog" target="_blank" rel="noreferrer">
-          Open Hardcover
-        </a>
-      </SettingRow>
-    </>
-  );
-}
+// ── New books ────────────────────────────────────────────────────────────────
 
 function NewBookSettings({ settings, set_setting }: FeatureSettingsProps) {
   return (
@@ -237,12 +220,10 @@ function LibraryThingSettings() {
 // ── Sections ─────────────────────────────────────────────────────────────────
 
 // One row a source, everything it needs in its dialog.
-function SourceSettings(props: FeatureSettingsProps) {
+function SourceSettings() {
   return (
     <>
-      <SourceRow name="Hardcover" status={key_status(props.settings, "books.hardcover_api_key")} about="Optional: adds Hardcover's search, series in order and new books in the series you follow.">
-        <HardcoverSettings {...props} />
-      </SourceRow>
+      <PluginRows manifests={book_catalog_manifests} />
       <SourceRow name="StoryGraph" status="Import and export files" about="StoryGraph has no API, so books travel through its export files.">
         <StoryGraphSettings />
       </SourceRow>
@@ -255,7 +236,7 @@ function SourceSettings(props: FeatureSettingsProps) {
 
 export function book_settings(props: FeatureSettingsProps): SettingsSection[] {
   return [
-    { id: "book-sources", heading: "Sources", hint: "BookBrainz and Open Library need no key: search, covers, details and new books by the authors you follow come from them.", content: <SourceSettings {...props} /> },
+    { id: "book-sources", heading: "Sources", hint: "Each catalogue is a plugin: turn it off to leave it out of search and details. Open Library and BookBrainz need no key; Hardcover answers once its key is set.", content: <SourceSettings /> },
     { id: "new-books", heading: "New books", content: <NewBookSettings {...props} /> },
     { id: "book-collections", heading: "Book collections", hint: "Your own shelves, such as Book club or Favourites; a book can be in several.", content: <CollectionSettings /> },
     { id: "book-alerts", heading: "New books and alerts", content: <AlertSettings {...props} /> },

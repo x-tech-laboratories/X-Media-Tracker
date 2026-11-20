@@ -128,6 +128,19 @@ describe("upcoming", () => {
 });
 
 describe("books settings", () => {
+  it("opens Hardcover's plugin dialog with its key hidden and the link to make one", async () => {
+    fake_page();
+    render(<App />);
+    go("#/settings");
+
+    fireEvent.click(await screen.findByRole("button", { name: "Open Hardcover" }));
+    const dialog = screen.getByRole("dialog", { name: "Hardcover" });
+
+    expect((within(dialog).getByPlaceholderText("Paste your key") as HTMLInputElement).type).toBe("password");
+    expect(within(dialog).getByRole("link", { name: "Open Hardcover" }).getAttribute("href")).toContain("scope=read:catalog");
+    expect(screen.getByRole("button", { name: "Open BookBrainz" })).toBeTruthy();
+  });
+
   it("imports a StoryGraph export from the file picked", async () => {
     const store = fake_page();
     render(<App />);

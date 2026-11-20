@@ -479,3 +479,35 @@ describe("notes", () => {
     expect(store.merge_books([piranesi.id], piranesi.id, { notes: "Returned" }).notes).toBe("Returned");
   });
 });
+
+// ── Catalogue plugins ────────────────────────────────────────────────────────
+
+describe("book catalogue plugins", () => {
+  const requested = (host: string) => fetch_stub.mock.calls.filter(([address]) => String(address).includes(host));
+
+  it("move the Hardcover key from the books settings into its plugin once", () => {
+    const database = new DatabaseSync(":memory:");
+    open_store(database);
+    const store = bind_methods(() => database, () => undefined);
+    store.set_setting("books.hardcover_api_key", "hardcover-key");
+
+    open_store(database);
+
+    expect(store.get_settings()["books.hardcover_api_key"]).toBeUndefined();
+    expect(store.get_settings().plugins).toMatchObject({ "x-media-tracker.hardcover": { settings: { api_key: "hardcover-key" } } });
+  });
+
+  it("ask Hardcover only once its key is set, and leave a catalogue that is off out of search", async () => {
+    const store = open_methods();
+    await store.search_books("final empire");
+    expect(requested("api.hardcover.app")).toHaveLength(0);
+
+    store.set_setting("plugins", { "x-media-tracker.hardcover": { settings: { api_key: "hardcover-key" } }, "x-media-tracker.bookbrainz": { enabled: false } });
+    fetch_stub.mockClear();
+    const search = await store.search_books("final empire");
+
+    expect(requested("api.hardcover.app")).toHaveLength(1);
+    expect(requested("api.bookbrainz.org")).toHaveLength(0);
+    expect(search.results[0]!.sources).toEqual(["openlibrary"]);
+  });
+});

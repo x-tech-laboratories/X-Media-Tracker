@@ -24,11 +24,9 @@ server. Read `README.md` first, then `docs/architecture.md`. It follows the
 - Queries go through X-Libs `drizzle` (`drizzle_of(database)`), never an import of `drizzle-orm` itself.
 - TMDB is reached only through `src/shared/library/tmdb.ts`, with the key from settings; never put the key in an error or a log.
 - BookBrainz, Open Library and Hardcover are reached only through their clients in `src/shared/books/`; the Hardcover key
-  comes from settings and never goes in an error or a log.
+  comes from its plugin's settings and never goes in an error or a log.
 - RAWG, IGDB, MobyGames, Giant Bomb, TheGamesDB, GOG, SteamGridDB, Wikidata, Steam, itch.io and the Epic Games Store are reached only through
   their clients in `src/shared/games/`; their keys come from settings and never go in an error or a log.
-- Every source and catalogue is a bundled plugin, one per service, with its keys as `secret` fields in its manifest;
-  the store asks the plugin host for what it provides and never names a catalogue's client itself.
 - Every source and catalogue is a bundled plugin, one per service, with its keys as `secret` fields in its manifest;
   the store asks the plugin host for what it provides and never names a catalogue's client itself.
 - Use X-Libs widgets and Halon classes; `app.css` holds layout only and never a colour. A widget two apps could use goes into X-Libs.
