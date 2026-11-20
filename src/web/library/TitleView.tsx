@@ -17,7 +17,7 @@ import { toast } from "@x-tech-laboratories/x-libs/web/react/toasts";
 import { calls, use_data, use_settings } from "../api.ts";
 import { has_episode, image_url, next_unwatched, parse_episodes, status_labels, statuses, type Collection, type EpisodeRange, type LibraryTitle, type Seasons } from "../../shared/library/model.ts";
 import type { TmdbFullDetails, TmdbSeason } from "../../shared/library/tmdb.ts";
-import { use_page_plugins } from "../sources/plugins.tsx";
+import { use_page_plugins } from "../plugins.tsx";
 import { set_status } from "./status.tsx";
 import { HeadPoster } from "../covers.tsx";
 import { MergeButton } from "../merging.tsx";

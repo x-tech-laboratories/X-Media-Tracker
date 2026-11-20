@@ -10,7 +10,7 @@ import type { DeviceMethods } from "../src/shared/page_api.ts";
 import { setting_defaults, type MediaMethods } from "../src/shared/store.ts";
 import { set_page_api } from "../src/web/api.ts";
 import { SettingsView } from "../src/web/settings/SettingsView.tsx";
-import { forget_page_plugins } from "../src/web/sources/plugins.tsx";
+import { forget_page_plugins } from "../src/web/plugins.tsx";
 
 afterEach(() => {
   cleanup();

@@ -12,17 +12,14 @@ import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sq
 import { custom_cover, serves_image } from "../covers.ts";
 import { Background, define_feature, drizzle_of, new_id } from "../feature.ts";
 import { merge_columns, merge_ids, type SourceAnswers } from "../merging.ts";
+import { move_settings_into_plugins, open_plugin_host } from "../plugins/host.ts";
 import type { TransferFile, TransferInput, TransferReport } from "../transfer.ts";
 import { games_api } from "./api.ts";
-import { catalog_labels, cover_rank, empty_game, join_results, merge_games, same_game, title_words, type CatalogGame } from "./catalog.ts";
+import { catalog_labels, cover_rank, empty_game, join_results, merge_games, same_game, title_words, type CatalogGame, type GameCatalog } from "./catalog.ts";
 import { create_epic, parse_epic_code, type EpicItem, type OwnedEpicGame } from "./epic.ts";
-import { create_giantbomb } from "./giantbomb.ts";
-import { create_gog } from "./gog.ts";
-import { create_igdb } from "./igdb.ts";
 import { read_igdb_export, type IgdbGame } from "./igdb_export.ts";
 import { create_itchio, type OwnedItchGame } from "./itchio.ts";
 import { migrations } from "./migrations/index.ts";
-import { create_mobygames } from "./mobygames.ts";
 import {
   clean_game_statuses,
   clean_names,
@@ -37,6 +34,7 @@ import {
   group_status,
   is_game_status,
   is_unplayed,
+  key_fields,
   not_dlc,
   parse_epic_id,
   parse_game_link,
@@ -53,15 +51,13 @@ import {
   type GameStatusInfo,
   type LibraryGame,
 } from "./model.ts";
-import { create_rawg } from "./rawg.ts";
 import { games_collections, games_game_collections, games_games, games_tables } from "./schema.ts";
+import { moved_game_keys } from "./manifests.ts";
+import { game_catalog_plugins } from "./plugins.ts";
 import { games_secret_settings, games_setting_defaults } from "./settings.ts";
 import { export_games_csv, export_games_json, import_games_file } from "./transfer.ts";
-import { create_thegamesdb } from "./thegamesdb.ts";
 import { read_steam_categories, type SteamCategory } from "./steam_collections.ts";
-import { create_steamgriddb, type SteamGridDb } from "./steamgriddb.ts";
 import { create_steam, parse_steam_id, parse_steam_name, steam_cover, type OwnedGame, type WishedGame } from "./steam.ts";
-import { create_wikidata } from "./wikidata.ts";
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
 
@@ -150,25 +146,10 @@ export function statuses_of(database: SqlDatabase): GameStatusInfo[] {
   return clean_game_statuses(games_setting(database, "games.statuses"));
 }
 
-// The catalogues with a key set; Wikidata, Steam's store, GOG and itch.io's pages always.
-function catalogs_of(database: SqlDatabase) {
-  const key = (setting: GamesSetting) => String(games_setting(database, setting)).trim();
-  return {
-    rawg: key("games.rawg_api_key") ? create_rawg(key("games.rawg_api_key")) : null,
-    igdb: key("games.igdb_client_id") && key("games.igdb_client_secret") ? create_igdb(key("games.igdb_client_id"), key("games.igdb_client_secret")) : null,
-    mobygames: key("games.mobygames_api_key") ? create_mobygames(key("games.mobygames_api_key")) : null,
-    giantbomb: key("games.giantbomb_api_key") ? create_giantbomb(key("games.giantbomb_api_key")) : null,
-    thegamesdb: key("games.thegamesdb_api_key") ? create_thegamesdb(key("games.thegamesdb_api_key")) : null,
-    steamgriddb: key("games.steamgriddb_api_key") ? create_steamgriddb(key("games.steamgriddb_api_key")) : null,
-    gog: create_gog(),
-    wikidata: create_wikidata(),
-    steam: create_steam(),
-    itchio: create_itchio(),
-  };
+// The catalogues whose plugins are on, in the order their searches are joined.
+async function catalogs_of(database: SqlDatabase): Promise<GameCatalog[]> {
+  return (await open_plugin_host(database, game_catalog_plugins)).providers("game_catalog").map((provided) => provided.value);
 }
-
-// The catalogues searched only once their key is set, in the order their answers are joined.
-const keyed_searches = ["rawg", "igdb", "mobygames", "giantbomb", "thegamesdb"] as const;
 
 // The key and the profile as set: its 64-bit id, its custom URL name, or a link to either.
 function steam_settings(database: SqlDatabase): { key: string; profile: string } {
@@ -270,7 +251,7 @@ interface Heard {
 // What every catalogue that knows the game says: Wikidata first, for the ids the others know it by, then each catalogue
 // with a key by its own id, then SteamGridDB's art. Each may fail alone, and the game is refused only when none answered.
 async function gather(database: SqlDatabase, start: CatalogGame, heard: Heard = { answers: {}, failures: [] }): Promise<CatalogGame> {
-  const catalogs = catalogs_of(database);
+  const catalogs = (await catalogs_of(database)).filter((catalog) => !catalog.missing);
   const { answers, failures } = heard;
   let ids = ids_only(start);
   const ask = async (source: GameSource, lookup: () => Promise<CatalogGame>) => {
@@ -281,27 +262,17 @@ async function gather(database: SqlDatabase, start: CatalogGame, heard: Heard = 
       failures.push(`${catalog_labels[source]}: ${(error as Error).message}`);
     }
   };
-  if (!ids.wikidata_id) {
-    const item = await catalogs.wikidata.find(ids).catch(() => "");
-    if (item) ids.wikidata_id = item;
-  }
-  if (ids.wikidata_id) await ask("wikidata", () => catalogs.wikidata.game(ids.wikidata_id));
-  const { rawg, igdb, mobygames, giantbomb, thegamesdb, gog, steam, itchio, steamgriddb } = catalogs;
-  await Promise.all([
-    rawg && ids.rawg_id ? ask("rawg", () => rawg.game(ids.rawg_id)) : undefined,
-    igdb && ids.igdb_id ? ask("igdb", () => igdb.game(ids.igdb_id)) : undefined,
-    mobygames && ids.mobygames_id ? ask("mobygames", () => mobygames.game(ids.mobygames_id)) : undefined,
-    giantbomb && ids.giantbomb_id ? ask("giantbomb", () => giantbomb.game(ids.giantbomb_id)) : undefined,
-    thegamesdb && ids.thegamesdb_id ? ask("thegamesdb", () => thegamesdb.game(ids.thegamesdb_id)) : undefined,
-    ids.gog_id ? ask("gog", () => gog.game(ids.gog_id)) : undefined,
-    ids.steam_app_id ? ask("steam", () => steam.game(ids.steam_app_id)) : undefined,
-    ids.itchio_id ? ask("itchio", () => itchio.game(ids.itchio_id)) : undefined,
-  ]);
   const heard_of = () => detail_order.flatMap((source) => (answers[source] ? [answers[source]!] : []));
-  if (steamgriddb) {
-    const id = ids.steamgriddb_id || (await steamgriddb_id_of(steamgriddb, ids, heard_of().reduce(merge_games, start)));
-    if (id) await ask("steamgriddb", () => steamgriddb.game(id));
-  }
+  // A catalogue that can find its own id for the game looks for it first, then each is asked by its own id.
+  const ask_by_own_id = async (catalog: GameCatalog, known: CatalogGame) => {
+    const key = key_fields[catalog.source];
+    if (!ids[key] && catalog.find) ids[key] = await catalog.find(ids, known).catch(() => "");
+    if (ids[key]) await ask(catalog.source, () => catalog.game(ids[key]));
+  };
+  const stage = (name: GameCatalog["stage"]) => catalogs.filter((catalog) => catalog.stage === name);
+  for (const catalog of stage("ids")) await ask_by_own_id(catalog, start);
+  await Promise.all(stage("details").map((catalog) => ask_by_own_id(catalog, start)));
+  for (const catalog of stage("art")) await ask_by_own_id(catalog, heard_of().reduce(merge_games, start));
   const answered = heard_of();
   if (answered.length === 0 && !start.title) throw new Error(failures.join("; ") || "No catalogue knows that game.");
   // The ids asked by win over any a catalogue gives, so an id set by hand stays.
@@ -327,14 +298,6 @@ async function gather_with_cover(database: SqlDatabase, start: CatalogGame, kept
     if (address === kept_from || (await serves_image(address))) return { ...game, cover_url: address };
   }
   return game;
-}
-
-// A game's SteamGridDB id: from its Steam app, else the game of the same title and year; "" when neither finds one.
-async function steamgriddb_id_of(steamgriddb: SteamGridDb, ids: CatalogGame, known: CatalogGame): Promise<string> {
-  const by_steam = ids.steam_app_id ? await steamgriddb.by_steam(ids.steam_app_id).catch(() => "") : "";
-  if (by_steam || !known.title) return by_steam;
-  const found = await steamgriddb.search(known.title).catch(() => []);
-  return found.find((each) => same_game(each, { ...known, steamgriddb_id: "" }))?.steamgriddb_id ?? "";
 }
 
 // Steam's own art replaces a cover that is only the usual guess at its address, and never box art from elsewhere.
@@ -417,17 +380,12 @@ async function add_from(database: SqlDatabase, source: GameSource, id: string): 
 
 // Every catalogue searched at once; one failing, or left out for want of a key, leaves the others' answers.
 async function search_everywhere(database: SqlDatabase, query: string): Promise<GameSearch> {
-  const catalogs = catalogs_of(database);
-  const searches: [GameSource, Promise<CatalogGame[]>][] = [];
-  const failures: string[] = [];
-  for (const source of keyed_searches) {
-    const client = catalogs[source];
-    if (client) searches.push([source, client.search(query)]);
-    else failures.push(`${catalog_labels[source]}: no key set`);
-  }
-  searches.push(["steam", catalogs.steam.search(query)], ["gog", catalogs.gog.search(query)], ["wikidata", catalogs.wikidata.search(query)]);
-  const settled = await Promise.allSettled(searches.map(([, search]) => search));
-  failures.push(...settled.flatMap((result, index) => (result.status === "rejected" ? [`${catalog_labels[searches[index]![0]]}: ${(result.reason as Error).message}`] : [])));
+  const searched = (await catalogs_of(database)).filter((catalog) => catalog.search);
+  const failures = searched.filter((catalog) => catalog.missing).map((catalog) => `${catalog_labels[catalog.source]}: ${catalog.missing}`);
+  const searches = searched.filter((catalog) => !catalog.missing);
+  if (searches.length === 0) throw new Error(failures.join("; ") || "Every catalogue is off; turn one on in Settings → Games.");
+  const settled = await Promise.allSettled(searches.map((catalog) => catalog.search!(query)));
+  failures.push(...settled.flatMap((result, index) => (result.status === "rejected" ? [`${catalog_labels[searches[index]!.source]}: ${(result.reason as Error).message}`] : [])));
   if (settled.every((result) => result.status === "rejected")) throw new Error(failures.join("; "));
   const lists = settled.map((result) => (result.status === "fulfilled" ? result.value : []));
   const results = join_results(lists).map((game) => ({ ...game, cover_url: cover_of(game), tracked_id: find_game(database, game) || find_by_title(database, game.title, game.year) }));
@@ -908,19 +866,20 @@ function snapshot_of(refresh: GamesRefresh): GamesRefresh {
   return { ...refresh, report: refresh.report && { ...refresh.report } };
 }
 
-// A game known only by its title, such as one imported without a Steam id, is first looked for on Wikidata.
 // Where the catalogues start on a tracked game; one known only by its title is first looked for on Wikidata, and null
 // when it is not there.
-async function start_of(game: LibraryGame): Promise<CatalogGame | null> {
+async function start_of(database: SqlDatabase, game: LibraryGame): Promise<CatalogGame | null> {
   const start: CatalogGame = { ...empty_game("wikidata"), ...Object.fromEntries(game_id_keys.map((key) => [key, game[key]])) };
   if (game_key(start)) return start;
+  const wikidata = (await catalogs_of(database)).find((catalog) => catalog.source === "wikidata" && catalog.search);
+  if (!wikidata) return null;
   const candidate: CatalogGame = { ...empty_game("wikidata"), title: game.title, year: game.year };
-  const match = (await create_wikidata().search(game.title)).find((found) => same_game(found, candidate));
+  const match = (await wikidata.search!(game.title)).find((found) => same_game(found, candidate));
   return match ? ids_only(match) : null;
 }
 
 async function refresh_game(database: SqlDatabase, game: LibraryGame): Promise<boolean> {
-  const start = await start_of(game);
+  const start = await start_of(database, game);
   if (!start) return false;
   const details = game.cover_by_hand ? await gather(database, start) : await gather_with_cover(database, start, game.cover_file_from);
   const db = drizzle_of(database);
@@ -979,7 +938,7 @@ const game_merge_columns = {
 
 // Each catalogue's own answer about a tracked game, for picking what to keep field by field.
 async function game_sources(database: SqlDatabase, game: LibraryGame): Promise<SourceAnswers> {
-  const start = await start_of(game).catch(() => null);
+  const start = await start_of(database, game).catch(() => null);
   if (!start) return { answers: [], failures: ["Wikidata: no game with that title and year."] };
   const heard: Heard = { answers: {}, failures: [] };
   await gather(database, start, heard).catch(() => undefined);
@@ -1090,6 +1049,7 @@ export const games_feature = define_feature({
   tables: synced_tables(games_tables),
   setting_defaults: games_setting_defaults,
   secret_settings: games_secret_settings,
+  on_open: (database: SqlDatabase) => move_settings_into_plugins(database, moved_game_keys),
   methods: {
     list_games: (database: SqlDatabase): Games => ({
       games: list_games(database),

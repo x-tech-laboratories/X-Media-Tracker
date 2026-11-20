@@ -4,6 +4,9 @@ import { migrate } from "@x-tech-laboratories/x-libs/sql";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { games_feature } from "../src/shared/games/store.ts";
+import { hidden_secret } from "@x-tech-laboratories/x-libs/plugins";
+
+import { without_secret_settings } from "../src/shared/settings.ts";
 import { bind_methods, open_store, secret_settings } from "../src/shared/store.ts";
 import { insert_games, type SampleGame } from "./games_sample.ts";
 
@@ -122,6 +125,13 @@ function open_methods(games: SampleGame[] = []) {
   return bind_methods(() => database, () => undefined);
 }
 
+// Sets catalogue plugins' settings, such as { rawg: { api_key: "rawg-key" } }, leaving the others' as they were.
+function set_plugin_settings(methods: ReturnType<typeof open_methods>, settings: Record<string, Record<string, string>>): void {
+  const records = (methods.get_settings().plugins ?? {}) as Record<string, { settings?: Record<string, string> }>;
+  for (const [id, values] of Object.entries(settings)) records[`x-media-tracker.${id}`] = { ...records[`x-media-tracker.${id}`], settings: { ...records[`x-media-tracker.${id}`]?.settings, ...values } };
+  methods.set_setting("plugins", records);
+}
+
 function requested(part: string): string[] {
   return fetch_stub.mock.calls.map(([address]) => String(address)).filter((address) => address.includes(part));
 }
@@ -131,7 +141,7 @@ function requested(part: string): string[] {
 describe("adding a game", () => {
   it("links the catalogues through Wikidata and takes each one's best", async () => {
     const methods = open_methods();
-    methods.set_setting("games.rawg_api_key", "rawg-key");
+    set_plugin_settings(methods, { rawg: { api_key: "rawg-key" } });
     const added = await methods.add_game("steam", "620");
     expect(added).toEqual({ id: "rawg:portal-2", title: "Portal 2", existed: false });
     const game = methods.get_game("rawg:portal-2")!;
@@ -225,9 +235,7 @@ describe("IGDB, TheGamesDB, GOG and SteamGridDB", () => {
 
   it("searches IGDB and TheGamesDB with their keys, joining the same game and its platforms", async () => {
     const methods = open_methods();
-    methods.set_setting("games.igdb_client_id", "twitch-app");
-    methods.set_setting("games.igdb_client_secret", "twitch-secret");
-    methods.set_setting("games.thegamesdb_api_key", "tgdb-key");
+    set_plugin_settings(methods, { igdb: { client_id: "twitch-app", client_secret: "twitch-secret" }, thegamesdb: { api_key: "tgdb-key" } });
     const search = await methods.search_games("portal");
     expect(search.failures).toEqual(["RAWG: no key set", "MobyGames: no key set", "Giant Bomb: no key set"]);
     const [portal] = search.results;
@@ -240,7 +248,7 @@ describe("IGDB, TheGamesDB, GOG and SteamGridDB", () => {
 
   it("joins TheGamesDB's entries for each platform into one", async () => {
     const methods = open_methods();
-    methods.set_setting("games.thegamesdb_api_key", "tgdb-key");
+    set_plugin_settings(methods, { thegamesdb: { api_key: "tgdb-key" } });
     const search = await methods.search_games("portal");
     expect(search.results.filter((result) => result.thegamesdb_id)).toHaveLength(1);
     expect(search.results.find((result) => result.thegamesdb_id)!.platforms).toContain("PlayStation 3");
@@ -248,8 +256,7 @@ describe("IGDB, TheGamesDB, GOG and SteamGridDB", () => {
 
   it("adds a game from TheGamesDB and finds SteamGridDB's art by its title", async () => {
     const methods = open_methods();
-    methods.set_setting("games.thegamesdb_api_key", "tgdb-key");
-    methods.set_setting("games.steamgriddb_api_key", "sgdb-key");
+    set_plugin_settings(methods, { thegamesdb: { api_key: "tgdb-key" }, steamgriddb: { api_key: "sgdb-key" } });
     const added = await methods.add_game_from_link("https://thegamesdb.net/game.php?id=77");
     expect(added).toMatchObject({ id: "thegamesdb:77", title: "Lone Island" });
     expect(methods.get_game("thegamesdb:77")).toMatchObject({ steamgriddb_id: "900", overview: "A small game.", platforms: "PC", cover_url: "https://cdn2.steamgriddb.com/grid/lone.png" });
@@ -713,21 +720,8 @@ describe("Steam", () => {
     expect(() => methods.set_steam_category_status("Finished", "beaten" as never)).toThrow("Unknown status");
   });
 
-  it("keeps every catalogue's key and the Steam key out of what other programs read", () => {
-    expect(secret_settings).toEqual(
-      expect.arrayContaining([
-        "games.rawg_api_key",
-        "games.mobygames_api_key",
-        "games.giantbomb_api_key",
-        "games.thegamesdb_api_key",
-        "games.steamgriddb_api_key",
-        "games.itchio_api_key",
-        "games.epic_client_secret",
-        "games.epic_refresh_token",
-        "games.igdb_client_secret",
-        "games.steam_api_key",
-      ]),
-    );
+  it("keeps the store keys out of what other programs read", () => {
+    expect(secret_settings).toEqual(expect.arrayContaining(["games.itchio_api_key", "games.epic_client_secret", "games.epic_refresh_token", "games.steam_api_key"]));
   });
 });
 
@@ -758,7 +752,7 @@ describe("the IGDB export import", () => {
 describe("merging games", () => {
   it("gives each catalogue's own answer in a game's shape", async () => {
     const methods = open_methods();
-    methods.set_setting("games.rawg_api_key", "rawg-key");
+    set_plugin_settings(methods, { rawg: { api_key: "rawg-key" } });
     await methods.add_game("steam", "620");
 
     const { answers } = await methods.lookup_game_sources("rawg:portal-2");
@@ -829,7 +823,7 @@ describe("cover", () => {
 describe("cover fallback", () => {
   it("takes the next catalogue's art when the best one does not load", async () => {
     const methods = open_methods();
-    methods.set_setting("games.rawg_api_key", "rawg-key");
+    set_plugin_settings(methods, { rawg: { api_key: "rawg-key" } });
     answers["rawg/shot.jpg"] = new Blob([new Uint8Array([1, 2, 3])], { type: "image/jpeg" });
     await methods.add_game("steam", "620");
     expect(methods.get_game("rawg:portal-2")!.cover_url).toBe("https://rawg/shot.jpg");
@@ -837,7 +831,7 @@ describe("cover fallback", () => {
 
   it("asks again on a refresh and keeps the best art once it loads", async () => {
     const methods = open_methods();
-    methods.set_setting("games.rawg_api_key", "rawg-key");
+    set_plugin_settings(methods, { rawg: { api_key: "rawg-key" } });
     answers["rawg/shot.jpg"] = new Blob([new Uint8Array([1, 2, 3])], { type: "image/jpeg" });
     await methods.add_game("steam", "620");
     answers["shared.akamai.steamstatic.com/store_item_assets/steam/apps/620/abc/library_capsule_2x.jpg"] = new Blob([new Uint8Array([4])], { type: "image/jpeg" });
@@ -854,5 +848,54 @@ describe("notes", () => {
     methods.set_game_notes("rawg:portal-2", "Play *co-op* next");
 
     expect(methods.get_game("rawg:portal-2")).toMatchObject({ notes: "Play *co-op* next", review: "" });
+  });
+});
+
+// ── Catalogue plugins ────────────────────────────────────────────────────────
+
+describe("catalogue plugins", () => {
+  it("move each catalogue's key from the games settings into its plugin once, keeping a key already set there", () => {
+    const database = new DatabaseSync(":memory:");
+    open_store(database);
+    const methods = bind_methods(() => database, () => undefined);
+    methods.set_setting("games.rawg_api_key", " rawg-key ");
+    methods.set_setting("games.igdb_client_id", "twitch-app");
+    methods.set_setting("games.thegamesdb_api_key", "old-key");
+    set_plugin_settings(methods, { thegamesdb: { api_key: "new-key" } });
+
+    open_store(database);
+
+    const settings = methods.get_settings();
+    expect(settings["games.rawg_api_key"]).toBeUndefined();
+    expect(settings["games.igdb_client_id"]).toBeUndefined();
+    expect(settings["games.thegamesdb_api_key"]).toBeUndefined();
+    expect(settings.plugins).toMatchObject({
+      "x-media-tracker.rawg": { settings: { api_key: "rawg-key" } },
+      "x-media-tracker.igdb": { settings: { client_id: "twitch-app" } },
+      "x-media-tracker.thegamesdb": { settings: { api_key: "new-key" } },
+    });
+  });
+
+  it("hide a catalogue's key from other programs and keep it when its settings are written back hidden", () => {
+    const methods = open_methods();
+    set_plugin_settings(methods, { rawg: { api_key: "rawg-key" }, igdb: { client_id: "twitch-app", client_secret: "twitch-secret" } });
+
+    const hidden = without_secret_settings(methods.get_settings()).plugins as Record<string, { settings: Record<string, string> }>;
+    expect(hidden["x-media-tracker.rawg"]!.settings.api_key).toBe(hidden_secret);
+    expect(hidden["x-media-tracker.igdb"]!.settings).toEqual({ client_id: "twitch-app", client_secret: hidden_secret });
+
+    methods.set_setting("plugins", { ...hidden, "x-media-tracker.rawg": { enabled: true, settings: { api_key: hidden_secret } } });
+    expect(methods.get_settings().plugins).toMatchObject({ "x-media-tracker.rawg": { enabled: true, settings: { api_key: "rawg-key" } }, "x-media-tracker.igdb": { settings: { client_secret: "twitch-secret" } } });
+  });
+
+  it("leave a catalogue that is turned off out of search", async () => {
+    const methods = open_methods();
+    set_plugin_settings(methods, { thegamesdb: { api_key: "tgdb-key" } });
+    methods.set_setting("plugins", { ...(methods.get_settings().plugins as object), "x-media-tracker.thegamesdb": { enabled: false, settings: { api_key: "tgdb-key" } }, "x-media-tracker.rawg": { enabled: false } });
+
+    const search = await methods.search_games("portal");
+
+    expect(search.failures).toEqual(["IGDB: no key set", "MobyGames: no key set", "Giant Bomb: no key set"]);
+    expect(requested("thegamesdb")).toEqual([]);
   });
 });

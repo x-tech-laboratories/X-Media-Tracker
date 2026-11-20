@@ -222,7 +222,8 @@ export function parse_giantbomb_id(input: string): string {
 // A base game set by hand to none, so the catalogues no longer fill one in.
 export const not_dlc = "none";
 
-const key_fields: Record<string, keyof GameIds> = {
+// The id each catalogue, and the Epic Games Store, knows a game by.
+export const key_fields: Record<GameSource | "epic", keyof GameIds> = {
   rawg: "rawg_id",
   mobygames: "mobygames_id",
   giantbomb: "giantbomb_id",
@@ -246,7 +247,7 @@ export function find_base_game<Item extends Game>(game: Pick<Game, "base_game">,
   const exact = games.find((each) => each.id === game.base_game);
   if (exact) return exact;
   const split = game.base_game.indexOf(":");
-  const field = key_fields[game.base_game.slice(0, split)];
+  const field = (key_fields as Record<string, keyof GameIds | undefined>)[game.base_game.slice(0, split)];
   const value = game.base_game.slice(split + 1);
   return field && value ? games.find((each) => each[field] === value) : undefined;
 }
