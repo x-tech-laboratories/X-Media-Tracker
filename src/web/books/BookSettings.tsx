@@ -1,5 +1,6 @@
 // The books' settings: a dialog for each source, Hardcover with its key and StoryGraph and LibraryThing with their import
-// and export, how new books start, collections, and how often new books are looked for and where alerts for them go.
+// and export, how new books start, collections, how often new books are looked for and where alerts for them go, and the
+// books' own import and export.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -15,7 +16,9 @@ import { read_picked, save_text } from "../files.ts";
 import { SecretRow, SourceRow, TextRow, key_status } from "../settings/rows.tsx";
 import type { FeatureSettingsProps } from "../features.tsx";
 import { book_status_labels, book_statuses, type BookCollection } from "../../shared/books/model.ts";
+import { transfer_section } from "../transfer.tsx";
 import { attempt } from "./actions.tsx";
+import { book_merge } from "./merge.tsx";
 
 // ── Hardcover and new books ──────────────────────────────────────────────────
 
@@ -256,5 +259,14 @@ export function book_settings(props: FeatureSettingsProps): SettingsSection[] {
     { id: "new-books", heading: "New books", content: <NewBookSettings {...props} /> },
     { id: "book-collections", heading: "Book collections", hint: "Your own shelves, such as Book club or Favourites; a book can be in several.", content: <CollectionSettings /> },
     { id: "book-alerts", heading: "New books and alerts", content: <AlertSettings {...props} /> },
+    transfer_section({
+      name: "books",
+      noun: "book",
+      holds: "Every book with its status, rating, review, notes, progress and ids, every read and journal entry, the collections, the authors and series you follow, and your reading goals.",
+      export_json: () => calls().export_books_json(),
+      export_csv: () => calls().export_books_csv(),
+      import_file: (input) => calls().import_books_file(input),
+      merging: async () => ({ kind: book_merge, items: (await calls().list_books()).books }),
+    }),
   ];
 }

@@ -1,5 +1,6 @@
 // The games' settings: a dialog for each catalogue with its key, and IGDB's import, the statuses and how new games start,
-// collections, and a dialog for each store whose library comes in: Steam with its categories, itch.io and Epic.
+// collections, a dialog for each store whose library comes in: Steam with its categories, itch.io and Epic, and the
+// games' own import and export.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -14,6 +15,8 @@ import { calls, page, use_data } from "../api.ts";
 import { read_picked } from "../files.ts";
 import type { FeatureSettingsProps } from "../features.tsx";
 import { SecretRow, SourceRow, TextRow, key_status } from "../settings/rows.tsx";
+import { transfer_section } from "../transfer.tsx";
+import { game_merge } from "./merge.tsx";
 import {
   game_status_group_labels,
   game_status_groups,
@@ -537,5 +540,17 @@ export function game_settings(props: FeatureSettingsProps): SettingsSection[] {
     { id: "new-games", heading: "New games", content: <NewGameSettings {...props} /> },
     { id: "game-collections", heading: "Game collections", hint: "Your own shelves, such as Couch co-op or Backlog 2027; a game can be in several.", content: <CollectionSettings /> },
     { id: "game-stores", heading: "Stores", hint: "The stores whose libraries come in, adding games and merging ones already here.", content: <StoreSettings {...props} /> },
+    transfer_section({
+      name: "games",
+      noun: "game",
+      holds: "Every game with its status, rating, review, notes, owned platforms and stores, edition, playtime and ids, and the collections.",
+      export_json: () => calls().export_games_json(),
+      export_csv: () => calls().export_games_csv(),
+      import_file: (input) => calls().import_games_file(input),
+      merging: async () => {
+        const games = await calls().list_games();
+        return { kind: game_merge(games.statuses), items: games.games };
+      },
+    }),
   ];
 }

@@ -4,7 +4,7 @@
 
 import type { JsonSchema } from "@x-tech-laboratories/x-libs/api_spec";
 
-import { day, id_of, json_file, step, text } from "../api_schemas.ts";
+import { day, id_of, json_file, step, text, transfer_input } from "../api_schemas.ts";
 import { built_in_statuses, game_status_groups } from "./model.ts";
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
@@ -319,5 +319,22 @@ export const games_api = {
   get_games_refresh: {
     description: "Gives the progress of the last refresh of the games' details: running, done or failed, with counts.",
     params: [],
+  },
+  export_games_json: {
+    description:
+      "Gives Games whole as an X-Media-Tracker export: every game with its status, rating, review, notes, owned platforms and stores, edition, playtime and ids, and the collections, " +
+      "each as a list of rows under tables. import_games_file reads it back.",
+    params: [],
+  },
+  export_games_csv: {
+    description: "Gives Games as one CSV file per table, by file name: games.csv, collections.csv and game_collections.csv, the same rows export_games_json gives.",
+    params: [],
+  },
+  import_games_file: {
+    description:
+      "Imports a Games export, JSON or CSV, never removing anything: new games are added whole; a game already here, found by any id or by its title and year, gains its collections, " +
+      "whatever it lacks, and the larger playtime and later day last played. Answers how many were added, updated and unchanged, and lists as conflicts the games whose status, rating, " +
+      "review, notes, owned platforms or stores, or edition the file says otherwise, with the file's values, to settle through merge_games with the game's own id.",
+    params: [{ name: "input", schema: transfer_input }],
   },
 };

@@ -4,7 +4,7 @@
 
 import type { JsonSchema, MethodSpec } from "@x-tech-laboratories/x-libs/api_spec";
 
-import { day, id_of, json_file, text } from "../api_schemas.ts";
+import { day, id_of, json_file, text, transfer_input } from "../api_schemas.ts";
 import { book_formats, book_statuses, progress_units } from "./model.ts";
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
@@ -290,6 +290,23 @@ export const books_api = {
   export_storygraph: {
     description: "Gives the library as a Goodreads library export CSV, which StoryGraph's, LibraryThing's and Hardcover's importers read.",
     params: [],
+  },
+  export_books_json: {
+    description:
+      "Gives Books whole as an X-Media-Tracker export: every book with its status, rating, review, notes, progress and ids, every read and journal entry, the collections, the authors and series followed " +
+      "and the reading goals, each as a list of rows under tables. import_books_file reads it back.",
+    params: [],
+  },
+  export_books_csv: {
+    description: "Gives Books as one CSV file per table, by file name: books.csv, reads.csv, journal.csv, collections.csv, book_collections.csv, follows.csv and goals.csv, the same rows export_books_json gives.",
+    params: [],
+  },
+  import_books_file: {
+    description:
+      "Imports a Books export, JSON or CSV, never removing anything: new books are added whole; a book already here, found by any id or by its title and first author, gains its reads, journal entries, " +
+      "collections and whatever it lacks; follows and goals not here are added. Answers how many books were added, updated and unchanged, and lists as conflicts the books whose status, rating, " +
+      "review, notes, owned, format, progress, moods or pace the file says otherwise, with the file's values, to settle through merge_books with the book's own id.",
+    params: [{ name: "input", schema: transfer_input }],
   },
   refresh_books: {
     description: "Starts fetching every book's details from the catalogues again in the background, finding books known only by title on Open Library; never changes a status, rating or read. Answers at once with its progress; follow it with get_books_refresh.",

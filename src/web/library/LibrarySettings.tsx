@@ -1,5 +1,5 @@
 // The library's settings: a dialog for each source, TMDB with its key and Trakt and Stremio with their imports, how new
-// titles start, genres, collection groups, and how often the sources import.
+// titles start, genres, collection groups, import and export, and how often the sources import.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -17,6 +17,8 @@ import { list_genres, poster_sizes, saved_poster_sizes, status_labels, statuses,
 import type { Library } from "../../shared/library/store.ts";
 import { SourceRow } from "../settings/rows.tsx";
 import { SourcePluginRows, automatic_imports_section } from "../sources/SourceSettings.tsx";
+import { transfer_section } from "../transfer.tsx";
+import { title_merge } from "./merge.tsx";
 
 // ── General ──────────────────────────────────────────────────────────────────
 
@@ -264,6 +266,15 @@ export function library_settings(props: FeatureSettingsProps): SettingsSection[]
       hint: "Collections are yours: a title can be in several. Each group, such as Mood or Franchise, becomes its own filter on the Library.",
       content: <CollectionSettings />,
     },
+    transfer_section({
+      name: "movies",
+      noun: "title",
+      holds: "Every movie and show with its status, rating, notes and ids, every watched episode, and the collections and their groups.",
+      export_json: () => calls().export_library_json(),
+      export_csv: () => calls().export_library_csv(),
+      import_file: (input) => calls().import_library_file(input),
+      merging: async () => ({ kind: title_merge, items: (await calls().list_library()).titles }),
+    }),
     automatic_imports_section(props),
   ];
 }

@@ -4,7 +4,7 @@
 
 import type { JsonSchema, MethodSpec } from "@x-tech-laboratories/x-libs/api_spec";
 
-import { id_of, step, text } from "../api_schemas.ts";
+import { id_of, step, text, transfer_input } from "../api_schemas.ts";
 import { statuses } from "./model.ts";
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
@@ -166,5 +166,22 @@ export const library_api = {
   get_library_refresh: {
     description: "Shows the latest library refresh: running, done or failed, how many titles it has done out of how many, and once done its report of titles with new details, with a new status and not found on TMDB. State none means no refresh since the server started.",
     params: [],
+  },
+  export_library_json: {
+    description:
+      "Gives Movies & Series whole as an X-Media-Tracker export: every title with its status, rating, notes and ids, every watched episode, and the collections and collection groups, " +
+      "each as a list of rows under tables. import_library_file reads it back.",
+    params: [],
+  },
+  export_library_csv: {
+    description: "Gives Movies & Series as one CSV file per table, by file name: titles.csv, episodes.csv, collection_groups.csv, collections.csv and title_collections.csv, the same rows export_library_json gives.",
+    params: [],
+  },
+  import_library_file: {
+    description:
+      "Imports a Movies & Series export, JSON or CSV, never removing anything: new titles are added whole; a title already here, found by any id, gains its watched episodes, collections " +
+      "and whatever it lacks. Answers how many were added, updated and unchanged, and lists as conflicts the titles whose status, rating, notes or last watched day the file says otherwise, " +
+      "with the file's values, to settle through merge_titles with the title's own id.",
+    params: [{ name: "input", schema: transfer_input }],
   },
 } satisfies Record<string, MethodSpec>;

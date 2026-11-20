@@ -268,6 +268,28 @@ the schedule and lists every backup to restore or delete. The schedule belongs t
 synced. The desktop keeps them in `backups/` beside its database, Android in a folder you pick, and the server in
 `backups_folder`, where only an admin sees them.
 
+## Import and export
+
+**Settings → Movies & Series**, **Books** and **Games** each have an **Import and export** section. **Export JSON**
+saves the section whole in one file; **Export CSV** saves a zip with one CSV file per table, such as `titles.csv`,
+`episodes.csv` and `collections.csv` for Movies & Series, `books.csv`, `reads.csv` and `journal.csv` for Books, and
+`games.csv` for Games. Movies & Series holds the titles, watched episodes, collections and their groups; Books the
+books, reads, journal, collections, follows and reading goals; Games the games and their collections. Covers are not
+in the files and are fetched again from their addresses.
+
+**Import…** reads a JSON export, a CSV zip, or its CSV files picked together, and never removes anything. New items are
+added whole. An item already here, found by any id (or a book by its title and first author, a game by its title and
+year), gains the file's episodes, reads, journal entries and collections and any field it has empty; a game keeps the
+larger playtime and the later day last played. Where the file says otherwise of what is yours, such as a status,
+rating, notes or owned platforms, the merge window opens for each such item in turn, with the file as a column: pick
+what it keeps and **Save**, **Skip** it, or **Skip the rest**. `export_library_json`, `export_books_csv`,
+`import_games_file` and the rest do the same through the API and MCP, answering the items to settle with `merge_titles`,
+`merge_books` or `merge_games`.
+
+**Settings → General → Import and export** saves every setting as one JSON file, and reads one back. Keys and tokens for
+other services are left out unless **Include keys and tokens** is on; an import keeps the value of any setting the file
+leaves out, so keys set here stay. Through MCP, `export_settings` always leaves keys and tokens out.
+
 ## Merging
 
 **Merge…** on a title's, book's or game's page opens the merge window: the item as each tracked copy of it and each

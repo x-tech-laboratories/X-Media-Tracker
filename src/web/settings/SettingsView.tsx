@@ -14,6 +14,7 @@ import { SyncSettings } from "@x-tech-laboratories/x-libs/web/react/sync_setting
 
 import { calls, data_watch, page, use_settings } from "../api.ts";
 import { page_features } from "../features.tsx";
+import { settings_transfer_section } from "../transfer.tsx";
 
 // ── History ──────────────────────────────────────────────────────────────────
 
@@ -77,7 +78,7 @@ export function SettingsView({ server_sections = [] }: { server_sections?: Setti
         {(values) => (
           <SettingsPage
             categories={[
-              { heading: "General", sections: [history_section(values, set_setting)] },
+              { heading: "General", sections: [history_section(values, set_setting), settings_transfer_section()] },
               ...page_features
                 .map((feature) => ({ heading: feature.label, sections: feature.settings({ settings: values, set_setting }) }))
                 .filter((category) => category.sections.length > 0),
