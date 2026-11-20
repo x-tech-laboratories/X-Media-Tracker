@@ -345,6 +345,14 @@ Every call the page makes is open to other programs on the server, behind a toke
 The TMDB and Hardcover keys, the Trakt secret and tokens, the Stremio key and the alert channels' topic, tokens,
 address and password are left out of what MCP reads.
 
+## Releases
+
+CI builds the Android app after the tests pass on every push to `main`, kept as the run's `android` artifact. Pushing a
+version tag such as `v1.2.3` also publishes it as a GitHub release, named for the tag, which
+[Obtainium](https://obtainium.imranr.dev/) can follow for updates. The package is signed with the key in the
+repository's `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD` and `ANDROID_KEY_ALIAS` secrets; without them a
+build stays unsigned and a tag fails rather than publish it.
+
 ## NixOS
 
 ```nix
