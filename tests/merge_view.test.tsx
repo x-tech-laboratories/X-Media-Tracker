@@ -12,7 +12,7 @@ import { bind_methods, open_store, type MediaMethods } from "../src/shared/store
 import { set_page_api } from "../src/web/api.ts";
 import { App } from "../src/web/App.tsx";
 import { combine_arrays, combine_lists, fill_empty_choices, type MergeColumn } from "../src/web/merging.tsx";
-import { forget_page_plugins } from "../src/web/sources/plugins.tsx";
+import { forget_page_plugins } from "../src/web/plugins.tsx";
 import { insert_games } from "./games_sample.ts";
 
 // ── Page ─────────────────────────────────────────────────────────────────────

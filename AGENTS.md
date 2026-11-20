@@ -27,6 +27,10 @@ server. Read `README.md` first, then `docs/architecture.md`. It follows the
   comes from settings and never goes in an error or a log.
 - RAWG, IGDB, MobyGames, Giant Bomb, TheGamesDB, GOG, SteamGridDB, Wikidata, Steam, itch.io and the Epic Games Store are reached only through
   their clients in `src/shared/games/`; their keys come from settings and never go in an error or a log.
+- Every source and catalogue is a bundled plugin, one per service, with its keys as `secret` fields in its manifest;
+  the store asks the plugin host for what it provides and never names a catalogue's client itself.
+- Every source and catalogue is a bundled plugin, one per service, with its keys as `secret` fields in its manifest;
+  the store asks the plugin host for what it provides and never names a catalogue's client itself.
 - Use X-Libs widgets and Halon classes; `app.css` holds layout only and never a colour. A widget two apps could use goes into X-Libs.
 - Tests use a throwaway database (`:memory:` or a temp file), never `dev-data/` or a real profile.
 - Comments are one plain line saying what the code does now; names are snake_case, components PascalCase.

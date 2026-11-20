@@ -27,6 +27,8 @@ export interface Feature<Methods extends Record<string, StoreMethod>> {
   setting_defaults?: Record<string, unknown>;
   // Settings holding another service's key or token, left out of what other programs read.
   secret_settings?: string[];
+  // Run each time the database opens, after the schema is up to date and sync stamps changes, such as moving old settings.
+  on_open?: (database: SqlDatabase) => void;
 }
 
 // A call's answer while its work goes on, such as a library refresh; the history and the other pages hear of the work's
