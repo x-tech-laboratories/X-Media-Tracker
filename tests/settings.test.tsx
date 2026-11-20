@@ -43,10 +43,11 @@ describe("settings", () => {
     expect(within(tmdb_row).getByText("No key")).toBeTruthy();
     fireEvent.click(within(tmdb_row).getByRole("button", { name: "Open TMDB" }));
     const dialog = screen.getByRole("dialog", { name: "TMDB" });
-    expect(within(dialog).getByText(/No key is set yet/)).toBeTruthy();
-    fireEvent.change(within(dialog).getByLabelText("TMDB API key"), { target: { value: " a-key " } });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(calls.set_setting).toHaveBeenCalledWith("library.tmdb_api_key", "a-key"));
+    const key = within(dialog).getByPlaceholderText("Paste your key") as HTMLInputElement;
+    expect(key.type).toBe("password");
+    fireEvent.change(key, { target: { value: "a-key" } });
+    fireEvent.blur(key);
+    await waitFor(() => expect(calls.set_setting).toHaveBeenCalledWith("plugins", expect.objectContaining({ "x-media-tracker.tmdb": expect.objectContaining({ settings: { api_key: "a-key" } }) })));
     expect(screen.queryByText("Sync")).toBeNull();
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Done" }));

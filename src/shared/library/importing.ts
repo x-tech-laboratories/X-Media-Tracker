@@ -11,7 +11,7 @@ import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sq
 import { drizzle_of } from "../feature.ts";
 import { title_key, type MediaType, type Status } from "./model.ts";
 import { library_titles } from "./schema.ts";
-import { find_title, settle_status, setting, tmdb_of, write_episodes, type ImportReport } from "./store.ts";
+import { find_title, settle_status, setting, tmdb_if_ready, write_episodes, type ImportReport } from "./store.ts";
 import { resolve_details, type TmdbDetails } from "./tmdb.ts";
 
 // ── Items ────────────────────────────────────────────────────────────────────
@@ -57,8 +57,9 @@ function day_of(moment: string): string {
 // A new title is looked up on TMDB first when Settings asks, so it arrives with its poster and episode count.
 async function details_for(database: SqlDatabase, items: ImportItem[]): Promise<Map<ImportItem, TmdbDetails>> {
   const found = new Map<ImportItem, TmdbDetails>();
-  if (!setting(database, "library.import_fetch_metadata") || !setting(database, "library.tmdb_api_key").trim()) return found;
-  const tmdb = tmdb_of(database);
+  if (!setting(database, "library.import_fetch_metadata")) return found;
+  const tmdb = await tmdb_if_ready(database);
+  if (!tmdb) return found;
   for (const item of items) {
     if (find_title(database, item) || !(item.tmdb_id || item.imdb_id)) continue;
     try {

@@ -9,6 +9,7 @@ import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sq
 
 import { Background, define_feature, drizzle_of, new_id } from "../feature.ts";
 import { merge_columns, merge_ids, type SourceAnswers } from "../merging.ts";
+import { move_settings_into_plugins, open_plugin_host } from "../plugins/host.ts";
 import type { TransferFile, TransferInput, TransferReport } from "../transfer.ts";
 import { library_api } from "./api.ts";
 import { migrations } from "./migrations/index.ts";
@@ -30,9 +31,11 @@ import {
   type TitleIds,
 } from "./model.ts";
 import { library_collection_groups, library_collections, library_episodes, library_tables, library_title_collections, library_titles } from "./schema.ts";
+import { moved_library_keys, tmdb_manifest } from "./manifests.ts";
+import { title_catalog_plugins } from "./plugins.ts";
 import { library_secret_settings, library_setting_defaults } from "./settings.ts";
 import { export_library_csv, export_library_json, import_library_file } from "./transfer.ts";
-import { create_tmdb, resolve_details, type Tmdb, type TmdbDetails, type TmdbFullDetails, type TmdbTitle } from "./tmdb.ts";
+import { resolve_details, type Tmdb, type TmdbDetails, type TmdbFullDetails, type TmdbTitle } from "./tmdb.ts";
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
 
@@ -89,8 +92,18 @@ export function setting<Key extends LibrarySetting>(database: SqlDatabase, key: 
   return row ? JSON.parse(row.value) : library_setting_defaults[key];
 }
 
-export function tmdb_of(database: SqlDatabase): Tmdb {
-  return create_tmdb(setting(database, "library.tmdb_api_key"));
+// TMDB when its plugin is on and has its key, else null.
+export async function tmdb_if_ready(database: SqlDatabase): Promise<Tmdb | null> {
+  const catalog = (await open_plugin_host(database, title_catalog_plugins)).provider("title_catalog", "tmdb")?.value;
+  return catalog?.client ?? null;
+}
+
+// TMDB, or why it cannot be asked: its plugin is off or its key is not set.
+export async function tmdb_of(database: SqlDatabase): Promise<Tmdb> {
+  const catalog = (await open_plugin_host(database, title_catalog_plugins)).provider("title_catalog", "tmdb")?.value;
+  if (!catalog) throw new Error(`The ${tmdb_manifest.name} plugin is off; turn it on in Settings.`);
+  if (!catalog.client) throw new Error(catalog.missing);
+  return catalog.client;
 }
 
 // How many titles a refresh asks TMDB about at once, well under TMDB's rate limit.
@@ -225,7 +238,7 @@ const title_merge_columns = {
 // What TMDB says of a tracked title, for picking what to keep field by field.
 async function title_sources(database: SqlDatabase, title: LibraryTitle): Promise<SourceAnswers> {
   try {
-    const details = await resolve_details(tmdb_of(database), title.media_type, title.tmdb_id, title.imdb_id);
+    const details = await resolve_details(await tmdb_of(database), title.media_type, title.tmdb_id, title.imdb_id);
     const values = { ...metadata_of(details), imdb_id: details.imdb_id, media_type: details.media_type, total_episodes: details.total_episodes };
     return { answers: [{ source: "tmdb", label: "TMDB", values }], failures: [] };
   } catch (error) {
@@ -277,10 +290,9 @@ function snapshot_of(refresh: LibraryRefresh): LibraryRefresh {
 async function run_refresh(database: SqlDatabase, refresh: LibraryRefresh): Promise<void> {
   try {
     const titles = list_titles(database);
-    const has_key = setting(database, "library.tmdb_api_key").trim() !== "";
-    const tmdb = has_key ? tmdb_of(database) : null;
     const report: RefreshReport = { total: titles.length, metadata_updated: 0, status_updated: 0, failed: 0 };
     refresh.total = titles.length;
+    const tmdb = await tmdb_if_ready(database);
     const refresh_title = async (title: LibraryTitle): Promise<void> => {
       if (tmdb) {
         try {
@@ -323,6 +335,7 @@ export const library_feature = define_feature({
   tables: synced_tables(library_tables),
   setting_defaults: library_setting_defaults,
   secret_settings: library_secret_settings,
+  on_open: (database: SqlDatabase) => move_settings_into_plugins(database, moved_library_keys),
   methods: {
     list_library: (database: SqlDatabase): Library => {
       const db = drizzle_of(database);
@@ -336,25 +349,25 @@ export const library_feature = define_feature({
     get_title: (database: SqlDatabase, id: string): LibraryTitle | null => list_titles(database, [id])[0] ?? null,
 
     search_tmdb: async (database: SqlDatabase, query: string, media_type: MediaType | "all"): Promise<SearchResult[]> => {
-      const results = await tmdb_of(database).search(query, media_type);
+      const results = await (await tmdb_of(database)).search(query, media_type);
       return results.map((result) => ({ ...result, tracked_id: find_title(database, { tmdb_id: result.tmdb_id }) }));
     },
 
     // A title known only by its IMDb id keeps the TMDB id found for it, so the lookup happens once.
     lookup_title_details: async (database: SqlDatabase, id: string): Promise<TitleDetails> => {
       const title = require_title(database, id);
-      const tmdb = tmdb_of(database);
+      const tmdb = await tmdb_of(database);
       const tmdb_id = title.tmdb_id || (await resolve_details(tmdb, title.media_type, "", title.imdb_id)).tmdb_id;
       return { ...(await tmdb.full_details(title.media_type, tmdb_id)), title };
     },
 
-    add_title: async (database: SqlDatabase, media_type: MediaType, tmdb_id: string): Promise<Added> => add_details(database, await tmdb_of(database).details(media_type, tmdb_id)),
+    add_title: async (database: SqlDatabase, media_type: MediaType, tmdb_id: string): Promise<Added> => add_details(database, await (await tmdb_of(database)).details(media_type, tmdb_id)),
 
     // An IMDb link does not say whether it is a movie or a show, so both are asked for; an id matches only one.
     add_title_from_link: async (database: SqlDatabase, link: string): Promise<Added> => {
       const parsed = parse_media_link(link);
       if (!parsed) throw new Error("Not a TMDB or IMDb link, such as https://www.themoviedb.org/movie/693134 or https://www.imdb.com/title/tt15239678/.");
-      const tmdb = tmdb_of(database);
+      const tmdb = await tmdb_of(database);
       if ("tmdb_id" in parsed) return add_details(database, await tmdb.details(parsed.media_type, parsed.tmdb_id));
       for (const media_type of ["movie", "show"] as const) {
         const tmdb_id = await tmdb.find_by_imdb(parsed.imdb_id, media_type);

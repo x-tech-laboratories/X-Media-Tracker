@@ -1,8 +1,6 @@
 // The library's settings and their defaults, in a file with no imports so the page can read them too.
 
 export const library_setting_defaults = {
-  // A free TMDB key, which search, posters, episode lists and details need.
-  "library.tmdb_api_key": "",
   // The status a title added by hand starts with.
   "library.default_status": "planned",
   // TMDB's image width for posters, such as w342.
@@ -21,5 +19,5 @@ export const library_setting_defaults = {
   "library.import_overwrite_ratings": false,
 };
 
-// Settings that hold another service's key, kept out of what other programs read.
+// The setting TMDB's key was kept in, still hidden from other programs should an old settings file bring it back before it moves.
 export const library_secret_settings = ["library.tmdb_api_key"];

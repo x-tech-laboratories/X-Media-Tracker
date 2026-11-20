@@ -18,6 +18,7 @@ import { StremioTitleLinks } from "./sources/StremioTitleLinks.tsx";
 import { TraktPanel } from "./sources/TraktPanel.tsx";
 import { book_catalog_manifests, hardcover_manifest } from "../shared/books/manifests.ts";
 import { game_catalog_manifests, igdb_manifest } from "../shared/games/manifests.ts";
+import { title_catalog_manifests } from "../shared/library/manifests.ts";
 import type { MediaType } from "../shared/library/model.ts";
 import { app_info, plugins_setting } from "../shared/plugins/app.ts";
 import { stremio_manifest, trakt_manifest } from "../shared/sources/manifests.ts";
@@ -48,7 +49,7 @@ const stremio_page = define_plugin<PagePluginApi>({
 const catalog_panels: Record<string, ComponentType<Record<string, never>>> = { [igdb_manifest.id]: IgdbImport, [hardcover_manifest.id]: HardcoverKeyLink };
 
 // A catalogue's page side has only its settings and, for some, a panel.
-const catalog_pages = [...book_catalog_manifests, ...game_catalog_manifests].map((manifest) =>
+const catalog_pages = [...title_catalog_manifests, ...book_catalog_manifests, ...game_catalog_manifests].map((manifest) =>
   define_plugin<PagePluginApi>({
     ...manifest,
     start: (context) => {
