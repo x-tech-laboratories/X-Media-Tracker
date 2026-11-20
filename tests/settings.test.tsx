@@ -39,11 +39,18 @@ describe("settings", () => {
     fireEvent.click(within(screen.getByRole("radiogroup", { name: "Status for new titles" })).getByRole("radio", { name: "Watching" }));
     await waitFor(() => expect(calls.set_setting).toHaveBeenCalledWith("library.default_status", "watching"));
 
-    expect(screen.getByText(/No key is set yet/)).toBeTruthy();
-    fireEvent.change(screen.getByLabelText("TMDB API key"), { target: { value: " a-key " } });
-    fireEvent.click(screen.getByRole("button", { name: "Save" }));
+    const tmdb_row = screen.getByRole("button", { name: "Open TMDB" }).closest(".setting-row") as HTMLElement;
+    expect(within(tmdb_row).getByText("No key")).toBeTruthy();
+    fireEvent.click(within(tmdb_row).getByRole("button", { name: "Open TMDB" }));
+    const dialog = screen.getByRole("dialog", { name: "TMDB" });
+    expect(within(dialog).getByText(/No key is set yet/)).toBeTruthy();
+    fireEvent.change(within(dialog).getByLabelText("TMDB API key"), { target: { value: " a-key " } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save" }));
     await waitFor(() => expect(calls.set_setting).toHaveBeenCalledWith("library.tmdb_api_key", "a-key"));
     expect(screen.queryByText("Sync")).toBeNull();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Done" }));
+    expect(screen.queryByRole("dialog", { name: "TMDB" })).toBeNull();
   });
 
   it("offers sync on a device and signs it in with the choice of copy", async () => {

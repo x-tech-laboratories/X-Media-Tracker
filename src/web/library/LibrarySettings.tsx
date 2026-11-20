@@ -1,4 +1,5 @@
-// The library's settings: the TMDB key, how new titles start, genres, collection groups, and import and export.
+// The library's settings: a dialog for each source, TMDB with its key and Trakt and Stremio with their imports, how new
+// titles start, genres, collection groups, import and export, and how often the sources import.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -14,7 +15,8 @@ import { calls, use_data } from "../api.ts";
 import type { FeatureSettingsProps } from "../features.tsx";
 import { list_genres, poster_sizes, saved_poster_sizes, status_labels, statuses, type Collection, type CollectionGroup } from "../../shared/library/model.ts";
 import type { Library } from "../../shared/library/store.ts";
-import { source_settings } from "../sources/SourceSettings.tsx";
+import { SourceRow } from "../settings/rows.tsx";
+import { SourcePluginRows, automatic_imports_section } from "../sources/SourceSettings.tsx";
 import { transfer_section } from "../transfer.tsx";
 import { title_merge } from "./merge.tsx";
 
@@ -32,7 +34,7 @@ function TmdbSettings({ settings, set_setting }: FeatureSettingsProps) {
       })
       .catch((error: unknown) => toast((error as Error).message, { tone: "bad" }));
   return (
-    <SettingRow label="TMDB API key" hint={`A free v3 key from themoviedb.org/settings/api; search, posters, episode lists and details need it. ${is_set ? "A key is set." : "No key is set yet."}`}>
+    <SettingRow label="TMDB API key" hint={`A free v3 key from themoviedb.org/settings/api. ${is_set ? "A key is set." : "No key is set yet."}`}>
       <form
         className="key-field"
         onSubmit={(event) => {
@@ -243,7 +245,19 @@ function CollectionSettings() {
 
 export function library_settings(props: FeatureSettingsProps): SettingsSection[] {
   return [
-    { id: "tmdb", heading: "TMDB", content: <TmdbSettings {...props} /> },
+    {
+      id: "sources",
+      heading: "Sources",
+      hint: "Each source's dialog holds its key or sign-in and its import. Imports are one way and additive: they add titles and merge ones already here, never removing any.",
+      content: (
+        <>
+          <SourceRow name="TMDB" status={String(props.settings["library.tmdb_api_key"] ?? "") !== "" ? "Key set" : "No key"} about="Search, posters, episode lists and details need its key.">
+            <TmdbSettings {...props} />
+          </SourceRow>
+          <SourcePluginRows />
+        </>
+      ),
+    },
     { id: "titles", heading: "New titles", content: <TitleSettings {...props} /> },
     { id: "genres", heading: "Genres", hint: "Genres come from TMDB and are refreshed with the Library's Refresh.", content: <GenreSettings {...props} /> },
     {
@@ -261,6 +275,6 @@ export function library_settings(props: FeatureSettingsProps): SettingsSection[]
       import_file: (input) => calls().import_library_file(input),
       merging: async () => ({ kind: title_merge, items: (await calls().list_library()).titles }),
     }),
-    ...source_settings(props),
+    automatic_imports_section(props),
   ];
 }

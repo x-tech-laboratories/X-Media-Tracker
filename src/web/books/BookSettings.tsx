@@ -1,5 +1,6 @@
-// The books' settings: the Hardcover key, how new books start, collections, how often new books are looked for and where
-// the server sends alerts for them, StoryGraph's and LibraryThing's import and export, and the books' own.
+// The books' settings: a dialog for each source, Hardcover with its key and StoryGraph and LibraryThing with their import
+// and export, how new books start, collections, how often new books are looked for and where alerts for them go, and the
+// books' own import and export.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -12,16 +13,16 @@ import { toast } from "@x-tech-laboratories/x-libs/web/react/toasts";
 
 import { calls, use_data } from "../api.ts";
 import { read_picked, save_text } from "../files.ts";
-import { SecretRow, TextRow } from "../settings/rows.tsx";
+import { SecretRow, SourceRow, TextRow, key_status } from "../settings/rows.tsx";
 import type { FeatureSettingsProps } from "../features.tsx";
 import { book_status_labels, book_statuses, type BookCollection } from "../../shared/books/model.ts";
 import { transfer_section } from "../transfer.tsx";
 import { attempt } from "./actions.tsx";
 import { book_merge } from "./merge.tsx";
 
-// ── Catalogues and new books ─────────────────────────────────────────────────
+// ── Hardcover and new books ──────────────────────────────────────────────────
 
-function CatalogueSettings(props: FeatureSettingsProps) {
+function HardcoverSettings(props: FeatureSettingsProps) {
   return (
     <>
       <SecretRow
@@ -29,7 +30,7 @@ function CatalogueSettings(props: FeatureSettingsProps) {
         label="Hardcover API key"
         setting="books.hardcover_api_key"
         placeholder="Paste your key"
-        hint="Optional: adds Hardcover's search, series in order and new books in the series you follow. Make one at hardcover.app/account/api with only the read:catalog scope."
+        hint="Make one at hardcover.app/account/api with only the read:catalog scope."
       />
       <SettingRow label="Make a Hardcover key" hint="Opens Hardcover's form with read:catalog ticked, so the key can read books but nothing of your account.">
         <a href="https://hardcover.app/account/api/keys/new?scope=read:catalog" target="_blank" rel="noreferrer">
@@ -235,14 +236,29 @@ function LibraryThingSettings() {
 
 // ── Sections ─────────────────────────────────────────────────────────────────
 
+// One row a source, everything it needs in its dialog.
+function SourceSettings(props: FeatureSettingsProps) {
+  return (
+    <>
+      <SourceRow name="Hardcover" status={key_status(props.settings, "books.hardcover_api_key")} about="Optional: adds Hardcover's search, series in order and new books in the series you follow.">
+        <HardcoverSettings {...props} />
+      </SourceRow>
+      <SourceRow name="StoryGraph" status="Import and export files" about="StoryGraph has no API, so books travel through its export files.">
+        <StoryGraphSettings />
+      </SourceRow>
+      <SourceRow name="LibraryThing" status="Import and export files" about="LibraryThing's library travels through its export files.">
+        <LibraryThingSettings />
+      </SourceRow>
+    </>
+  );
+}
+
 export function book_settings(props: FeatureSettingsProps): SettingsSection[] {
   return [
-    { id: "book-catalogues", heading: "Catalogues", hint: "BookBrainz and Open Library need no key: search, covers, details and new books by the authors you follow come from them.", content: <CatalogueSettings {...props} /> },
+    { id: "book-sources", heading: "Sources", hint: "BookBrainz and Open Library need no key: search, covers, details and new books by the authors you follow come from them.", content: <SourceSettings {...props} /> },
     { id: "new-books", heading: "New books", content: <NewBookSettings {...props} /> },
     { id: "book-collections", heading: "Book collections", hint: "Your own shelves, such as Book club or Favourites; a book can be in several.", content: <CollectionSettings /> },
     { id: "book-alerts", heading: "New books and alerts", content: <AlertSettings {...props} /> },
-    { id: "storygraph", heading: "StoryGraph", hint: "StoryGraph has no API, so books travel through its export files.", content: <StoryGraphSettings /> },
-    { id: "librarything", heading: "LibraryThing", hint: "LibraryThing's library travels through its export files.", content: <LibraryThingSettings /> },
     transfer_section({
       name: "books",
       noun: "book",
