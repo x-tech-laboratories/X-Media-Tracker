@@ -138,22 +138,26 @@ describe("title page", () => {
 });
 
 describe("importing in settings", () => {
-  it("shows a panel for each source that is on, and none for one turned off", async () => {
+  it("opens each source's own dialog, with its panel only while it is on", async () => {
     const store = fake_page();
     render(<App />);
     go("#/settings");
 
-    expect(await screen.findByRole("heading", { name: "Trakt" })).toBeTruthy();
-    expect(screen.getByRole("heading", { name: "Stremio" })).toBeTruthy();
-    expect(await screen.findByRole("button", { name: "Sign in to Stremio" })).toHaveProperty("disabled", true);
+    fireEvent.click(await screen.findByRole("button", { name: "Open Stremio" }));
+    const stremio = screen.getByRole("dialog", { name: "Stremio" });
+    expect(await within(stremio).findByRole("button", { name: "Sign in to Stremio" })).toHaveProperty("disabled", true);
+    expect(within(stremio).getByLabelText(/Stremio Web address/)).toBeTruthy();
+    expect(within(stremio).queryByRole("button", { name: "Save Trakt app" })).toBeNull();
 
     cleanup();
     forget_page_plugins();
     store.set_setting("plugins", { "x-media-tracker.trakt": { enabled: false } });
     render(<App />);
     go("#/settings");
-    expect(await screen.findByRole("heading", { name: "Stremio" })).toBeTruthy();
-    expect(screen.queryByRole("heading", { name: "Trakt" })).toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: "Open Trakt" }));
+    const trakt = screen.getByRole("dialog", { name: "Trakt" });
+    expect(within(trakt).getByText("Turn Trakt on to sign in and import.")).toBeTruthy();
+    expect(within(trakt).queryByRole("button", { name: "Save Trakt app" })).toBeNull();
   });
 
   it("saves the Trakt app and offers to sign in once there is a Client ID", async () => {
@@ -161,6 +165,7 @@ describe("importing in settings", () => {
     render(<App />);
     go("#/settings");
 
+    fireEvent.click(await screen.findByRole("button", { name: "Open Trakt" }));
     fireEvent.change(await screen.findByLabelText(/Client ID/), { target: { value: "client-id" } });
     fireEvent.change(screen.getByLabelText(/Client Secret/), { target: { value: "client-secret" } });
     fireEvent.click(screen.getByRole("button", { name: "Save Trakt app" }));

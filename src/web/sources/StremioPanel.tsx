@@ -1,9 +1,9 @@
-// The Stremio panel in Settings' Import section: signing in with the account's email and password, and importing.
+// Stremio's part of its dialog in Settings: signing in with the account's email and password, and importing.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
 import { useState } from "react";
-import { FormRow, Section } from "@x-tech-laboratories/x-libs/web/react/layout";
+import { FormRow } from "@x-tech-laboratories/x-libs/web/react/layout";
 import { Loaded } from "@x-tech-laboratories/x-libs/web/react/states";
 import { toast } from "@x-tech-laboratories/x-libs/web/react/toasts";
 
@@ -48,7 +48,7 @@ function SignInForm() {
 export function StremioPanel() {
   const status = use_data((api) => api.get_stremio_status());
   return (
-    <Section title="Stremio">
+    <>
       <p className="source-hint">Stremio keeps only where each show is up to, so a show's episodes up to the one last played count as watched. Nothing is written to Stremio.</p>
       <Loaded resource={status}>
         {(loaded) =>
@@ -65,6 +65,6 @@ export function StremioPanel() {
           )
         }
       </Loaded>
-    </Section>
+    </>
   );
 }
