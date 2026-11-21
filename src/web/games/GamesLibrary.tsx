@@ -116,7 +116,7 @@ function table_columns(statuses: GameStatusInfo[]): TableColumn<LibraryGame>[] {
 
 function GameTable({ games, statuses }: { games: LibraryGame[]; statuses: GameStatusInfo[] }) {
   const columns = useMemo(() => table_columns(statuses), [statuses]);
-  return <DataTable caption="Games" columns={columns} rows={games} row_key={(game) => game.id} />;
+  return <DataTable caption="Games" columns={columns} rows={games} row_key={(game) => game.id} wrap_class="sticky-head" />;
 }
 
 function GameList({ games, statuses, grouping, size, layout }: { games: LibraryGame[]; statuses: GameStatusInfo[]; grouping: Grouping<LibraryGame> | undefined; size: MediaGridSize; layout: Layout }) {
