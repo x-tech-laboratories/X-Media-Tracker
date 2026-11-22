@@ -101,7 +101,7 @@ const table_columns: TableColumn<LibraryTitle>[] = [
 ];
 
 function TitleTable({ titles }: { titles: LibraryTitle[] }) {
-  return <DataTable caption="Titles" columns={table_columns} rows={titles} row_key={(title) => title.id} />;
+  return <DataTable caption="Titles" columns={table_columns} rows={titles} row_key={(title) => title.id} wrap_class="sticky-head" />;
 }
 
 function Titles({ titles, grouping, poster_size, size, layout }: { titles: LibraryTitle[]; grouping: Grouping<LibraryTitle> | undefined; poster_size: string; size: MediaGridSize; layout: Layout }) {
