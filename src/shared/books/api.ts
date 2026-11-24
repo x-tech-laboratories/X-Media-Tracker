@@ -60,7 +60,7 @@ export const books_api = {
   add_book: {
     description: "Adds a book from a catalogue by its id there, or by ISBN, filling in what every catalogue says of it, with the default status from Settings; one already tracked only has its details refreshed. Gives back its id.",
     params: [
-      { name: "source", schema: { type: "string", enum: ["bookbrainz", "openlibrary", "hardcover", "isbn"], description: "Which catalogue the id is from, or isbn." } },
+      { name: "source", schema: { type: "string", description: "Which catalogue the id is from: bookbrainz, openlibrary or hardcover, the source a catalogue from the plugins folder names itself by, or isbn." } },
       { name: "id", schema: text("The id there, such as OL5738148W for Open Library (an edition such as OL7353617M finds its work), a BookBrainz work's id, a Hardcover book's number, or an ISBN.") },
     ],
   },

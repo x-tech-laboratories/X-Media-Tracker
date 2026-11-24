@@ -1,6 +1,10 @@
 // What a tracked game is, and the rules on it that need no database: which ids name the same game, pasted links,
 // playtime, sorting and the Games library's filters with counts.
-// The page imports this file too, so it imports nothing.
+// The page imports this file too, so it imports only other_ids.ts, which imports nothing.
+
+import { clean_other_ids, other_key, shares_an_other_id, type OtherIds } from "../other_ids.ts";
+
+export { clean_other_ids, type OtherIds };
 
 // ── Games ────────────────────────────────────────────────────────────────────
 
@@ -125,23 +129,6 @@ export interface GameIds {
   epic_id: string;
 }
 
-// Ids from catalogues with no column of their own, such as one from the plugins folder, by the catalogue's source name.
-export type OtherIds = Record<string, string>;
-
-// Other ids as stored or given: a JSON object, or its text, of non-empty text values.
-export function clean_other_ids(value: unknown): OtherIds {
-  let parsed = value;
-  if (typeof value === "string") {
-    try {
-      parsed = JSON.parse(value || "{}");
-    } catch {
-      return {};
-    }
-  }
-  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
-  return Object.fromEntries(Object.entries(parsed).flatMap(([source, id]) => (source && typeof id === "string" && id.trim() ? [[source, id.trim()]] : [])));
-}
-
 // New catalogues go last, so a tracked game's id, made from the first id it has, never changes.
 export const game_id_keys = ["rawg_id", "mobygames_id", "giantbomb_id", "wikidata_id", "steam_app_id", "igdb_id", "thegamesdb_id", "gog_id", "steamgriddb_id", "itchio_id", "epic_id"] as const satisfies readonly (keyof GameIds)[];
 
@@ -219,14 +206,11 @@ export function game_key(ids: Partial<GameIds> & { other_ids?: OtherIds }): stri
     const value = ids[key];
     if (value) return `${key.replace(/_id$|_app_id$/, "")}:${value}`;
   }
-  const [source, value] = Object.entries(clean_other_ids(ids.other_ids)).sort(([first], [second]) => first.localeCompare(second))[0] ?? [];
-  return source ? `${source}:${value}` : "";
+  return other_key(ids.other_ids);
 }
 
 export function shares_a_game_id(first: Partial<GameIds> & { other_ids?: OtherIds }, second: Partial<GameIds> & { other_ids?: OtherIds }): boolean {
-  if (game_id_keys.some((key) => !!first[key] && first[key] === second[key])) return true;
-  const theirs = clean_other_ids(second.other_ids);
-  return Object.entries(clean_other_ids(first.other_ids)).some(([source, id]) => theirs[source] === id);
+  return game_id_keys.some((key) => !!first[key] && first[key] === second[key]) || shares_an_other_id(first.other_ids, second.other_ids);
 }
 
 // A Wikidata item such as Q279744, alone or in a link.

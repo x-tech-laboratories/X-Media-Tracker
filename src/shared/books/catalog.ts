@@ -3,6 +3,7 @@
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
+import { other_ids_differ, type OtherIds } from "../other_ids.ts";
 import type { BookIds, CatalogRef, FollowKind, SeriesEntry } from "./model.ts";
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
@@ -13,7 +14,9 @@ export const catalog_labels: Record<CatalogSource, string> = { bookbrainz: "Book
 
 export interface CatalogBook extends BookIds {
   // The catalogues this answer came from, first the one searched.
-  sources: CatalogSource[];
+  sources: string[];
+  // Ids from catalogues with no column of their own.
+  other_ids: OtherIds;
   title: string;
   subtitle: string;
   authors: CatalogRef[];
@@ -46,7 +49,9 @@ export interface CatalogRelease {
 
 // A catalogue as its plugin provides it to the books store; what it cannot do is left out.
 export interface BookCatalog {
-  source: CatalogSource;
+  // A built-in catalogue's source, or another's own name for itself, which its ids are kept under in other_ids.
+  source: string;
+  label: string;
   // Why it cannot be asked now, such as "no key set"; "" when it can.
   missing: string;
   // A book by this catalogue's own id.
@@ -57,7 +62,8 @@ export interface BookCatalog {
   // Its own id from one typed or pasted, such as an edition's work; throws when it is none of its ids.
   own_id?: (input: string) => Promise<string>;
   search: (query: string) => Promise<CatalogBook[]>;
-  search_refs: (query: string, kind: FollowKind) => Promise<CatalogRef[]>;
+  // Authors or series by name; one from the plugins folder may leave it out.
+  search_refs?: (query: string, kind: FollowKind) => Promise<CatalogRef[]>;
   // A series in order, by this catalogue's id for it.
   series?: (id: string) => Promise<CatalogSeries>;
   // The kinds of follow it finds new books for, and those books first out on or after the day given.
@@ -65,8 +71,8 @@ export interface BookCatalog {
   releases?: (kind: FollowKind, id: string, since: string) => Promise<CatalogRelease[]>;
 }
 
-export function empty_book(source: CatalogSource): CatalogBook {
-  return { sources: [source], bookbrainz_id: "", openlibrary_id: "", hardcover_id: "", isbn: "", title: "", subtitle: "", authors: [], series: null, series_position: "", year: "", release_date: "", overview: "", cover_url: "", genres: "", pages: 0, audio_minutes: 0 };
+export function empty_book(source: string): CatalogBook {
+  return { sources: [source], other_ids: {}, bookbrainz_id: "", openlibrary_id: "", hardcover_id: "", isbn: "", title: "", subtitle: "", authors: [], series: null, series_position: "", year: "", release_date: "", overview: "", cover_url: "", genres: "", pages: 0, audio_minutes: 0 };
 }
 
 export function empty_ref(name: string): CatalogRef {
@@ -140,6 +146,9 @@ function person_words(name: string): string {
 export function same_book(first: CatalogBook, second: CatalogBook): boolean {
   const same = (one: string, other: string) => !!one && one === other;
   if (same(first.bookbrainz_id, second.bookbrainz_id) || same(first.openlibrary_id, second.openlibrary_id) || same(first.hardcover_id, second.hardcover_id)) return true;
+  if (Object.entries(first.other_ids).some(([source, id]) => second.other_ids[source] === id)) return true;
+  // Two different ids from one catalogue are two books.
+  if (other_ids_differ(first.other_ids, second.other_ids)) return false;
   const first_author = person_words(first.authors[0]?.name ?? "");
   const second_author = person_words(second.authors[0]?.name ?? "");
   const authors_agree = !first_author || !second_author || first_author === second_author;
@@ -176,6 +185,7 @@ export function merge_books(first: CatalogBook, second: CatalogBook): CatalogBoo
     bookbrainz_id: fill(first.bookbrainz_id, second.bookbrainz_id),
     openlibrary_id: fill(first.openlibrary_id, second.openlibrary_id),
     hardcover_id: fill(first.hardcover_id, second.hardcover_id),
+    other_ids: { ...second.other_ids, ...first.other_ids },
     isbn: fill(first.isbn, second.isbn),
     title: fill(first.title, second.title),
     subtitle: fill(first.subtitle, second.subtitle),

@@ -20,6 +20,8 @@ export const books_books = sqliteTable(
     openlibrary_id: text().notNull().default(""),
     hardcover_id: text().notNull().default(""),
     isbn: text().notNull().default(""),
+    // Ids from catalogues with no column of their own, by the catalogue's source, as a JSON object.
+    other_ids: text().notNull().default("{}"),
     title: text().notNull(),
     subtitle: text().notNull().default(""),
     authors: text().notNull().default(""),

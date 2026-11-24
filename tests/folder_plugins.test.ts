@@ -9,6 +9,8 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { read_plugin_file } from "../src/main/plugin_files.ts";
 import { build_app } from "../src/server/app.ts";
+import { empty_book } from "../src/shared/books/catalog.ts";
+import { book_catalog_manifests } from "../src/shared/books/manifests.ts";
 import { empty_game } from "../src/shared/games/catalog.ts";
 import { game_catalog_manifests } from "../src/shared/games/manifests.ts";
 import { app_info } from "../src/shared/plugins/app.ts";
@@ -151,5 +153,59 @@ describe("a game catalogue from the plugins folder", () => {
 
     expect(merged.other_ids).toEqual({ shelfdb: "7" });
     expect(store.get_game("shelfdb:8")).toBeNull();
+  });
+});
+
+// A book catalogue as one from the plugins folder would be, with no authors or series to follow.
+const shelf_books_plugin = define_plugin<MediaPluginApi>({
+  id: "someone.shelf-books",
+  name: "ShelfDB Books",
+  version: "1.0.0",
+  app: app_info.id,
+  start: (context) => {
+    const book = (id: string) => ({ ...empty_book("shelfdb"), other_ids: { shelfdb: id }, title: id === "7" ? "Piranesi" : "Jonathan Strange", year: "2020", overview: `Book ${id} from ShelfDB.` });
+    context.provide("book_catalog", "shelfdb", { source: "shelfdb", label: "ShelfDB Books", missing: "", book: async (id) => book(id), search: async () => [book("7")] });
+  },
+});
+
+describe("a book catalogue from the plugins folder", () => {
+  function open_with_shelf_books() {
+    use_folder_plugins([shelf_books_plugin]);
+    const database = new DatabaseSync(":memory:");
+    open_store(database);
+    const store = bind_methods(() => database, () => undefined);
+    // The built-in catalogues are off, so only ShelfDB answers.
+    store.set_setting("plugins", Object.fromEntries(book_catalog_manifests.map((manifest) => [manifest.id, { enabled: false }])));
+    return store;
+  }
+
+  it("is searched under its own name and adds a book kept by its id", async () => {
+    const store = open_with_shelf_books();
+
+    const search = await store.search_books("piranesi");
+    expect(search.results).toEqual([expect.objectContaining({ title: "Piranesi", other_ids: { shelfdb: "7" }, sources: ["shelfdb"] })]);
+    expect(search.labels.shelfdb).toBe("ShelfDB Books");
+
+    expect(await store.add_book("shelfdb", "7")).toEqual({ id: "shelfdb:7", title: "Piranesi", existed: false });
+    expect(store.get_book("shelfdb:7")).toMatchObject({ other_ids: { shelfdb: "7" }, overview: "Book 7 from ShelfDB." });
+    expect((await store.add_book("shelfdb", "7")).existed).toBe(true);
+    expect((await store.lookup_book_sources("shelfdb:7")).answers).toEqual([expect.objectContaining({ source: "shelfdb", label: "ShelfDB Books" })]);
+    expect(await store.search_book_people("piranesi", "author")).toEqual([]);
+  });
+
+  it("refuses a catalogue that is not on", async () => {
+    const store = open_with_shelf_books();
+    await expect(store.add_book("nowhere", "1")).rejects.toThrow("No catalogue named nowhere is on.");
+  });
+
+  it("keeps every merged book's ids from it on the one kept", async () => {
+    const store = open_with_shelf_books();
+    await store.add_book("shelfdb", "7");
+    await store.add_book("shelfdb", "8");
+
+    const merged = store.merge_books(["shelfdb:7", "shelfdb:8"], "shelfdb:7", {});
+
+    expect(merged.other_ids).toEqual({ shelfdb: "7" });
+    expect(store.get_book("shelfdb:8")).toBeNull();
   });
 });

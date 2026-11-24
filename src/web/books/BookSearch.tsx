@@ -69,10 +69,12 @@ function LibraryMatches({ query }: { query: string }) {
 }
 
 // The catalogue to add a result from: the one whose id names it best.
-function source_of(result: BookSearchResult): [CatalogSource, string] {
+function source_of(result: BookSearchResult): [string, string] {
   if (result.bookbrainz_id) return ["bookbrainz", result.bookbrainz_id];
   if (result.openlibrary_id) return ["openlibrary", result.openlibrary_id];
-  return ["hardcover", result.hardcover_id];
+  if (result.hardcover_id) return ["hardcover", result.hardcover_id];
+  const [other] = Object.entries(result.other_ids);
+  return other ?? ["isbn", result.isbn];
 }
 
 function result_key(result: BookSearchResult): string {
@@ -117,7 +119,7 @@ function CatalogMatches({ query }: { query: string }) {
                   title={result.title}
                   href={tracked_id ? book_href(tracked_id) : (book_links(result)[0]?.href ?? "#/books")}
                   image={result.cover_url}
-                  lines={[[result.authors.map((author) => author.name).join(", "), result.year].filter(Boolean).join(" · "), result.sources.map((source) => catalog_labels[source]).join(", ")]}
+                  lines={[[result.authors.map((author) => author.name).join(", "), result.year].filter(Boolean).join(" · "), result.sources.map((source) => search.data!.labels[source] ?? catalog_labels[source as CatalogSource] ?? source).join(", ")]}
                   actions={
                     tracked_id ? (
                       <Badge tone="good">✓ In library</Badge>
