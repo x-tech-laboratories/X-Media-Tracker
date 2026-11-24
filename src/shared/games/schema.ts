@@ -27,6 +27,8 @@ export const games_games = sqliteTable(
     steamgriddb_id: text().notNull().default(""),
     itchio_id: text().notNull().default(""),
     epic_id: text().notNull().default(""),
+    // Ids from catalogues with no column of their own, such as one from the plugins folder, as a JSON object by source.
+    other_ids: text().notNull().default("{}"),
     title: text().notNull(),
     year: text().notNull().default(""),
     release_date: text().notNull().default(""),

@@ -69,7 +69,7 @@ function LibraryMatches({ query }: { query: string }) {
 }
 
 // The catalogue to add a result from: the one whose id names it best.
-function source_of(result: GameSearchResult): [GameSource, string] {
+function source_of(result: GameSearchResult): [string, string] {
   if (result.rawg_id) return ["rawg", result.rawg_id];
   if (result.mobygames_id) return ["mobygames", result.mobygames_id];
   if (result.giantbomb_id) return ["giantbomb", result.giantbomb_id];
@@ -78,7 +78,9 @@ function source_of(result: GameSearchResult): [GameSource, string] {
   if (result.igdb_id) return ["igdb", result.igdb_id];
   if (result.thegamesdb_id) return ["thegamesdb", result.thegamesdb_id];
   if (result.gog_id) return ["gog", result.gog_id];
-  return ["itchio", result.itchio_id];
+  if (result.itchio_id) return ["itchio", result.itchio_id];
+  const [other] = Object.entries(result.other_ids);
+  return other ?? ["itchio", ""];
 }
 
 function result_key(result: GameSearchResult): string {
@@ -123,7 +125,7 @@ function CatalogMatches({ query }: { query: string }) {
                   title={result.title}
                   href={tracked_id ? game_href(tracked_id) : (game_links(result)[0]?.href ?? "#/games")}
                   image={result.cover_url}
-                  lines={[[result.year, result.platforms].filter(Boolean).join(" · "), result.sources.map((source) => catalog_labels[source]).join(", ")]}
+                  lines={[[result.year, result.platforms].filter(Boolean).join(" · "), result.sources.map((source) => search.data!.labels[source] ?? catalog_labels[source as GameSource] ?? source).join(", ")]}
                   actions={
                     tracked_id ? (
                       <Badge tone="good">✓ In library</Badge>

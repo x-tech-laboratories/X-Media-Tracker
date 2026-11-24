@@ -6,7 +6,7 @@
 // ── Imports ──────────────────────────────────────────────────────────────────
 
 import { today } from "@x-tech-laboratories/x-libs/dates";
-import { asc, eq, inArray, or, synced_tables } from "@x-tech-laboratories/x-libs/drizzle";
+import { asc, eq, inArray, or, sql, synced_tables } from "@x-tech-laboratories/x-libs/drizzle";
 import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 
 import { custom_cover, serves_image } from "../covers.ts";
@@ -34,6 +34,7 @@ import {
   group_status,
   is_game_status,
   is_unplayed,
+  clean_other_ids,
   key_fields,
   not_dlc,
   parse_epic_id,
@@ -46,6 +47,7 @@ import {
   type GameIds,
   type GameLaunchIds,
   type GameSource,
+  type OtherIds,
   type GameStatus,
   type GameStatusGroup,
   type GameStatusInfo,
@@ -77,6 +79,8 @@ export interface GameSearch {
   results: GameSearchResult[];
   // Catalogues that failed or were left out, by name with why, such as "RAWG: refused the key".
   failures: string[];
+  // Each searched catalogue's name by its source, for the ones a result came from.
+  labels: Record<string, string>;
 }
 
 export interface AddedGame {
@@ -188,6 +192,7 @@ export function list_games(database: SqlDatabase, ids?: string[]): LibraryGame[]
   return rows.map((row) => ({
     ...row,
     ...status_fields(statuses, row.status),
+    other_ids: clean_other_ids(row.other_ids),
     owned_platforms: parse_list(row.owned_platforms),
     owned_stores: parse_list(row.owned_stores),
     collection_ids: collections_of.get(row.id) ?? [],
@@ -201,11 +206,14 @@ export function require_game(database: SqlDatabase, id: string): LibraryGame {
 }
 
 // The library's game with any of the ids given, so catalogues that know a game by different ids land on one row.
-export function find_game(database: SqlDatabase, ids: Partial<GameIds>): string {
+export function find_game(database: SqlDatabase, ids: Partial<GameIds> & { other_ids?: OtherIds }): string {
   const db = drizzle_of(database);
   const key = game_key(ids);
   if (key && db.select({ id: games_games.id }).from(games_games).where(eq(games_games.id, key)).get()) return key;
-  const matches = game_id_keys.flatMap((column) => (ids[column] ? [eq(games_games[column], ids[column])] : []));
+  const matches = [
+    ...game_id_keys.flatMap((column) => (ids[column] ? [eq(games_games[column], ids[column])] : [])),
+    ...Object.entries(clean_other_ids(ids.other_ids)).map(([source, id]) => sql`json_extract(${games_games.other_ids}, ${`$."${source.replace(/"/g, "")}"`}) = ${id}`),
+  ];
   if (matches.length === 0) return "";
   return db.select({ id: games_games.id }).from(games_games).where(or(...matches)).get()?.id ?? "";
 }
@@ -219,40 +227,59 @@ export function find_by_title(database: SqlDatabase, title: string, year: string
 
 // ── Catalogues ───────────────────────────────────────────────────────────────
 
-// Text and pictures come from the richest catalogue first; Wikidata, asked first for its links, is the last resort.
-const detail_order: GameSource[] = ["rawg", "igdb", "mobygames", "giantbomb", "thegamesdb", "gog", "steam", "itchio", "steamgriddb", "wikidata"];
+// Text and pictures come from the richest catalogue first; one from the plugins folder comes after the built-in ones,
+// and Wikidata, asked first for its links, is the last resort.
+const detail_order: string[] = ["rawg", "igdb", "mobygames", "giantbomb", "thegamesdb", "gog", "steam", "itchio", "steamgriddb"];
+
+function in_detail_order(sources: string[]): string[] {
+  const rank = (source: string) => (source === "wikidata" ? detail_order.length + 1 : detail_order.includes(source) ? detail_order.indexOf(source) : detail_order.length);
+  return [...sources].sort((first, second) => rank(first) - rank(second));
+}
 
 function ids_only(game: CatalogGame): CatalogGame {
   const ids = Object.fromEntries(game_id_keys.map((key) => [key, game[key]]));
-  return { ...empty_game(game.sources[0] ?? "wikidata"), ...ids };
+  return { ...empty_game(game.sources[0] ?? "wikidata"), ...ids, other_ids: { ...game.other_ids } };
 }
 
-// Each catalogue's own answer and the failures, kept for the merge window.
+// A catalogue's own id for a game: its column for a built-in one, else its entry in other_ids.
+function own_id(game: CatalogGame, source: string): string {
+  const column = (key_fields as Record<string, keyof GameIds | undefined>)[source];
+  return column ? game[column] : (game.other_ids[source] ?? "");
+}
+
+function with_own_id(game: CatalogGame, source: string, id: string): CatalogGame {
+  const column = (key_fields as Record<string, keyof GameIds | undefined>)[source];
+  return column ? { ...game, [column]: id } : { ...game, other_ids: { ...game.other_ids, [source]: id } };
+}
+
+// Each catalogue's own answer, its name and the failures, kept for the merge window.
 interface Heard {
-  answers: Partial<Record<GameSource, CatalogGame>>;
+  answers: Record<string, CatalogGame>;
+  labels: Record<string, string>;
   failures: string[];
 }
 
 // What every catalogue that knows the game says: Wikidata first, for the ids the others know it by, then each catalogue
 // with a key by its own id, then SteamGridDB's art. Each may fail alone, and the game is refused only when none answered.
-async function gather(database: SqlDatabase, start: CatalogGame, heard: Heard = { answers: {}, failures: [] }): Promise<CatalogGame> {
+async function gather(database: SqlDatabase, start: CatalogGame, heard: Heard = { answers: {}, labels: {}, failures: [] }): Promise<CatalogGame> {
   const catalogs = (await catalogs_of(database)).filter((catalog) => !catalog.missing);
   const { answers, failures } = heard;
   let ids = ids_only(start);
-  const ask = async (source: GameSource, lookup: () => Promise<CatalogGame>) => {
+  const ask = async (catalog: GameCatalog, lookup: () => Promise<CatalogGame>) => {
+    heard.labels[catalog.source] = catalog.label;
     try {
-      answers[source] = await lookup();
-      ids = merge_games(ids, ids_only(answers[source]!));
+      answers[catalog.source] = await lookup();
+      ids = merge_games(ids, ids_only(answers[catalog.source]!));
     } catch (error) {
-      failures.push(`${catalog_labels[source]}: ${(error as Error).message}`);
+      failures.push(`${catalog.label}: ${(error as Error).message}`);
     }
   };
-  const heard_of = () => detail_order.flatMap((source) => (answers[source] ? [answers[source]!] : []));
+  const heard_of = () => in_detail_order(Object.keys(answers)).map((source) => answers[source]!);
   // A catalogue that can find its own id for the game looks for it first, then each is asked by its own id.
   const ask_by_own_id = async (catalog: GameCatalog, known: CatalogGame) => {
-    const key = key_fields[catalog.source];
-    if (!ids[key] && catalog.find) ids[key] = await catalog.find(ids, known).catch(() => "");
-    if (ids[key]) await ask(catalog.source, () => catalog.game(ids[key]));
+    if (!own_id(ids, catalog.source) && catalog.find) ids = with_own_id(ids, catalog.source, await catalog.find(ids, known).catch(() => ""));
+    const id = own_id(ids, catalog.source);
+    if (id) await ask(catalog, () => catalog.game(id));
   };
   const stage = (name: GameCatalog["stage"]) => catalogs.filter((catalog) => catalog.stage === name);
   for (const catalog of stage("ids")) await ask_by_own_id(catalog, start);
@@ -275,7 +302,7 @@ function cover_choices(game: CatalogGame, answers: CatalogGame[]): string[] {
 // What the catalogues say of a game, with the first cover that serves an image, so art a catalogue lists but no longer has
 // gives way to the next; the address of the image already kept counts without asking, and when none answers the first stays.
 async function gather_with_cover(database: SqlDatabase, start: CatalogGame, kept_from = ""): Promise<CatalogGame> {
-  const heard: Heard = { answers: {}, failures: [] };
+  const heard: Heard = { answers: {}, labels: {}, failures: [] };
   const game = await gather(database, start, heard);
   const choices = cover_choices(game, Object.values(heard.answers));
   if (choices.length <= 1 || kept_from === custom_cover) return game;
@@ -298,6 +325,7 @@ function cover_of(game: CatalogGame): string {
 function metadata_of(game: CatalogGame) {
   return {
     ...Object.fromEntries(game_id_keys.map((key) => [key, game[key]])),
+    other_ids: JSON.stringify(game.other_ids),
     title: game.title,
     year: game.year,
     release_date: game.release_date,
@@ -316,9 +344,15 @@ function base_of(row: { base_game: string } | undefined, game: CatalogGame) {
   return !row?.base_game && game.base_game ? { base_game: game.base_game, base_game_title: game.base_game_title } : {};
 }
 
-// What the catalogues say replaces what was there; a value they no longer give is kept, and so is a cover set by hand.
+// What the catalogues say replaces what was there; a value they no longer give is kept, and so is a cover set by hand,
+// and other catalogues' ids join the ones the game had.
 function keep_known(row: Record<string, unknown>, fields: Record<string, unknown>): Record<string, unknown> {
-  return Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, value === "" || (key === "cover_url" && row.cover_by_hand) ? row[key] : value]));
+  return Object.fromEntries(
+    Object.entries(fields).map(([key, value]) => {
+      if (key === "other_ids") return [key, JSON.stringify({ ...clean_other_ids(row.other_ids), ...clean_other_ids(value) })];
+      return [key, value === "" || (key === "cover_url" && row.cover_by_hand) ? row[key] : value];
+    }),
+  );
 }
 
 // A game already tracked keeps its status, rating, platforms and notes; only what the catalogues say of it changes.
@@ -343,8 +377,14 @@ function write_details(database: SqlDatabase, game: CatalogGame): AddedGame {
   return { id, title: game.title, existed: false };
 }
 
-function start_from(source: GameSource, id: string): CatalogGame {
+// A game to start from by a catalogue's id: a built-in catalogue's as it writes its ids, another's as it is given.
+function start_from(source: string, id: string, label: string): CatalogGame {
   const start = empty_game(source);
+  if (!(source in key_fields)) {
+    start.other_ids = id ? { [source]: id } : {};
+    if (!id) throw new Error(`${label} needs an id.`);
+    return start;
+  }
   if (source === "rawg") start.rawg_id = id.toLowerCase();
   else if (source === "mobygames") start.mobygames_id = /^\d+$/.test(id) ? id : "";
   else if (source === "giantbomb") start.giantbomb_id = parse_giantbomb_id(id);
@@ -355,26 +395,28 @@ function start_from(source: GameSource, id: string): CatalogGame {
   else if (source === "steamgriddb") start.steamgriddb_id = /^\d+$/.test(id) ? id : "";
   else if (source === "itchio") start.itchio_id = parse_itchio_id(id);
   else start.steam_app_id = /^\d+$/.test(id) ? id : "";
-  if (!game_key(start)) throw new Error(`${id} is not a ${catalog_labels[source]} id.`);
+  if (!game_key(start)) throw new Error(`${id} is not a ${label} id.`);
   return start;
 }
 
-async function add_from(database: SqlDatabase, source: GameSource, id: string): Promise<AddedGame> {
-  return write_details(database, await gather_with_cover(database, start_from(source, id.trim())));
+async function add_from(database: SqlDatabase, source: string, id: string): Promise<AddedGame> {
+  const catalog = (await catalogs_of(database)).find((each) => each.source === source);
+  if (!catalog && !(source in key_fields)) throw new Error(`No catalogue named ${source} is on.`);
+  return write_details(database, await gather_with_cover(database, start_from(source, id.trim(), catalog?.label ?? catalog_labels[source as GameSource])));
 }
 
 // Every catalogue searched at once; one failing, or left out for want of a key, leaves the others' answers.
 async function search_everywhere(database: SqlDatabase, query: string): Promise<GameSearch> {
   const searched = (await catalogs_of(database)).filter((catalog) => catalog.search);
-  const failures = searched.filter((catalog) => catalog.missing).map((catalog) => `${catalog_labels[catalog.source]}: ${catalog.missing}`);
+  const failures = searched.filter((catalog) => catalog.missing).map((catalog) => `${catalog.label}: ${catalog.missing}`);
   const searches = searched.filter((catalog) => !catalog.missing);
   if (searches.length === 0) throw new Error(failures.join("; ") || "Every catalogue is off; turn one on in Settings → Games.");
   const settled = await Promise.allSettled(searches.map((catalog) => catalog.search!(query)));
-  failures.push(...settled.flatMap((result, index) => (result.status === "rejected" ? [`${catalog_labels[searches[index]!.source]}: ${(result.reason as Error).message}`] : [])));
+  failures.push(...settled.flatMap((result, index) => (result.status === "rejected" ? [`${searches[index]!.label}: ${(result.reason as Error).message}`] : [])));
   if (settled.every((result) => result.status === "rejected")) throw new Error(failures.join("; "));
   const lists = settled.map((result) => (result.status === "fulfilled" ? result.value : []));
   const results = join_results(lists).map((game) => ({ ...game, cover_url: cover_of(game), tracked_id: find_game(database, game) || find_by_title(database, game.title, game.year) }));
-  return { results, failures };
+  return { results, failures, labels: Object.fromEntries(searched.map((catalog) => [catalog.source, catalog.label])) };
 }
 
 // ── Collections ──────────────────────────────────────────────────────────────
@@ -843,7 +885,7 @@ function snapshot_of(refresh: GamesRefresh): GamesRefresh {
 // Where the catalogues start on a tracked game; one known only by its title is first looked for on Wikidata, and null
 // when it is not there.
 async function start_of(database: SqlDatabase, game: LibraryGame): Promise<CatalogGame | null> {
-  const start: CatalogGame = { ...empty_game("wikidata"), ...Object.fromEntries(game_id_keys.map((key) => [key, game[key]])) };
+  const start: CatalogGame = { ...empty_game("wikidata"), ...Object.fromEntries(game_id_keys.map((key) => [key, game[key]])), other_ids: { ...game.other_ids } };
   if (game_key(start)) return start;
   const wikidata = (await catalogs_of(database)).find((catalog) => catalog.source === "wikidata" && catalog.search);
   if (!wikidata) return null;
@@ -914,11 +956,11 @@ const game_merge_columns = {
 async function game_sources(database: SqlDatabase, game: LibraryGame): Promise<SourceAnswers> {
   const start = await start_of(database, game).catch(() => null);
   if (!start) return { answers: [], failures: ["Wikidata: no game with that title and year."] };
-  const heard: Heard = { answers: {}, failures: [] };
+  const heard: Heard = { answers: {}, labels: {}, failures: [] };
   await gather(database, start, heard).catch(() => undefined);
-  const answers = detail_order.flatMap((source) => {
-    const found = heard.answers[source];
-    return found ? [{ source, label: catalog_labels[source], values: { ...metadata_of(found), ...base_of(undefined, found) } }] : [];
+  const answers = in_detail_order(Object.keys(heard.answers)).map((source) => {
+    const { other_ids: _other_ids, ...values } = metadata_of(heard.answers[source]!);
+    return { source, label: heard.labels[source] ?? source, values: { ...values, ...base_of(undefined, heard.answers[source]!) } };
   });
   return { answers, failures: heard.failures };
 }
@@ -942,6 +984,8 @@ function merge_into(database: SqlDatabase, ids: string[], keep: string, values: 
     if (other) throw new Error(`${other.title} already has that ${id_labels[key]}; merge it too, or remove one of the two games first.`);
   }
   const others = merged.filter((id) => id !== keep);
+  // Other catalogues' ids of every game merged stay on the one kept, its own winning.
+  const other_ids = Object.assign({}, ...[...others, keep].map((id) => require_game(database, id).other_ids)) as OtherIds;
   in_transaction(database, () => {
     if (others.length > 0) {
       for (const link of db.select().from(games_game_collections).where(inArray(games_game_collections.game_id, others)).all()) {
@@ -950,7 +994,7 @@ function merge_into(database: SqlDatabase, ids: string[], keep: string, values: 
       db.update(games_games).set({ base_game: keep }).where(inArray(games_games.base_game, others)).run();
       db.delete(games_games).where(inArray(games_games.id, others)).run();
     }
-    if (Object.keys(fields).length > 0) db.update(games_games).set(fields).where(eq(games_games.id, keep)).run();
+    db.update(games_games).set({ ...fields, other_ids: JSON.stringify(other_ids) }).where(eq(games_games.id, keep)).run();
     // A game is never DLC of itself, as when one merged was DLC of another.
     const base = db.select({ base_game: games_games.base_game }).from(games_games).where(eq(games_games.id, keep)).get()?.base_game ?? "";
     if (merged.includes(base)) db.update(games_games).set({ base_game: "", base_game_title: "" }).where(eq(games_games.id, keep)).run();
@@ -1035,7 +1079,7 @@ export const games_feature = define_feature({
 
     search_games: (database: SqlDatabase, query: string): Promise<GameSearch> => search_everywhere(database, query),
 
-    add_game: (database: SqlDatabase, source: GameSource, id: string): Promise<AddedGame> => add_from(database, source, id),
+    add_game: (database: SqlDatabase, source: string, id: string): Promise<AddedGame> => add_from(database, source, id),
 
     add_game_from_link: (database: SqlDatabase, link: string): Promise<AddedGame> => {
       const parsed = parse_game_link(link);

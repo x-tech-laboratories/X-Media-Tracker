@@ -21,7 +21,10 @@ const status: JsonSchema = {
 
 const status_group: JsonSchema = { type: "string", enum: [...game_status_groups], description: "The group a status is in: want_to_play, playing or played." };
 
-const source: JsonSchema = { type: "string", enum: ["rawg", "igdb", "mobygames", "giantbomb", "thegamesdb", "gog", "wikidata", "steam", "itchio"], description: "Which catalogue the id is from." };
+const source: JsonSchema = {
+  type: "string",
+  description: "Which catalogue the id is from: rawg, igdb, mobygames, giantbomb, thegamesdb, gog, wikidata, steam or itchio, or the source a catalogue from the plugins folder names itself by.",
+};
 
 // ── Calls ────────────────────────────────────────────────────────────────────
 

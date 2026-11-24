@@ -34,6 +34,7 @@ function game(fields: Partial<LibraryGame>): LibraryGame {
     status_label: status.label,
     status_group: status.group,
     id: "",
+    other_ids: {},
     rawg_id: "",
     mobygames_id: "",
     giantbomb_id: "",

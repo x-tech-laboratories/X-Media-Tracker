@@ -93,5 +93,11 @@ export const migrations: DrizzleMigration[] = [
       "ALTER TABLE `games_games` ADD `gog_product_id` text DEFAULT '' NOT NULL;",
       "ALTER TABLE `games_games` ADD `lutris_slug` text DEFAULT '' NOT NULL;"
     ]
+  },
+  {
+    "name": "20261124224304_other_ids",
+    "statements": [
+      "ALTER TABLE `games_games` ADD `other_ids` text DEFAULT '{}' NOT NULL;"
+    ]
   }
 ];

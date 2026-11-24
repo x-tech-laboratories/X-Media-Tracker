@@ -39,18 +39,21 @@ function setting(settings: SettingValues, key: string): string {
   return String(settings[key] ?? "").trim();
 }
 
-function catalog_plugin(manifest: PluginManifest, catalog_of: (settings: SettingValues) => GameCatalog): MediaPlugin {
+// A catalogue as the store asks it, named as its plugin is.
+type CatalogOf = (settings: SettingValues) => Omit<GameCatalog, "label">;
+
+function catalog_plugin(manifest: PluginManifest, catalog_of: CatalogOf): MediaPlugin {
   return define_plugin<MediaPluginApi>({
     ...manifest,
     start: (context) => {
-      const catalog = catalog_of(context.settings());
+      const catalog = { label: manifest.name, ...catalog_of(context.settings()) };
       context.provide("game_catalog", catalog.source, catalog);
     },
   });
 }
 
 // A catalogue reached with a key, which answers nothing until the key is set.
-function keyed<Client extends { game: GameCatalog["game"]; search: NonNullable<GameCatalog["search"]> }>(source: GameCatalog["source"], key: string, client_of: (key: string) => Client): GameCatalog {
+function keyed<Client extends { game: GameCatalog["game"]; search: NonNullable<GameCatalog["search"]> }>(source: GameCatalog["source"], key: string, client_of: (key: string) => Client): ReturnType<CatalogOf> {
   const refuse = () => Promise.reject(new Error("no key set"));
   if (!key) return { source, missing: "no key set", stage: "details", game: refuse, search: refuse };
   const client = client_of(key);
@@ -78,7 +81,7 @@ export const steam_plugin = define_plugin<MediaPluginApi>({
   ...steam_manifest,
   start: (context) => {
     const steam = create_steam();
-    context.provide("game_catalog", "steam", { source: "steam", missing: "", stage: "details", game: steam.game, search: steam.search });
+    context.provide("game_catalog", "steam", { source: "steam", label: steam_manifest.name, missing: "", stage: "details", game: steam.game, search: steam.search });
     context.provide("importer", "steam", { label: "Steam", is_ready: is_steam_ready, run: import_steam, imports_automatically: () => context.settings().auto_import === true });
   },
 });
@@ -97,7 +100,7 @@ export const wikidata_plugin = catalog_plugin(wikidata_manifest, () => {
 export const itchio_plugin = define_plugin<MediaPluginApi>({
   ...itchio_manifest,
   start: (context) => {
-    context.provide("game_catalog", "itchio", { source: "itchio", missing: "", stage: "details", game: create_itchio().game });
+    context.provide("game_catalog", "itchio", { source: "itchio", label: itchio_manifest.name, missing: "", stage: "details", game: create_itchio().game });
     context.provide("importer", "itchio", { label: "itch.io", is_ready: is_itchio_ready, run: import_itchio_library, imports_automatically: () => context.settings().auto_import === true });
   },
 });
