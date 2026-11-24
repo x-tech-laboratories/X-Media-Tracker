@@ -120,6 +120,29 @@ context.provide("book_catalog", "shelfdb", {
 Its answers fill in what BookBrainz, Open Library and Hardcover lack, and its ids travel with the books files and stay
 with the book kept when books are merged.
 
+### Movies and shows catalogues
+
+The `title_catalog` provider is a `TitleCatalog` (`src/shared/library/plugins.ts`), answering in `CatalogTitle`'s shape:
+
+```ts
+context.provide("title_catalog", "shelfdb", {
+  source: "shelfdb",
+  label: "ShelfDB",
+  missing: "",
+  client: null,
+  title: async (media_type, id) => ({ ...empty_title(media_type), other_ids: { shelfdb: id }, tmdb_id: "693134", name: "Dune: Part Two" }),
+  search: async (query, media_type) => [],
+});
+```
+
+- `client` is TMDB's own and stays `null`; cast, seasons and episode lists come only from TMDB.
+- `title(media_type, id)` answers about one movie or show by its id there. Giving its `tmdb_id` or `imdb_id` lets TMDB
+  fill in the rest, and TMDB's answer wins where both say something; without them the title is tracked as `shelfdb:7`.
+- `poster_path` may be a whole address; a TMDB path such as `/abc.jpg` is sized by the page.
+- `search(query, media_type)` joins the search page beside TMDB, the same title found by both shown once.
+
+Its ids travel with the library's files and stay with the title kept when titles are merged.
+
 ## What the web side can reach
 
 `PagePluginApi` is in `src/web/plugins.tsx`.

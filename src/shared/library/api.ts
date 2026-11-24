@@ -43,6 +43,16 @@ export const library_api = {
       { name: "media_type", schema: { type: "string", enum: ["all", "movie", "show"], description: "Movies, shows, or both." } },
     ],
   },
+  search_titles: {
+    description:
+      "Searches every movies and shows catalogue that is on, TMDB and any from the plugins folder, joining the same title found in two, and marks each result " +
+      "already tracked with its id here. Each result has its ids (tmdb_id, imdb_id and other_ids, the ids from catalogues with no column of their own) and the " +
+      "catalogues it came from; catalogues that failed or are left out are named with why.",
+    params: [
+      { name: "query", schema: text("Words of the title, such as Dune.") },
+      { name: "media_type", schema: { type: "string", enum: ["all", "movie", "show"], description: "Movies, shows, or both." } },
+    ],
+  },
   lookup_title_details: {
     description: "Looks up a tracked title on TMDB: its overview, genres, runtime, cast, and for a show every season's episodes with their names, summaries and air dates.",
     params: [{ name: "id", schema: title_id }],
@@ -54,14 +64,34 @@ export const library_api = {
       { name: "tmdb_id", schema: text("TMDB's id, such as 693134.") },
     ],
   },
+  add_title_by_ids: {
+    description:
+      "Adds a movie or show by any ids the catalogues know it by, as search_titles gives them, filling in what every catalogue that knows it says, TMDB's " +
+      "answer winning; one already tracked only has its details refreshed. Gives back its id.",
+    params: [
+      { name: "media_type", schema: media_type },
+      {
+        name: "ids",
+        schema: {
+          type: "object",
+          description: 'Its ids, such as {"tmdb_id": "693134"} or {"other_ids": {"shelfdb": "7"}}; at least one.',
+          properties: {
+            tmdb_id: { type: "string" },
+            imdb_id: { type: "string" },
+            other_ids: { type: "object", description: "Ids from catalogues with no column of their own, by the source the catalogue names itself by.", additionalProperties: { type: "string" } },
+          },
+        },
+      },
+    ],
+  },
   add_title_from_link: {
     description: "Adds a movie or show from a TMDB or IMDb link, or a bare IMDb id such as tt15239678. Gives back its id.",
     params: [{ name: "link", schema: text("Such as https://www.themoviedb.org/tv/95396-severance or https://www.imdb.com/title/tt15239678/.") }],
   },
   lookup_title_sources: {
     description:
-      "Looks up what TMDB says of a tracked title, with the same field names as list_library gives a title: tmdb_id, imdb_id, media_type, name, year, overview, " +
-      "poster_path, genres, runtime and total_episodes. Names TMDB as failed when it could not answer. Use it to pick, field by field, what a title keeps through merge_titles.",
+      "Looks up what TMDB and any catalogue from the plugins folder that knows it say of a tracked title, each answer with the same field names as list_library gives a title: tmdb_id, imdb_id, media_type, name, year, overview, " +
+      "poster_path, genres, runtime and total_episodes. Names each catalogue that could not answer. Use it to pick, field by field, what a title keeps through merge_titles.",
     params: [{ name: "id", schema: title_id }],
   },
   merge_titles: {

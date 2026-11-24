@@ -1,0 +1,1 @@
+ALTER TABLE `library_titles` ADD `other_ids` text DEFAULT '{}' NOT NULL;

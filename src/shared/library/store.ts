@@ -4,11 +4,12 @@
 // ── Imports ──────────────────────────────────────────────────────────────────
 
 import { today } from "@x-tech-laboratories/x-libs/dates";
-import { and, asc, count, eq, inArray, or, synced_tables } from "@x-tech-laboratories/x-libs/drizzle";
+import { and, asc, count, eq, inArray, or, sql, synced_tables } from "@x-tech-laboratories/x-libs/drizzle";
 import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 
 import { Background, define_feature, drizzle_of, new_id } from "../feature.ts";
 import { merge_columns, merge_ids, type SourceAnswers } from "../merging.ts";
+import { clean_other_ids, other_id_path, type OtherIds } from "../other_ids.ts";
 import { move_settings_into_plugins, open_plugin_host } from "../plugins/host.ts";
 import type { TransferFile, TransferInput, TransferReport } from "../transfer.ts";
 import { library_api } from "./api.ts";
@@ -18,6 +19,7 @@ import {
   format_episodes,
   is_status,
   parse_media_link,
+  shares_an_id,
   status_from_progress,
   title_key,
   type Collection,
@@ -32,7 +34,7 @@ import {
 } from "./model.ts";
 import { library_collection_groups, library_collections, library_episodes, library_tables, library_title_collections, library_titles } from "./schema.ts";
 import { moved_library_keys, tmdb_manifest } from "./manifests.ts";
-import { title_catalog_plugins } from "./plugins.ts";
+import { empty_title, title_catalog_plugins, type CatalogHit, type CatalogTitle, type TitleCatalog } from "./plugins.ts";
 import { library_secret_settings, library_setting_defaults } from "./settings.ts";
 import { export_library_csv, export_library_json, import_library_file } from "./transfer.ts";
 import { resolve_details, type Tmdb, type TmdbDetails, type TmdbFullDetails, type TmdbTitle } from "./tmdb.ts";
@@ -48,6 +50,21 @@ export interface Library {
 export interface SearchResult extends TmdbTitle {
   // The library's title with any of the same ids, or "" when it is not tracked.
   tracked_id: string;
+}
+
+export interface TitleSearchResult extends CatalogHit {
+  // The catalogues this result came from, first the one that found it first.
+  sources: string[];
+  // The library's title with any of the same ids, or "" when it is not tracked.
+  tracked_id: string;
+}
+
+export interface TitleSearch {
+  results: TitleSearchResult[];
+  // Catalogues that failed or were left out, by name with why, such as "TMDB: Set a TMDB API key in Settings first.".
+  failures: string[];
+  // Each catalogue's name by its source, for the ones a result came from.
+  labels: Record<string, string>;
 }
 
 export interface Added {
@@ -106,6 +123,12 @@ export async function tmdb_of(database: SqlDatabase): Promise<Tmdb> {
   return catalog.client;
 }
 
+// The catalogues whose plugins are on; one waiting for its key is left out unless asked for with every.
+async function catalogs_of(database: SqlDatabase, every = false): Promise<TitleCatalog[]> {
+  const catalogs = (await open_plugin_host(database, title_catalog_plugins)).providers("title_catalog").map((provided) => provided.value);
+  return every ? catalogs : catalogs.filter((catalog) => !catalog.missing);
+}
+
 // How many titles a refresh asks TMDB about at once, well under TMDB's rate limit.
 export const refresh_concurrency = 8;
 
@@ -119,7 +142,7 @@ function read_seasons(database: SqlDatabase, title_id: string): Seasons {
 }
 
 function as_title(row: typeof library_titles.$inferSelect): Title {
-  return { ...row, media_type: row.media_type === "show" ? "show" : "movie", status: is_status(row.status) ? row.status : "planned" };
+  return { ...row, other_ids: clean_other_ids(row.other_ids), media_type: row.media_type === "show" ? "show" : "movie", status: is_status(row.status) ? row.status : "planned" };
 }
 
 export function list_titles(database: SqlDatabase, ids?: string[]): LibraryTitle[] {
@@ -143,7 +166,7 @@ export function require_title(database: SqlDatabase, id: string): LibraryTitle {
 }
 
 // The library's title with any of the ids given, so sources that know a title by different ids land on one row.
-export function find_title(database: SqlDatabase, ids: Partial<TitleIds>): string {
+export function find_title(database: SqlDatabase, ids: Partial<TitleIds> & { other_ids?: OtherIds }): string {
   const key = title_key(ids);
   const db = drizzle_of(database);
   if (key && db.select({ id: library_titles.id }).from(library_titles).where(eq(library_titles.id, key)).get()) return key;
@@ -151,6 +174,7 @@ export function find_title(database: SqlDatabase, ids: Partial<TitleIds>): strin
     ids.tmdb_id ? eq(library_titles.tmdb_id, String(ids.tmdb_id)) : undefined,
     ids.imdb_id ? eq(library_titles.imdb_id, String(ids.imdb_id)) : undefined,
     ids.trakt_id ? eq(library_titles.trakt_id, String(ids.trakt_id)) : undefined,
+    ...Object.entries(clean_other_ids(ids.other_ids)).map(([source, id]) => sql`json_extract(${library_titles.other_ids}, ${other_id_path(source)}) = ${id}`),
   ].filter((match) => match !== undefined);
   if (matches.length === 0) return "";
   return db.select({ id: library_titles.id }).from(library_titles).where(or(...matches)).get()?.id ?? "";
@@ -179,9 +203,10 @@ export function settle_status(database: SqlDatabase, title_id: string): Status {
   return status;
 }
 
-function metadata_of(details: TmdbDetails) {
+function metadata_of(details: CatalogTitle) {
   return {
     tmdb_id: details.tmdb_id,
+    other_ids: JSON.stringify(details.other_ids),
     name: details.name,
     year: details.year,
     overview: details.overview,
@@ -191,13 +216,25 @@ function metadata_of(details: TmdbDetails) {
   };
 }
 
-// What TMDB says replaces what was there; a value it no longer gives is kept.
-function keep_known<Fields extends Record<string, string | number>>(row: Record<keyof Fields, string | number>, fields: Fields): Fields {
-  return Object.fromEntries(Object.entries(fields).map(([key, value]) => [key, value === "" || value === 0 ? row[key] : value])) as Fields;
+// What the catalogues say replaces what was there; a value they no longer give is kept, and other catalogues' ids join
+// the ones the title had.
+function keep_known<Fields extends Record<string, string | number>>(row: Record<string, unknown>, fields: Fields): Fields {
+  return Object.fromEntries(
+    Object.entries(fields).map(([key, value]) => {
+      if (key === "other_ids") return [key, JSON.stringify({ ...clean_other_ids(row.other_ids), ...clean_other_ids(value) })];
+      return [key, value === "" || value === 0 ? row[key] : value];
+    }),
+  ) as Fields;
 }
 
-// A title already tracked keeps its status, rating and progress; only what TMDB says of it is refreshed.
-function add_details(database: SqlDatabase, details: TmdbDetails): Added {
+// TMDB's answer in a catalogue's shape.
+function from_tmdb(details: TmdbDetails): CatalogTitle {
+  const { season_counts: _season_counts, ...rest } = details;
+  return { ...rest, other_ids: {} };
+}
+
+// A title already tracked keeps its status, rating and progress; only what the catalogues say of it is refreshed.
+function add_details(database: SqlDatabase, details: CatalogTitle): Added {
   const db = drizzle_of(database);
   const existing = find_title(database, details);
   if (existing) {
@@ -226,6 +263,110 @@ function group_named(database: SqlDatabase, name: string): string {
   return id;
 }
 
+// ── Catalogues ───────────────────────────────────────────────────────────────
+
+// Each catalogue's own answer, its name and the failures, kept for the merge window.
+interface Heard {
+  answers: Record<string, CatalogTitle>;
+  labels: Record<string, string>;
+  failures: string[];
+}
+
+const nothing_heard = (): Heard => ({ answers: {}, labels: {}, failures: [] });
+
+// A catalogue's failure by its name, once; TMDB's own errors already start with it.
+function failure_of(label: string, error: unknown): string {
+  const message = (error as Error).message;
+  return message.startsWith(`${label}:`) ? message : `${label}: ${message}`;
+}
+
+// The first answer wins where both say something; the second fills what the first lacks.
+function merge_answers(first: CatalogTitle, second: CatalogTitle): CatalogTitle {
+  const filled = Object.fromEntries(Object.entries(first).map(([key, value]) => [key, value === "" || value === 0 ? second[key as keyof CatalogTitle] : value]));
+  return { ...(filled as unknown as CatalogTitle), other_ids: { ...second.other_ids, ...first.other_ids } };
+}
+
+// Where the catalogues start on a tracked title: its ids alone.
+function start_of(title: Title): CatalogTitle {
+  return { ...empty_title(title.media_type), tmdb_id: title.tmdb_id, imdb_id: title.imdb_id, other_ids: { ...title.other_ids } };
+}
+
+// What every catalogue that knows the title says: each other catalogue by its own id first, for the TMDB or IMDb id it
+// may know, then TMDB, whose answer wins where they differ. Each may fail alone; the title is refused only when none answered.
+async function gather(database: SqlDatabase, start: CatalogTitle, heard: Heard = nothing_heard()): Promise<CatalogTitle> {
+  const catalogs = await catalogs_of(database, true);
+  let ids = { tmdb_id: start.tmdb_id, imdb_id: start.imdb_id };
+  const ask = async (catalog: TitleCatalog, lookup: () => Promise<CatalogTitle>) => {
+    heard.labels[catalog.source] = catalog.label;
+    try {
+      const found = await lookup();
+      heard.answers[catalog.source] = found;
+      ids = { tmdb_id: ids.tmdb_id || found.tmdb_id, imdb_id: ids.imdb_id || found.imdb_id };
+    } catch (error) {
+      heard.failures.push(failure_of(catalog.label, error));
+    }
+  };
+  for (const catalog of catalogs) {
+    const id = start.other_ids[catalog.source];
+    if (catalog.source === "tmdb" || !id || !catalog.title) continue;
+    if (catalog.missing) heard.failures.push(`${catalog.label}: ${catalog.missing}`);
+    else await ask(catalog, () => catalog.title!(start.media_type, id));
+  }
+  if (ids.tmdb_id || ids.imdb_id) {
+    const tmdb = catalogs.find((catalog) => catalog.source === "tmdb");
+    if (!tmdb) heard.failures.push(`TMDB: The ${tmdb_manifest.name} plugin is off; turn it on in Settings.`);
+    else if (!tmdb.client) heard.failures.push(`${tmdb.label}: ${tmdb.missing}`);
+    else await ask(tmdb, async () => from_tmdb(await resolve_details(tmdb.client!, start.media_type, ids.tmdb_id, ids.imdb_id)));
+  }
+  const found = [heard.answers.tmdb, ...Object.entries(heard.answers).flatMap(([source, answer]) => (source === "tmdb" ? [] : [answer]))].filter((answer) => answer !== undefined);
+  if (found.length === 0) throw new Error(heard.failures.join("; ") || "No catalogue knows that title.");
+  return [...found, start].reduce(merge_answers);
+}
+
+// Every catalogue searched at once, the same title found by two joined; one failing, or left out for want of a key,
+// leaves the others' answers.
+async function search_everywhere(database: SqlDatabase, query: string, media_type: MediaType | "all"): Promise<TitleSearch> {
+  const catalogs = await catalogs_of(database, true);
+  const failures = catalogs.filter((catalog) => catalog.missing).map((catalog) => `${catalog.label}: ${catalog.missing}`);
+  const searches = catalogs.filter((catalog) => !catalog.missing && catalog.search);
+  if (searches.length === 0) throw new Error(failures.join("; ") || `Every catalogue is off; turn ${tmdb_manifest.name} on in Settings.`);
+  const settled = await Promise.allSettled(searches.map((catalog) => catalog.search!(query, media_type)));
+  const joined: (CatalogHit & { sources: string[] })[] = [];
+  settled.forEach((result, index) => {
+    const catalog = searches[index]!;
+    if (result.status === "rejected") return void failures.push(failure_of(catalog.label, result.reason));
+    for (const hit of result.value) {
+      const same = joined.find((each) => each.media_type === hit.media_type && shares_an_id(each, hit));
+      if (!same) joined.push({ ...hit, sources: [catalog.source] });
+      else Object.assign(same, { ...merge_answers({ ...empty_title(same.media_type), ...same }, { ...empty_title(hit.media_type), ...hit }), sources: [...same.sources, catalog.source] });
+    }
+  });
+  if (settled.every((result) => result.status === "rejected")) throw new Error(failures.join("; "));
+  const results = joined.map(({ tmdb_id, imdb_id, other_ids, media_type: type, name, year, overview, poster_path, sources }) => ({
+    tmdb_id,
+    imdb_id,
+    other_ids,
+    media_type: type,
+    name,
+    year,
+    overview,
+    poster_path,
+    sources,
+    tracked_id: find_title(database, { tmdb_id, imdb_id, other_ids }),
+  }));
+  return { results, failures, labels: Object.fromEntries(searches.map((catalog) => [catalog.source, catalog.label])) };
+}
+
+// A movie or show by any ids the catalogues know it by; another catalogue's must be on.
+async function add_by_ids(database: SqlDatabase, media_type: MediaType, ids: { tmdb_id?: string; imdb_id?: string; other_ids?: OtherIds }): Promise<Added> {
+  if (media_type !== "movie" && media_type !== "show") throw new Error("A title is a movie or a show.");
+  const start = { ...empty_title(media_type), tmdb_id: String(ids.tmdb_id ?? "").trim(), imdb_id: String(ids.imdb_id ?? "").trim(), other_ids: clean_other_ids(ids.other_ids) };
+  if (!title_key(start)) throw new Error("Give a TMDB id, an IMDb id or another catalogue's id.");
+  const on = await catalogs_of(database, true);
+  for (const source of Object.keys(start.other_ids)) if (!on.some((catalog) => catalog.source === source)) throw new Error(`No catalogue named ${source} is on.`);
+  return add_details(database, await gather(database, start));
+}
+
 // ── Merging ──────────────────────────────────────────────────────────────────
 
 const title_merge_columns = {
@@ -235,15 +376,17 @@ const title_merge_columns = {
   rating: "nullable_number",
 } as const;
 
-// What TMDB says of a tracked title, for picking what to keep field by field.
+// What each catalogue says of a tracked title, TMDB first, for picking what to keep field by field.
 async function title_sources(database: SqlDatabase, title: LibraryTitle): Promise<SourceAnswers> {
-  try {
-    const details = await resolve_details(await tmdb_of(database), title.media_type, title.tmdb_id, title.imdb_id);
-    const values = { ...metadata_of(details), imdb_id: details.imdb_id, media_type: details.media_type, total_episodes: details.total_episodes };
-    return { answers: [{ source: "tmdb", label: "TMDB", values }], failures: [] };
-  } catch (error) {
-    return { answers: [], failures: [`TMDB: ${(error as Error).message}`] };
-  }
+  const heard = nothing_heard();
+  await gather(database, start_of(title), heard).catch(() => undefined);
+  const sources = Object.keys(heard.answers).sort((first, second) => Number(second === "tmdb") - Number(first === "tmdb"));
+  const answers = sources.map((source) => {
+    const found = heard.answers[source]!;
+    const { other_ids: _other_ids, ...values } = metadata_of(found);
+    return { source, label: heard.labels[source] ?? source, values: { ...values, imdb_id: found.imdb_id, media_type: found.media_type, total_episodes: found.total_episodes } };
+  });
+  return { answers, failures: heard.failures };
 }
 
 // The titles merged become the one kept: it takes the values given and every watched episode and collection of the
@@ -262,6 +405,8 @@ function merge_into(database: SqlDatabase, ids: string[], keep: string, values: 
     if (other) throw new Error(`${other.name} already has that id; merge it too, or remove one of the two titles first.`);
   }
   const others = merged.filter((id) => id !== keep);
+  // Every merged title's other ids stay, the kept one's winning where two name one catalogue.
+  const other_ids = Object.assign({}, ...[...others, keep].map((id) => require_title(database, id).other_ids)) as OtherIds;
   in_transaction(database, () => {
     if (others.length > 0) {
       write_episodes(database, keep, db.select().from(library_episodes).where(inArray(library_episodes.title_id, others)).all(), true);
@@ -270,7 +415,7 @@ function merge_into(database: SqlDatabase, ids: string[], keep: string, values: 
       }
       db.delete(library_titles).where(inArray(library_titles.id, others)).run();
     }
-    if (Object.keys(fields).length > 0) db.update(library_titles).set(fields).where(eq(library_titles.id, keep)).run();
+    db.update(library_titles).set({ ...fields, other_ids: JSON.stringify(other_ids) }).where(eq(library_titles.id, keep)).run();
   });
   return require_title(database, keep);
 }
@@ -293,16 +438,18 @@ async function run_refresh(database: SqlDatabase, refresh: LibraryRefresh): Prom
     const report: RefreshReport = { total: titles.length, metadata_updated: 0, status_updated: 0, failed: 0 };
     refresh.total = titles.length;
     const tmdb = await tmdb_if_ready(database);
+    const others = (await catalogs_of(database)).filter((catalog) => catalog.source !== "tmdb" && catalog.title);
     const refresh_title = async (title: LibraryTitle): Promise<void> => {
-      if (tmdb) {
+      if (tmdb || others.some((catalog) => title.other_ids[catalog.source])) {
         try {
-          const details = await resolve_details(tmdb, title.media_type, title.tmdb_id, title.imdb_id);
+          const details = await gather(database, start_of(title));
+          const row: Record<string, unknown> = { ...title, other_ids: JSON.stringify(title.other_ids) };
           const fields = {
-            ...keep_known(title, metadata_of(details)),
+            ...keep_known(row, metadata_of(details)),
             imdb_id: details.imdb_id || title.imdb_id,
             total_episodes: details.total_episodes || title.total_episodes,
           };
-          const changed = (Object.keys(fields) as (keyof typeof fields)[]).some((key) => fields[key] !== title[key]);
+          const changed = Object.entries(fields).some(([key, value]) => value !== row[key]);
           if (changed) {
             drizzle_of(database).update(library_titles).set(fields).where(eq(library_titles.id, title.id)).run();
             report.metadata_updated++;
@@ -353,25 +500,31 @@ export const library_feature = define_feature({
       return results.map((result) => ({ ...result, tracked_id: find_title(database, { tmdb_id: result.tmdb_id }) }));
     },
 
+    search_titles: (database: SqlDatabase, query: string, media_type: MediaType | "all"): Promise<TitleSearch> => search_everywhere(database, query, media_type),
+
     // A title known only by its IMDb id keeps the TMDB id found for it, so the lookup happens once.
     lookup_title_details: async (database: SqlDatabase, id: string): Promise<TitleDetails> => {
       const title = require_title(database, id);
+      // A title only another catalogue knows has no cast or seasons to look up.
+      if (!title.tmdb_id && !title.imdb_id) return { ...start_of(title), name: title.name, year: title.year, overview: title.overview, poster_path: title.poster_path, genres: title.genres, runtime: title.runtime, total_episodes: title.total_episodes, season_counts: {}, cast: [], seasons: [], title };
       const tmdb = await tmdb_of(database);
       const tmdb_id = title.tmdb_id || (await resolve_details(tmdb, title.media_type, "", title.imdb_id)).tmdb_id;
       return { ...(await tmdb.full_details(title.media_type, tmdb_id)), title };
     },
 
-    add_title: async (database: SqlDatabase, media_type: MediaType, tmdb_id: string): Promise<Added> => add_details(database, await (await tmdb_of(database)).details(media_type, tmdb_id)),
+    add_title: async (database: SqlDatabase, media_type: MediaType, tmdb_id: string): Promise<Added> => add_details(database, from_tmdb(await (await tmdb_of(database)).details(media_type, tmdb_id))),
+
+    add_title_by_ids: (database: SqlDatabase, media_type: MediaType, ids: { tmdb_id?: string; imdb_id?: string; other_ids?: OtherIds }): Promise<Added> => add_by_ids(database, media_type, ids),
 
     // An IMDb link does not say whether it is a movie or a show, so both are asked for; an id matches only one.
     add_title_from_link: async (database: SqlDatabase, link: string): Promise<Added> => {
       const parsed = parse_media_link(link);
       if (!parsed) throw new Error("Not a TMDB or IMDb link, such as https://www.themoviedb.org/movie/693134 or https://www.imdb.com/title/tt15239678/.");
       const tmdb = await tmdb_of(database);
-      if ("tmdb_id" in parsed) return add_details(database, await tmdb.details(parsed.media_type, parsed.tmdb_id));
+      if ("tmdb_id" in parsed) return add_details(database, from_tmdb(await tmdb.details(parsed.media_type, parsed.tmdb_id)));
       for (const media_type of ["movie", "show"] as const) {
         const tmdb_id = await tmdb.find_by_imdb(parsed.imdb_id, media_type);
-        if (tmdb_id) return add_details(database, await tmdb.details(media_type, tmdb_id));
+        if (tmdb_id) return add_details(database, from_tmdb(await tmdb.details(media_type, tmdb_id)));
       }
       throw new Error(`TMDB has no match for ${parsed.imdb_id}.`);
     },

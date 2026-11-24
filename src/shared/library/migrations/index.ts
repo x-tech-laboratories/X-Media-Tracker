@@ -28,5 +28,11 @@ export const migrations: DrizzleMigration[] = [
     "statements": [
       "ALTER TABLE `library_titles` ADD `notes` text DEFAULT '' NOT NULL;"
     ]
+  },
+  {
+    "name": "20261124230259_other_ids",
+    "statements": [
+      "ALTER TABLE `library_titles` ADD `other_ids` text DEFAULT '{}' NOT NULL;"
+    ]
   }
 ];

@@ -22,6 +22,7 @@ function title(fields: Partial<LibraryTitle> & Pick<LibraryTitle, "id" | "name">
     tmdb_id: "",
     imdb_id: "",
     trakt_id: "",
+    other_ids: {},
     media_type: "movie",
     year: "",
     overview: "",

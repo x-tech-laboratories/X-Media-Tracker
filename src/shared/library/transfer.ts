@@ -8,7 +8,7 @@ import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sq
 
 import { drizzle_of, new_id } from "../feature.ts";
 import { meet_row, read_transfer, transfer_csv, transfer_file, type ImportConflict, type Row, type TransferFile, type TransferInput, type TransferReport, type TransferTable } from "../transfer.ts";
-import { is_status, title_key } from "./model.ts";
+import { clean_other_ids, is_status, title_key } from "./model.ts";
 import { library_collection_groups, library_collections, library_episodes, library_title_collections, library_titles } from "./schema.ts";
 import { find_title } from "./store.ts";
 
@@ -21,7 +21,7 @@ const tables: TransferTable[] = [
     name: "titles",
     required: true,
     columns: {
-      ...text_columns(["id", "tmdb_id", "imdb_id", "trakt_id", "media_type", "name", "year", "overview", "poster_path", "genres"]),
+      ...text_columns(["id", "tmdb_id", "imdb_id", "trakt_id", "other_ids", "media_type", "name", "year", "overview", "poster_path", "genres"]),
       runtime: "number",
       total_episodes: "number",
       ...text_columns(["status"]),
@@ -120,7 +120,8 @@ export function import_library_file(database: SqlDatabase, input: TransferInput)
       const { id: file_value, ...values } = title;
       const file_id = String(file_value ?? "");
       if (values.status !== undefined && !is_status(values.status)) delete values.status;
-      const ids = { tmdb_id: String(values.tmdb_id ?? ""), imdb_id: String(values.imdb_id ?? ""), trakt_id: String(values.trakt_id ?? "") };
+      if (values.other_ids !== undefined) values.other_ids = JSON.stringify(clean_other_ids(values.other_ids));
+      const ids = { tmdb_id: String(values.tmdb_id ?? ""), imdb_id: String(values.imdb_id ?? ""), trakt_id: String(values.trakt_id ?? ""), other_ids: clean_other_ids(values.other_ids) };
       const existing = find_title(database, ids) || (file_id ? (db.select({ id: library_titles.id }).from(library_titles).where(eq(library_titles.id, file_id)).get()?.id ?? "") : "");
       if (!existing) {
         const id = title_key(ids) || file_id || new_id();

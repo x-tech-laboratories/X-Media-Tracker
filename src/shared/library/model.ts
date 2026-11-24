@@ -1,6 +1,10 @@
 // What a tracked movie or show is, and the rules on it that need no database: episode runs such as "s01e01-e10",
 // status from progress, which ids name the same title, pasted links, sorting and the Library's filters with counts.
-// The page imports this file too, so it imports nothing.
+// The page imports this file too, so it imports only other_ids.ts, which imports nothing.
+
+import { clean_other_ids, other_key, shares_an_other_id, type OtherIds } from "../other_ids.ts";
+
+export { clean_other_ids, type OtherIds };
 
 // ── Titles ───────────────────────────────────────────────────────────────────
 
@@ -18,6 +22,8 @@ export interface TitleIds {
 
 export interface Title extends TitleIds {
   id: string;
+  // Ids from catalogues with no column of their own, such as one from the plugins folder.
+  other_ids: OtherIds;
   media_type: MediaType;
   name: string;
   year: string;
@@ -59,18 +65,19 @@ export const status_labels: Record<Status, string> = { planned: "Planned", watch
 
 // ── Ids ──────────────────────────────────────────────────────────────────────
 
-// The strongest id first: TMDB holds the metadata, IMDb links the sources (Stremio has only it), Trakt last.
-export function title_key(ids: Partial<TitleIds>): string {
+// The strongest id first: TMDB holds the metadata, IMDb links the sources (Stremio has only it), Trakt, and last another
+// catalogue's, the first by its source's name.
+export function title_key(ids: Partial<TitleIds> & { other_ids?: OtherIds }): string {
   if (ids.tmdb_id) return `tmdb:${ids.tmdb_id}`;
   if (ids.imdb_id) return `imdb:${ids.imdb_id}`;
   if (ids.trakt_id) return `trakt:${ids.trakt_id}`;
-  return "";
+  return other_key(ids.other_ids);
 }
 
 // Whether two titles share any id, so a title first seen with only an IMDb id is found once its TMDB id is known.
-export function shares_an_id(first: Partial<TitleIds>, second: Partial<TitleIds>): boolean {
+export function shares_an_id(first: Partial<TitleIds> & { other_ids?: OtherIds }, second: Partial<TitleIds> & { other_ids?: OtherIds }): boolean {
   const same = (one: string | undefined, other: string | undefined) => !!one && String(one) === String(other ?? "");
-  return same(first.tmdb_id, second.tmdb_id) || same(first.imdb_id, second.imdb_id) || same(first.trakt_id, second.trakt_id);
+  return same(first.tmdb_id, second.tmdb_id) || same(first.imdb_id, second.imdb_id) || same(first.trakt_id, second.trakt_id) || shares_an_other_id(first.other_ids, second.other_ids);
 }
 
 // ── Episodes ─────────────────────────────────────────────────────────────────
@@ -192,7 +199,9 @@ export const poster_sizes = ["w185", "w342", "w500"] as const;
 // The widths a poster kept on every device may be taken at; original is the file TMDB was given, often over 1 MB.
 export const saved_poster_sizes = ["w342", "w500", "w780", "original"] as const;
 
+// A TMDB image path at a size; a whole address, as another catalogue gives, is used as it is.
 export function image_url(path: string, size: string): string {
+  if (/^https?:\/\//.test(path)) return path;
   return path ? `${image_base}${size}${path}` : "";
 }
 
