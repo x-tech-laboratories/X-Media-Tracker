@@ -1,0 +1,1 @@
+ALTER TABLE `games_games` ADD `other_ids` text DEFAULT '{}' NOT NULL;

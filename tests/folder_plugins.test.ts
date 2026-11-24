@@ -9,6 +9,8 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import { read_plugin_file } from "../src/main/plugin_files.ts";
 import { build_app } from "../src/server/app.ts";
+import { empty_game } from "../src/shared/games/catalog.ts";
+import { game_catalog_manifests } from "../src/shared/games/manifests.ts";
 import { app_info } from "../src/shared/plugins/app.ts";
 import { use_folder_plugins, type MediaPluginApi } from "../src/shared/plugins/host.ts";
 import { bind_methods, open_store } from "../src/shared/store.ts";
@@ -92,5 +94,62 @@ describe("the plugins folder's files", () => {
     const index = await app.inject({ method: "GET", url: "/api/plugins/index.json", headers: { authorization: `Bearer ${token}` } });
     expect(index.json()).toEqual({ entries: ["shelf/dist/web.js"], problems: [] });
     await app.close();
+  });
+});
+
+// ── Catalogues ───────────────────────────────────────────────────────────────
+
+// A game catalogue as one from the plugins folder would be, keeping its ids under its own source name.
+const shelfdb_plugin = define_plugin<MediaPluginApi>({
+  id: "someone.shelfdb",
+  name: "ShelfDB",
+  version: "1.0.0",
+  app: app_info.id,
+  start: (context) => {
+    const game = (id: string) => ({ ...empty_game("shelfdb"), other_ids: { shelfdb: id }, title: id === "7" ? "Outer Wilds" : "Tunic", year: "2019", overview: `Game ${id} from ShelfDB.` });
+    context.provide("game_catalog", "shelfdb", {
+      source: "shelfdb",
+      label: "ShelfDB",
+      missing: "",
+      stage: "details",
+      game: async (id) => game(id),
+      search: async () => [game("7")],
+    });
+  },
+});
+
+describe("a game catalogue from the plugins folder", () => {
+  function open_with_shelfdb() {
+    use_folder_plugins([shelfdb_plugin]);
+    const database = new DatabaseSync(":memory:");
+    open_store(database);
+    const store = bind_methods(() => database, () => undefined);
+    // The built-in catalogues are off, so only ShelfDB answers.
+    store.set_setting("plugins", Object.fromEntries(game_catalog_manifests.map((manifest) => [manifest.id, { enabled: false }])));
+    return store;
+  }
+
+  it("is searched under its own name and adds a game kept by its id", async () => {
+    const store = open_with_shelfdb();
+
+    const search = await store.search_games("outer");
+    expect(search.results).toEqual([expect.objectContaining({ title: "Outer Wilds", other_ids: { shelfdb: "7" }, sources: ["shelfdb"] })]);
+    expect(search.labels.shelfdb).toBe("ShelfDB");
+
+    expect(await store.add_game("shelfdb", "7")).toEqual({ id: "shelfdb:7", title: "Outer Wilds", existed: false });
+    expect(store.get_game("shelfdb:7")).toMatchObject({ other_ids: { shelfdb: "7" }, overview: "Game 7 from ShelfDB." });
+    expect((await store.add_game("shelfdb", "7")).existed).toBe(true);
+    expect((await store.lookup_game_sources("shelfdb:7")).answers).toEqual([expect.objectContaining({ source: "shelfdb", label: "ShelfDB" })]);
+  });
+
+  it("keeps every merged game's ids from it on the one kept", async () => {
+    const store = open_with_shelfdb();
+    await store.add_game("shelfdb", "7");
+    await store.add_game("shelfdb", "8");
+
+    const merged = store.merge_games(["shelfdb:7", "shelfdb:8"], "shelfdb:7", {});
+
+    expect(merged.other_ids).toEqual({ shelfdb: "7" });
+    expect(store.get_game("shelfdb:8")).toBeNull();
   });
 });

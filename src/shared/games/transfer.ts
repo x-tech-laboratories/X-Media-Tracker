@@ -7,7 +7,7 @@ import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sq
 
 import { drizzle_of, new_id } from "../feature.ts";
 import { meet_row, read_transfer, transfer_csv, transfer_file, type ImportConflict, type Row, type TransferFile, type TransferInput, type TransferReport, type TransferTable } from "../transfer.ts";
-import { game_id_keys, game_key, game_launch_keys, is_game_status } from "./model.ts";
+import { clean_other_ids, game_id_keys, game_key, game_launch_keys, is_game_status } from "./model.ts";
 import { games_collections, games_game_collections, games_games } from "./schema.ts";
 import { find_by_title, find_game, statuses_of } from "./store.ts";
 
@@ -20,7 +20,7 @@ const tables: TransferTable[] = [
     name: "games",
     required: true,
     columns: {
-      ...text_columns(["id", ...game_id_keys, "title", "year", "release_date", "overview", "cover_url"]),
+      ...text_columns(["id", ...game_id_keys, "other_ids", "title", "year", "release_date", "overview", "cover_url"]),
       cover_by_hand: "boolean",
       ...text_columns(["genres", "platforms", "developers", "publishers", "status"]),
       rating: "nullable_number",
@@ -120,7 +120,8 @@ export function import_games_file(database: SqlDatabase, input: TransferInput): 
       const { id: file_value, ...values } = game;
       const file_id = String(file_value ?? "");
       if (values.status !== undefined && !is_game_status(statuses, values.status)) delete values.status;
-      const ids = Object.fromEntries(game_id_keys.map((column) => [column, String(values[column] ?? "")]));
+      if (values.other_ids !== undefined) values.other_ids = JSON.stringify(clean_other_ids(values.other_ids));
+      const ids = { ...Object.fromEntries(game_id_keys.map((column) => [column, String(values[column] ?? "")])), other_ids: clean_other_ids(values.other_ids) };
       const existing =
         find_game(database, ids) || (file_id ? (db.select({ id: games_games.id }).from(games_games).where(eq(games_games.id, file_id)).get()?.id ?? "") : "") || find_by_title(database, title, String(values.year ?? ""));
       if (!existing) {

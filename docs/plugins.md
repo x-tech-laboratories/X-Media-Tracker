@@ -72,6 +72,31 @@ marked `secret` is drawn hidden and never shown to other programs.
 
 Every import adds and merges and never removes anything.
 
+### Game catalogues
+
+The `game_catalog` provider is a `GameCatalog` (`src/shared/games/catalog.ts`), answering in `CatalogGame`'s shape:
+
+```ts
+context.provide("game_catalog", "shelfdb", {
+  source: "shelfdb",
+  label: "ShelfDB",
+  missing: "",
+  stage: "details",
+  game: async (id) => ({ ...empty_game("shelfdb"), other_ids: { shelfdb: id }, title: "Outer Wilds", year: "2019" }),
+  search: async (query) => [],
+});
+```
+
+- `source` is the catalogue's own name, under which a game keeps its id in `other_ids`, such as `{ "shelfdb": "7" }`; a
+  game known only by it is tracked as `shelfdb:7`. Pick a name no built-in catalogue uses.
+- `missing` says why it cannot be asked, such as `"no key set"`, which search reports; `""` when it can.
+- `stage` is when adding or refreshing a game asks it: `"ids"` first, `"details"`, or `"art"` last.
+- `game(id)` answers about one game by its id there; `search(query)`, when given, joins search; `find(ids, known)`,
+  when given, finds its own id for a game known by others.
+
+Its answers fill in what the built-in catalogues lack and come before Wikidata's. Its ids travel with the library's
+games files and stay with the game kept when games are merged.
+
 ## What the web side can reach
 
 `PagePluginApi` is in `src/web/plugins.tsx`.

@@ -125,6 +125,23 @@ export interface GameIds {
   epic_id: string;
 }
 
+// Ids from catalogues with no column of their own, such as one from the plugins folder, by the catalogue's source name.
+export type OtherIds = Record<string, string>;
+
+// Other ids as stored or given: a JSON object, or its text, of non-empty text values.
+export function clean_other_ids(value: unknown): OtherIds {
+  let parsed = value;
+  if (typeof value === "string") {
+    try {
+      parsed = JSON.parse(value || "{}");
+    } catch {
+      return {};
+    }
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return {};
+  return Object.fromEntries(Object.entries(parsed).flatMap(([source, id]) => (source && typeof id === "string" && id.trim() ? [[source, id.trim()]] : [])));
+}
+
 // New catalogues go last, so a tracked game's id, made from the first id it has, never changes.
 export const game_id_keys = ["rawg_id", "mobygames_id", "giantbomb_id", "wikidata_id", "steam_app_id", "igdb_id", "thegamesdb_id", "gog_id", "steamgriddb_id", "itchio_id", "epic_id"] as const satisfies readonly (keyof GameIds)[];
 
@@ -143,6 +160,7 @@ export const game_launch_keys = ["epic_namespace", "epic_app_name", "gog_product
 
 export interface Game extends GameIds, GameLaunchIds {
   id: string;
+  other_ids: OtherIds;
   title: string;
   year: string;
   // The first release, such as 2011-04-18, or "".
@@ -194,17 +212,21 @@ export interface GameCollection {
 
 // ── Ids ──────────────────────────────────────────────────────────────────────
 
-// The strongest id first: RAWG covers the most games, then the curated catalogues, then Wikidata, then a store.
-export function game_key(ids: Partial<GameIds>): string {
+// The strongest id first: RAWG covers the most games, then the curated catalogues, then Wikidata, then a store, and
+// last another catalogue's, the first by its source's name.
+export function game_key(ids: Partial<GameIds> & { other_ids?: OtherIds }): string {
   for (const key of game_id_keys) {
     const value = ids[key];
     if (value) return `${key.replace(/_id$|_app_id$/, "")}:${value}`;
   }
-  return "";
+  const [source, value] = Object.entries(clean_other_ids(ids.other_ids)).sort(([first], [second]) => first.localeCompare(second))[0] ?? [];
+  return source ? `${source}:${value}` : "";
 }
 
-export function shares_a_game_id(first: Partial<GameIds>, second: Partial<GameIds>): boolean {
-  return game_id_keys.some((key) => !!first[key] && first[key] === second[key]);
+export function shares_a_game_id(first: Partial<GameIds> & { other_ids?: OtherIds }, second: Partial<GameIds> & { other_ids?: OtherIds }): boolean {
+  if (game_id_keys.some((key) => !!first[key] && first[key] === second[key])) return true;
+  const theirs = clean_other_ids(second.other_ids);
+  return Object.entries(clean_other_ids(first.other_ids)).some(([source, id]) => theirs[source] === id);
 }
 
 // A Wikidata item such as Q279744, alone or in a link.
@@ -247,7 +269,9 @@ export function find_base_game<Item extends Game>(game: Pick<Game, "base_game">,
   const exact = games.find((each) => each.id === game.base_game);
   if (exact) return exact;
   const split = game.base_game.indexOf(":");
-  const field = (key_fields as Record<string, keyof GameIds | undefined>)[game.base_game.slice(0, split)];
+  const source = game.base_game.slice(0, split);
+  const field = (key_fields as Record<string, keyof GameIds | undefined>)[source];
+  if (!field && split > 0) return games.find((each) => each.other_ids?.[source] === game.base_game.slice(split + 1));
   const value = game.base_game.slice(split + 1);
   return field && value ? games.find((each) => each[field] === value) : undefined;
 }

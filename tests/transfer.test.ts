@@ -158,13 +158,15 @@ describe("Games files", () => {
     from.database.exec(`
       INSERT INTO games_games (id, steam_app_id, title, status, owned_platforms, playtime_minutes) VALUES ('steam:620', '620', 'Portal 2', 'played', '["PC"]', 600);
       INSERT INTO games_games (id, title, base_game) VALUES ('title:portal 2 dlc', 'Portal 2 DLC', 'steam:620');
+      INSERT INTO games_games (id, title, other_ids) VALUES ('shelfdb:7', 'Outer Wilds', '{"shelfdb":"7"}');
       INSERT INTO games_collections (id, name) VALUES ('collection-1', 'Puzzles');
       INSERT INTO games_game_collections (game_id, collection_id) VALUES ('steam:620', 'collection-1');
     `);
     const to = store();
 
-    expect(to.methods.import_games_file({ json: JSON.stringify(from.methods.export_games_json()) })).toEqual({ added: 2, updated: 0, unchanged: 0, conflicts: [] });
+    expect(to.methods.import_games_file({ json: JSON.stringify(from.methods.export_games_json()) })).toEqual({ added: 3, updated: 0, unchanged: 0, conflicts: [] });
     expect(to.methods.get_game("steam:620")).toMatchObject({ owned_platforms: ["PC"], playtime_minutes: 600, collection_ids: [expect.any(String)] });
+    expect(to.methods.get_game("shelfdb:7")).toMatchObject({ other_ids: { shelfdb: "7" } });
     expect(to.methods.get_game("title:portal 2 dlc")!.base_game).toBe("steam:620");
   });
 

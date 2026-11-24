@@ -3,7 +3,7 @@
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
-import { game_id_keys, shares_a_game_id, type GameIds, type GameSource } from "./model.ts";
+import { game_id_keys, shares_a_game_id, type GameIds, type GameSource, type OtherIds } from "./model.ts";
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
 
@@ -22,14 +22,16 @@ export const catalog_labels: Record<GameSource, string> = {
 
 export interface CatalogGame extends GameIds {
   // The catalogues this answer came from, first the one searched.
-  sources: GameSource[];
+  sources: string[];
+  // Ids from catalogues with no column of their own.
+  other_ids: OtherIds;
   title: string;
   year: string;
   release_date: string;
   overview: string;
   // Box art, upright where the catalogue has it, and the catalogue it came from.
   cover_url: string;
-  cover_source: GameSource | "";
+  cover_source: string;
   // A wide picture, used only when no catalogue has box art.
   banner_url: string;
   genres: string;
@@ -45,7 +47,9 @@ export interface CatalogGame extends GameIds {
 
 // A catalogue as its plugin provides it to the games store.
 export interface GameCatalog {
-  source: GameSource;
+  // A built-in catalogue's source, or another's own name for itself, which its ids are kept under in other_ids.
+  source: string;
+  label: string;
   // Why it cannot be asked now, such as "no key set"; "" when it can.
   missing: string;
   // When adding or refreshing a game asks it: "ids" first, for the ids the others know the game by, then "details", then "art" with what the others said.
@@ -57,9 +61,10 @@ export interface GameCatalog {
   find?: (ids: CatalogGame, known: CatalogGame) => Promise<string>;
 }
 
-export function empty_game(source: GameSource): CatalogGame {
+export function empty_game(source: string): CatalogGame {
   return {
     sources: [source],
+    other_ids: {},
     ...(Object.fromEntries(game_id_keys.map((key) => [key, ""])) as Record<keyof GameIds, string>),
     title: "",
     year: "",
@@ -170,17 +175,19 @@ export function same_game(first: CatalogGame, second: CatalogGame): boolean {
   if (shares_a_game_id(first, second)) return true;
   // Two different ids from one catalogue are two games.
   if (game_id_keys.some((key) => first[key] && second[key] && first[key] !== second[key])) return false;
+  if (Object.entries(first.other_ids).some(([source, id]) => second.other_ids[source] && second.other_ids[source] !== id)) return false;
   if (title_words(first.title) !== title_words(second.title)) return false;
   return !first.year || !second.year || first.year === second.year;
 }
 
 // Box art from the catalogue best at it: MobyGames, Giant Bomb, IGDB and TheGamesDB keep covers, Steam and GOG their
 // upright store art, SteamGridDB its users' art, and itch.io a page's wide cover.
-const cover_order: GameSource[] = ["mobygames", "giantbomb", "igdb", "thegamesdb", "steam", "gog", "steamgriddb", "itchio", "rawg", "wikidata"];
+const cover_order: string[] = ["mobygames", "giantbomb", "igdb", "thegamesdb", "steam", "gog", "steamgriddb", "itchio", "rawg", "wikidata"];
 
 // Where an answer's cover stands in that order; lower is better, and no cover is last.
 export function cover_rank(game: CatalogGame): number {
-  return game.cover_url && game.cover_source ? cover_order.indexOf(game.cover_source) : game.cover_url ? cover_order.length : cover_order.length + 1;
+  const known = cover_order.indexOf(game.cover_source);
+  return game.cover_url && known >= 0 ? known : game.cover_url ? cover_order.length : cover_order.length + 1;
 }
 
 // The first answer wins where both say something; the second fills what the first lacks.
@@ -190,6 +197,7 @@ export function merge_games(first: CatalogGame, second: CatalogGame): CatalogGam
   return {
     sources: [...new Set([...first.sources, ...second.sources])],
     ...(Object.fromEntries(game_id_keys.map((key) => [key, fill(first[key], second[key])])) as Record<keyof GameIds, string>),
+    other_ids: { ...second.other_ids, ...first.other_ids },
     title: fill(first.title, second.title),
     year: fill(first.year, second.year),
     release_date: fill(first.release_date, second.release_date),
