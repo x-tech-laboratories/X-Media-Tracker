@@ -97,6 +97,29 @@ context.provide("game_catalog", "shelfdb", {
 Its answers fill in what the built-in catalogues lack and come before Wikidata's. Its ids travel with the library's
 games files and stay with the game kept when games are merged.
 
+### Book catalogues
+
+The `book_catalog` provider is a `BookCatalog` (`src/shared/books/catalog.ts`), answering in `CatalogBook`'s shape:
+
+```ts
+context.provide("book_catalog", "shelfdb", {
+  source: "shelfdb",
+  label: "ShelfDB",
+  missing: "",
+  book: async (id) => ({ ...empty_book("shelfdb"), other_ids: { shelfdb: id }, title: "Piranesi", year: "2020" }),
+  search: async (query) => [],
+});
+```
+
+- `source` and `missing` are as for a game catalogue; a book known only by its id is tracked as `shelfdb:7`.
+- `book(id)` answers about one book by its id there and `search(query)` joins search; `by_isbn(isbn)`, when given, is
+  asked for a book with an ISBN but none of its ids.
+- Authors and series are followed by the built-in catalogues' ids only, so `search_refs`, `series` and `releases` are
+  left out.
+
+Its answers fill in what BookBrainz, Open Library and Hardcover lack, and its ids travel with the books files and stay
+with the book kept when books are merged.
+
 ## What the web side can reach
 
 `PagePluginApi` is in `src/web/plugins.tsx`.

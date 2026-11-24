@@ -10,6 +10,7 @@ import { asc, eq, inArray, or, sql, synced_tables } from "@x-tech-laboratories/x
 import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 
 import { custom_cover, serves_image } from "../covers.ts";
+import { other_id_path } from "../other_ids.ts";
 import { Background, define_feature, drizzle_of, new_id } from "../feature.ts";
 import { merge_columns, merge_ids, type SourceAnswers } from "../merging.ts";
 import { move_settings_into_plugins, open_plugin_host, plugin_settings, require_switched_on } from "../plugins/host.ts";
@@ -212,7 +213,7 @@ export function find_game(database: SqlDatabase, ids: Partial<GameIds> & { other
   if (key && db.select({ id: games_games.id }).from(games_games).where(eq(games_games.id, key)).get()) return key;
   const matches = [
     ...game_id_keys.flatMap((column) => (ids[column] ? [eq(games_games[column], ids[column])] : [])),
-    ...Object.entries(clean_other_ids(ids.other_ids)).map(([source, id]) => sql`json_extract(${games_games.other_ids}, ${`$."${source.replace(/"/g, "")}"`}) = ${id}`),
+    ...Object.entries(clean_other_ids(ids.other_ids)).map(([source, id]) => sql`json_extract(${games_games.other_ids}, ${other_id_path(source)}) = ${id}`),
   ];
   if (matches.length === 0) return "";
   return db.select({ id: games_games.id }).from(games_games).where(or(...matches)).get()?.id ?? "";

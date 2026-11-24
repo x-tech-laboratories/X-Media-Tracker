@@ -3,6 +3,7 @@
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
+import { other_ids_differ } from "../other_ids.ts";
 import { game_id_keys, shares_a_game_id, type GameIds, type GameSource, type OtherIds } from "./model.ts";
 
 // ── Shapes ───────────────────────────────────────────────────────────────────
@@ -175,7 +176,7 @@ export function same_game(first: CatalogGame, second: CatalogGame): boolean {
   if (shares_a_game_id(first, second)) return true;
   // Two different ids from one catalogue are two games.
   if (game_id_keys.some((key) => first[key] && second[key] && first[key] !== second[key])) return false;
-  if (Object.entries(first.other_ids).some(([source, id]) => second.other_ids[source] && second.other_ids[source] !== id)) return false;
+  if (other_ids_differ(first.other_ids, second.other_ids)) return false;
   if (title_words(first.title) !== title_words(second.title)) return false;
   return !first.year || !second.year || first.year === second.year;
 }

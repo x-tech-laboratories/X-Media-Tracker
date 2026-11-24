@@ -125,9 +125,13 @@ describe("Books files", () => {
   it("carries books, reads, journal, collections, follows and goals into an empty library through CSV", () => {
     const from = store();
     seed_books(from.database);
+    from.database.exec(`INSERT INTO books_books (id, title, authors, other_ids) VALUES ('shelfdb:7', 'Piranesi', 'Susanna Clarke', '{"shelfdb":"7"}')`);
     const to = store();
 
-    expect(to.methods.import_books_file({ csv: from.methods.export_books_csv() })).toEqual({ added: 2, updated: 0, unchanged: 0, conflicts: [] });
+    expect(to.methods.import_books_file({ csv: from.methods.export_books_csv() })).toEqual({ added: 3, updated: 0, unchanged: 0, conflicts: [] });
+    expect(to.methods.get_book("shelfdb:7")).toMatchObject({ other_ids: { shelfdb: "7" } });
+    // Coming back, it is found by its id from ShelfDB and nothing changes.
+    expect(to.methods.import_books_file({ csv: from.methods.export_books_csv() })).toMatchObject({ added: 0, unchanged: 3 });
     const dune = to.methods.get_book("isbn:9780441013593")!;
     expect(dune).toMatchObject({ owned: true, rating: 8, last_read: "2026-01-20", author_refs: [{ name: "Frank Herbert" }] });
     expect(dune.reads).toHaveLength(1);

@@ -8,7 +8,7 @@ import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sq
 
 import { drizzle_of, new_id } from "../feature.ts";
 import { meet_row, read_transfer, transfer_csv, transfer_file, type ImportConflict, type Row, type TransferFile, type TransferInput, type TransferReport, type TransferTable } from "../transfer.ts";
-import { book_key, is_book_format, is_book_status, is_progress_unit } from "./model.ts";
+import { book_key, clean_other_ids, is_book_format, is_book_status, is_progress_unit } from "./model.ts";
 import { books_book_collections, books_books, books_collections, books_follows, books_goals, books_journal, books_reads } from "./schema.ts";
 import { find_book, find_by_title, settle_last_read } from "./store.ts";
 
@@ -21,7 +21,7 @@ const tables: TransferTable[] = [
     name: "books",
     required: true,
     columns: {
-      ...text_columns(["id", "bookbrainz_id", "openlibrary_id", "hardcover_id", "isbn", "title", "subtitle", "authors", "author_refs", "series", "series_position", "series_ref", "year", "release_date", "overview", "cover_url", "genres"]),
+      ...text_columns(["id", "bookbrainz_id", "openlibrary_id", "hardcover_id", "isbn", "other_ids", "title", "subtitle", "authors", "author_refs", "series", "series_position", "series_ref", "year", "release_date", "overview", "cover_url", "genres"]),
       pages: "number",
       audio_minutes: "number",
       status: "text",
@@ -97,6 +97,7 @@ function known_values(values: Row): Row {
   if (known.format !== undefined && known.format !== "" && !is_book_format(known.format)) delete known.format;
   if (known.progress_unit !== undefined && !is_progress_unit(known.progress_unit)) delete known.progress_unit;
   if (typeof known.owned === "number") known.owned = known.owned ? 1 : 0;
+  if (known.other_ids !== undefined) known.other_ids = JSON.stringify(clean_other_ids(known.other_ids));
   return known;
 }
 
@@ -136,7 +137,7 @@ export function import_books_file(database: SqlDatabase, input: TransferInput): 
       const { id: file_value, ...rest } = book;
       const file_id = String(file_value ?? "");
       const values = known_values(rest);
-      const ids = Object.fromEntries(id_columns.map((column) => [column, String(values[column] ?? "")]));
+      const ids = { ...Object.fromEntries(id_columns.map((column) => [column, String(values[column] ?? "")])), other_ids: clean_other_ids(values.other_ids) };
       const existing =
         find_book(database, ids) || (file_id ? (db.select({ id: books_books.id }).from(books_books).where(eq(books_books.id, file_id)).get()?.id ?? "") : "") || find_by_title(database, title, String(values.authors ?? ""));
       if (!existing) {

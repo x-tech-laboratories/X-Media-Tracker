@@ -61,7 +61,9 @@ on the Settings page.
   statuses and formats, which ids name one book, pasted links and ISBNs, progress, series order, sorting, the Books
   library's filters with counts, release days and a year's reading stats.
 - `schema.ts`: `books_books`, keyed by the strongest id (`bookbrainz:…`, else `openlibrary:…`, else `hardcover:…`, else
-  `isbn:…`; a StoryGraph or LibraryThing book with none is `title:<title>/<author>`); `books_reads`, one row per time through a book;
+  `isbn:…`, else a catalogue from the plugins folder's, such as `shelfdb:7`; a StoryGraph or LibraryThing book with none is
+  `title:<title>/<author>`), with `other_ids`, a JSON object of ids from catalogues with no column of their own by their
+  source, matched with `json_extract` and joined on a refresh or a merge, as games keep theirs; `books_reads`, one row per time through a book;
   `books_journal`; `books_collections` and `books_book_collections`; `books_follows`, the authors and series followed;
   `books_releases`, the books found for them; and `books_goals`, one per year. All of them sync.
 - `bookbrainz.ts`, `openlibrary.ts` and `hardcover.ts` are the catalogues' clients, each answering in `catalog.ts`'s

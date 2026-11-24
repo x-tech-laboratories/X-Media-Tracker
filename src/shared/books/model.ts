@@ -1,6 +1,10 @@
 // What a tracked book is, and the rules on it that need no database: which ids name the same book, pasted links, reading
 // progress, sorting, the Books library's filters with counts, series order and a year's reading stats.
-// The page imports this file too, so it imports nothing.
+// The page imports this file too, so it imports only other_ids.ts, which imports nothing.
+
+import { clean_other_ids, other_key, shares_an_other_id, type OtherIds } from "../other_ids.ts";
+
+export { clean_other_ids, type OtherIds };
 
 // ── Books ────────────────────────────────────────────────────────────────────
 
@@ -37,6 +41,8 @@ export interface CatalogRef {
 
 export interface Book extends BookIds {
   id: string;
+  // Ids from catalogues with no column of their own, such as one from the plugins folder.
+  other_ids: OtherIds;
   title: string;
   subtitle: string;
   // The authors as one line, such as "Brandon Sanderson, Dan Wells".
@@ -122,18 +128,21 @@ export function is_progress_unit(value: unknown): value is ProgressUnit {
 
 // ── Ids ──────────────────────────────────────────────────────────────────────
 
-// The strongest id first: BookBrainz is open and stable, Open Library holds covers, Hardcover needs a key, an ISBN names an edition.
-export function book_key(ids: Partial<BookIds>): string {
+// The strongest id first: BookBrainz is open and stable, Open Library holds covers, Hardcover needs a key, an ISBN names
+// an edition, and last another catalogue's, the first by its source's name.
+export function book_key(ids: Partial<BookIds> & { other_ids?: OtherIds }): string {
   if (ids.bookbrainz_id) return `bookbrainz:${ids.bookbrainz_id}`;
   if (ids.openlibrary_id) return `openlibrary:${ids.openlibrary_id}`;
   if (ids.hardcover_id) return `hardcover:${ids.hardcover_id}`;
   if (ids.isbn) return `isbn:${ids.isbn}`;
-  return "";
+  return other_key(ids.other_ids);
 }
 
-export function shares_a_book_id(first: Partial<BookIds>, second: Partial<BookIds>): boolean {
+export function shares_a_book_id(first: Partial<BookIds> & { other_ids?: OtherIds }, second: Partial<BookIds> & { other_ids?: OtherIds }): boolean {
   const same = (one: string | undefined, other: string | undefined) => !!one && one === (other ?? "");
-  return same(first.bookbrainz_id, second.bookbrainz_id) || same(first.openlibrary_id, second.openlibrary_id) || same(first.hardcover_id, second.hardcover_id) || same(first.isbn, second.isbn);
+  return (
+    same(first.bookbrainz_id, second.bookbrainz_id) || same(first.openlibrary_id, second.openlibrary_id) || same(first.hardcover_id, second.hardcover_id) || same(first.isbn, second.isbn) || shares_an_other_id(first.other_ids, second.other_ids)
+  );
 }
 
 // A follow's id from its strongest catalogue id, so following one author on two devices makes one row.

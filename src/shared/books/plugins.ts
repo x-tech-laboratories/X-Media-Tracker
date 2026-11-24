@@ -21,6 +21,7 @@ export const openlibrary_plugin = define_plugin<MediaPluginApi>({
     const openlibrary = create_openlibrary();
     context.provide("book_catalog", "openlibrary", {
       source: "openlibrary",
+      label: openlibrary_manifest.name,
       missing: "",
       book: openlibrary.work,
       by_isbn: openlibrary.by_isbn,
@@ -43,12 +44,13 @@ export const hardcover_plugin = define_plugin<MediaPluginApi>({
     const key = String(context.settings().api_key ?? "").trim();
     const refuse = () => Promise.reject(new Error("no key set"));
     if (!key) {
-      context.provide("book_catalog", "hardcover", { source: "hardcover", missing: "no key set", book: refuse, search: refuse, search_refs: refuse });
+      context.provide("book_catalog", "hardcover", { source: "hardcover", label: hardcover_manifest.name, missing: "no key set", book: refuse, search: refuse, search_refs: refuse });
       return;
     }
     const hardcover = create_hardcover(key);
     context.provide("book_catalog", "hardcover", {
       source: "hardcover",
+      label: hardcover_manifest.name,
       missing: "",
       book: hardcover.book,
       by_isbn: hardcover.book_by_isbn,
@@ -66,7 +68,7 @@ export const bookbrainz_plugin = define_plugin<MediaPluginApi>({
   ...bookbrainz_manifest,
   start: (context) => {
     const bookbrainz = create_bookbrainz();
-    context.provide("book_catalog", "bookbrainz", { source: "bookbrainz", missing: "", book: bookbrainz.work, search: bookbrainz.search, search_refs: bookbrainz.search_refs, series: bookbrainz.series } satisfies BookCatalog);
+    context.provide("book_catalog", "bookbrainz", { source: "bookbrainz", label: bookbrainz_manifest.name, missing: "", book: bookbrainz.work, search: bookbrainz.search, search_refs: bookbrainz.search_refs, series: bookbrainz.series } satisfies BookCatalog);
   },
 });
 
