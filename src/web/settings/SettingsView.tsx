@@ -13,7 +13,8 @@ import { TrustedCertificates } from "@x-tech-laboratories/x-libs/web/react/certi
 import { SyncSettings } from "@x-tech-laboratories/x-libs/web/react/sync_settings";
 
 import { calls, data_watch, page, use_settings } from "../api.ts";
-import { page_features } from "../features.tsx";
+import { page_features, type FeatureSettingsProps } from "../features.tsx";
+import { FolderPluginRows } from "../plugins.tsx";
 import { settings_transfer_section } from "../transfer.tsx";
 
 // ── History ──────────────────────────────────────────────────────────────────
@@ -50,10 +51,10 @@ function Backups() {
   return <BackupSettings key={folder_name} device={backups} data_name="media library" on_restored={() => data_watch.bump()} folder_row={folder_row} can_back_up={!backup_folder || folder_name !== ""} />;
 }
 
-// Sync on a device with its own database, backups of whichever database the page works on, and the server's own
-// sections, such as its users.
-function data_category(server_sections: SettingsSection[]): SettingsCategory[] {
-  const { device, backups, backup_folder, certificates } = page();
+// Sync on a device with its own database, backups of whichever database the page works on, the plugins from the
+// plugins folder where there is one, and the server's own sections, such as its users.
+function data_category(server_sections: SettingsSection[], props: FeatureSettingsProps): SettingsCategory[] {
+  const { host, device, backups, backup_folder, certificates } = page();
   const sections: SettingsSection[] = [
     ...(device ? [{ id: "sync", heading: "Sync", hint: "Keep this device's data alike with your X-Media-Tracker server.", content: <>
       <SyncSettings device={device} certificates={certificates} subscribe={data_watch.subscribe} data_name="media library" placeholder="https://media.example.org/" />
@@ -62,6 +63,16 @@ function data_category(server_sections: SettingsSection[]): SettingsCategory[] {
     ...(backups
       ? [{ id: "backups", heading: "Backups", hint: backup_folder ? "Copies of this device's data, kept in a folder you pick." : device ? "Copies of this device's data, kept beside it." : "Copies of the server's data, kept in its data folder. A restore restarts the server.", content: <Backups /> }]
       : []),
+    ...(host === "android"
+      ? []
+      : [
+          {
+            id: "plugins",
+            heading: "Plugins",
+            hint: `Plugins from the ${host === "desktop" ? "plugins folder in this app's profile" : "plugins folder beside the server's database"}. They run with the app's full rights: install only ones you trust.`,
+            content: <FolderPluginRows {...props} />,
+          },
+        ]),
     ...server_sections,
   ];
   return sections.length ? [{ heading: device ? "This device" : "Server", sections }] : [];
@@ -82,7 +93,7 @@ export function SettingsView({ server_sections = [] }: { server_sections?: Setti
               ...page_features
                 .map((feature) => ({ heading: feature.label, sections: feature.settings({ settings: values, set_setting }) }))
                 .filter((category) => category.sections.length > 0),
-              ...data_category(server_sections),
+              ...data_category(server_sections, { settings: values, set_setting }),
             ]}
           />
         )}

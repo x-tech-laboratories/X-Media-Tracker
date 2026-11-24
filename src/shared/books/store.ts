@@ -481,6 +481,15 @@ function collection_named(database: SqlDatabase, name: string): string {
 
 // A new book whole; one already here gains its reads, collections and what it lacks, keeping its own rating unless
 // the settings say otherwise, and moving on from Want to read.
+// Books read from any export, in one transaction; each is matched on its ISBN, else its title and author.
+export function import_books(database: SqlDatabase, books: ImportedBook[]): BookImportReport {
+  return in_transaction(database, () => {
+    const report: BookImportReport = { added: 0, updated: 0 };
+    for (const book of books) report[import_book(database, book)]++;
+    return report;
+  });
+}
+
 function import_book(database: SqlDatabase, book: ImportedBook): "added" | "updated" {
   const db = drizzle_of(database);
   const existing = (book.isbn ? find_book(database, { isbn: book.isbn }) : "") || find_by_title(database, book.title, book.authors);
@@ -991,23 +1000,13 @@ export const books_feature = define_feature({
     // StoryGraph's own export; adds and merges, never removes.
     import_storygraph: (database: SqlDatabase, csv: string): BookImportReport => {
       require_switched_on(database, storygraph_manifest);
-      const books = read_storygraph_csv(csv);
-      return in_transaction(database, () => {
-        const report: BookImportReport = { added: 0, updated: 0 };
-        for (const book of books) report[import_book(database, book)]++;
-        return report;
-      });
+      return import_books(database, read_storygraph_csv(csv));
     },
 
     // LibraryThing's own export, tab-separated or CSV; adds and merges, never removes.
     import_librarything: (database: SqlDatabase, text: string): BookImportReport => {
       require_switched_on(database, librarything_manifest);
-      const books = read_librarything_export(text);
-      return in_transaction(database, () => {
-        const report: BookImportReport = { added: 0, updated: 0 };
-        for (const book of books) report[import_book(database, book)]++;
-        return report;
-      });
+      return import_books(database, read_librarything_export(text));
     },
 
     export_storygraph: (database: SqlDatabase): string => {

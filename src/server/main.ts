@@ -11,9 +11,11 @@ import { read_server_config } from "@x-tech-laboratories/x-libs/server/config";
 import { folder_file_store } from "@x-tech-laboratories/x-libs/node_file_store";
 import { load_accounts } from "@x-tech-laboratories/x-libs/server/passwords";
 import { sqlite_backups, take_staged_restore } from "@x-tech-laboratories/x-libs/server/sqlite_backups";
+import { load_plugin_folder } from "@x-tech-laboratories/x-libs/plugin_folder";
 
 import { media_backup_naming, read_schedule } from "../shared/backups.ts";
 import { needs_upgrade, open_store, sync_engine } from "../shared/store.ts";
+import { use_folder_plugins, type MediaPluginApi } from "../shared/plugins/host.ts";
 import { build_app } from "./app.ts";
 
 // ── Config ───────────────────────────────────────────────────────────────────
@@ -72,12 +74,22 @@ const schedule_file = join(dirname(database_path), "backup-schedule.json");
 const read_backup_schedule = () => read_schedule(existsSync(schedule_file) ? JSON.parse(readFileSync(schedule_file, "utf8")) : null);
 const backing_up = keep_backing_up(kept, read_backup_schedule);
 
+// ── Plugins ──────────────────────────────────────────────────────────────────
+
+// Plugins the user installed beside the database, each run with the server's full rights; their store side joins every
+// plugin host, and the page loads their web side from the server.
+const plugins_folder = join(dirname(database_path), "plugins");
+const folder = await load_plugin_folder<MediaPluginApi>(plugins_folder, "store");
+use_folder_plugins(folder.plugins);
+for (const problem of folder.problems) console.warn(`plugin ${problem.name}: ${problem.problem}`);
+
 // ── Server ───────────────────────────────────────────────────────────────────
 
 const app = await build_app({
   database,
   declared: load_accounts("X_MEDIA_TRACKER_PASSWORD_HASH_FILE"),
   web_folder: server_config.web_folder,
+  plugins_folder,
   // Beside the database, so the server's data folder holds them.
   covers: folder_file_store(join(dirname(database_path), "covers")),
   backups: {

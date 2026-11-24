@@ -4,12 +4,15 @@
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
+import * as React from "react";
 import { useEffect, useState, type ComponentType } from "react";
-import { create_plugin_host, define_plugin, type PluginHost, type PluginManifest, type PluginRecords } from "@x-tech-laboratories/x-libs/plugins";
+import * as jsx_runtime from "react/jsx-runtime";
+import { create_plugin_host, define_plugin, type Plugin, type PluginHost, type PluginManifest, type PluginRecords } from "@x-tech-laboratories/x-libs/plugins";
+import { load_plugin_modules, share_modules } from "@x-tech-laboratories/x-libs/web/plugin_imports";
 import { PluginSettings, PluginSlot, use_plugins } from "@x-tech-laboratories/x-libs/web/react/plugins";
 import { Skeleton } from "@x-tech-laboratories/x-libs/web/react/states";
 
-import { calls } from "./api.ts";
+import { calls, page } from "./api.ts";
 import { LibraryThingPanel, StoryGraphPanel } from "./books/FilePanels.tsx";
 import { HardcoverKeyLink } from "./books/HardcoverKeyLink.tsx";
 import type { FeatureSettingsProps } from "./features.tsx";
@@ -23,6 +26,7 @@ import { book_catalog_manifests, book_file_manifests, hardcover_manifest, librar
 import { epic_manifest, game_catalog_manifests, igdb_manifest, itchio_manifest, steam_manifest } from "../shared/games/manifests.ts";
 import { title_catalog_manifests } from "../shared/library/manifests.ts";
 import type { MediaType } from "../shared/library/model.ts";
+import { desktop_plugin_base } from "../shared/page_api.ts";
 import { app_info, plugins_setting } from "../shared/plugins/app.ts";
 import { stremio_manifest, trakt_manifest } from "../shared/sources/manifests.ts";
 
@@ -70,6 +74,32 @@ const catalog_pages = [...title_catalog_manifests, ...book_catalog_manifests, ..
   }),
 );
 
+const bundled_pages = [trakt_page, stremio_page, ...catalog_pages];
+
+// ── Folder ───────────────────────────────────────────────────────────────────
+
+// The web sides of the plugins folder: the server's in a browser, the profile's on the desktop, none on a phone.
+async function folder_pages(): Promise<Plugin<PagePluginApi>[]> {
+  const { host, plugin_files } = page();
+  if (host === "android" || (host === "desktop" && !plugin_files)) return [];
+  share_modules({ react: React, "react/jsx-runtime": jsx_runtime });
+  try {
+    const loaded =
+      host === "desktop"
+        ? await load_plugin_modules<PagePluginApi>(`${desktop_plugin_base}index.json`, async (url) => {
+            const text = await plugin_files!.read_plugin_file(url.slice(desktop_plugin_base.length));
+            if (!text) throw new Error(`${url} is not in the plugins folder.`);
+            return text;
+          })
+        : await load_plugin_modules<PagePluginApi>("api/plugins/index.json");
+    for (const problem of loaded.problems) console.warn(`plugin ${problem.name}: ${problem.problem}`);
+    return loaded.plugins;
+  } catch (error) {
+    console.warn("plugins folder:", error);
+    return [];
+  }
+}
+
 // ── Host ─────────────────────────────────────────────────────────────────────
 
 let started: Promise<PluginHost<PagePluginApi>> | null = null;
@@ -85,7 +115,8 @@ export function start_page_plugins(): Promise<PluginHost<PagePluginApi>> {
       },
       on_error: (plugin_id, error) => console.warn(`plugin ${plugin_id}:`, error),
     });
-    for (const plugin of [trakt_page, stremio_page, ...catalog_pages]) await host.add(plugin);
+    for (const plugin of bundled_pages) await host.add(plugin);
+    for (const plugin of await folder_pages()) await host.add(plugin);
     await host.start();
     return host;
   })();
@@ -152,4 +183,14 @@ export function PluginRows({ manifests, settings, set_setting }: { manifests: Pl
 export function plugin_value(settings: Record<string, unknown>, manifest: PluginManifest, key: string): unknown {
   const stored = (settings[plugins_setting] as PluginRecords | undefined)?.[manifest.id]?.settings?.[key];
   return stored ?? manifest.settings?.find((field) => field.key === key)?.default ?? "";
+}
+
+// The plugins from the plugins folder, each with its row, or a line saying where to put one.
+export function FolderPluginRows(props: FeatureSettingsProps) {
+  const host = use_page_plugins();
+  if (!host) return <Skeleton lines={2} />;
+  const bundled = new Set(bundled_pages.map((plugin) => plugin.id));
+  const manifests = host.list().map((status) => status.manifest).filter((manifest) => !bundled.has(manifest.id));
+  if (manifests.length === 0) return <p className="source-hint">No plugins installed. Each goes in its own subfolder of the plugins folder, and shows here after a restart.</p>;
+  return <Rows host={host} manifests={manifests} {...props} />;
 }

@@ -15,6 +15,7 @@ import type { Accounts } from "@x-tech-laboratories/x-libs/server/passwords";
 import { backup_method_names, type BackupMethods } from "@x-tech-laboratories/x-libs/backup_protocol";
 import { register_sync_routes } from "@x-tech-laboratories/x-libs/server/sync_routes";
 import { register_web_folder } from "@x-tech-laboratories/x-libs/server/web_folder";
+import { register_plugin_files } from "@x-tech-laboratories/x-libs/server/plugin_files";
 import type { SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 import type { SyncFileStore } from "@x-tech-laboratories/x-libs/sync_files";
 
@@ -40,6 +41,8 @@ export interface AppOptions {
   auto_import?: boolean;
   // Whether new books by the authors and series followed are looked for and alerted on their schedule; on unless false.
   release_checks?: boolean;
+  // The plugins folder, whose page sides the page loads from /api/plugins/; none are served without it.
+  plugins_folder?: string;
   // Where the covers kept on every device are stored; the server downloads them and the devices sync them from here.
   covers?: SyncFileStore;
 }
@@ -133,6 +136,7 @@ export async function build_app(options: AppOptions): Promise<FastifyInstance> {
         const result: unknown = await (options.backups[method] as (...args: unknown[]) => unknown)(...args);
         return result === undefined ? reply.code(204).send() : reply.header("cache-control", "no-store").send(result);
       });
+      if (options.plugins_folder) register_plugin_files(api, { folder: options.plugins_folder, prefix: "/plugins", side: "web" });
       register_sync_routes(api, {
         engine: sync_engine,
         database,

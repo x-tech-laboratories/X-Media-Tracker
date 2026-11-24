@@ -134,6 +134,12 @@ service's own settings, its keys marked `secret`.
   and MCP give, and writing `plugins` back, or importing a settings file, gives a still hidden secret its stored value.
 - A feature's `on_open` runs each time the database opens; the library's, books' and games' move the catalogue keys
   once kept as their settings into their plugins (`move_settings_into_plugins`).
+- Plugins from a folder (`docs/plugins.md`) are loaded by the server from `plugins/` beside its database and by the
+  desktop from its profile, with X-Libs' `load_plugin_folder` and their `store` side; `use_folder_plugins` adds them to
+  every host after the bundled ones, and the host hands every plugin the `services` the store gives
+  (`know_plugin_services` in `src/shared/store.ts`). The page imports their `web` side with `load_plugin_modules`: from
+  the server's `/api/plugins/`, served by `register_plugin_files` behind sign-in, or on the desktop through the
+  `plugin_files` bridge (`src/main/plugin_files.ts`). A phone loads none.
 - The page's side (`src/web/plugins.tsx`) gives each plugin a row in its feature's settings, whose dialog shows its on or
   off, its settings and what it puts in the `panel` slot, such as Trakt's sign-in, IGDB's data export or the link to make a Hardcover key; Stremio
   also fills `title_actions` on each title's page.

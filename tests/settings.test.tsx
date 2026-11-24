@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import "@x-tech-laboratories/x-libs/web/react/test_stubs";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Client } from "@x-tech-laboratories/x-libs/electron/bridge";
 import { Dialogs } from "@x-tech-laboratories/x-libs/web/react/dialog";
@@ -12,9 +12,13 @@ import { set_page_api } from "../src/web/api.ts";
 import { SettingsView } from "../src/web/settings/SettingsView.tsx";
 import { forget_page_plugins } from "../src/web/plugins.tsx";
 
+// A server with no plugins folder has no list of its plugins.
+beforeEach(() => vi.stubGlobal("fetch", vi.fn(async () => new Response("not found", { status: 404 }))));
+
 afterEach(() => {
   cleanup();
   forget_page_plugins();
+  vi.unstubAllGlobals();
 });
 
 function fake_calls(saved: Record<string, unknown>): Client<MediaMethods> {
@@ -30,6 +34,15 @@ function fake_calls(saved: Record<string, unknown>): Client<MediaMethods> {
 const off = { state: "off", server_url: "", user: "", last_synced_at: "", pending_changes: 0, error: "" } as const;
 
 describe("settings", () => {
+  it("lists the server's folder plugins under Plugins, saying when there are none", async () => {
+    set_page_api({ host: "web", calls: fake_calls({}), device: null, cover_src: async () => "", on_change: () => () => undefined });
+    render(<SettingsView />);
+
+    expect(await screen.findByText(/No plugins installed/)).toBeTruthy();
+    expect(screen.getByText(/plugins folder beside the server's database/)).toBeTruthy();
+    expect(vi.mocked(fetch).mock.calls.map(([url]) => String(url))).toContainEqual(expect.stringContaining("api/plugins/index.json"));
+  });
+
   it("shows the library's settings with their defaults and saves a change", async () => {
     const calls = fake_calls({ "library.poster_size": "w500" });
     set_page_api({ host: "web", calls, device: null, cover_src: async () => "", on_change: () => () => undefined });

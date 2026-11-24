@@ -20,21 +20,23 @@ import { register_file_scheme, serve_files } from "@x-tech-laboratories/x-libs/e
 import { folder_file_store } from "@x-tech-laboratories/x-libs/node_file_store";
 import { create_sync_client, sync_device_methods } from "@x-tech-laboratories/x-libs/sync_client";
 import { file_sync_storage } from "@x-tech-laboratories/x-libs/sync_file_storage";
+import { load_plugin_folder } from "@x-tech-laboratories/x-libs/plugin_folder";
 
 import { media_backup_naming, read_schedule } from "../shared/backups.ts";
-import { certificate_bridge, device_bridge, launchers_bridge, media_bridge, media_events, steam_files_bridge } from "../shared/bridge.ts";
+import { certificate_bridge, device_bridge, launchers_bridge, media_bridge, media_events, plugin_files_bridge, steam_files_bridge } from "../shared/bridge.ts";
 import { keep_fetching_covers, referenced_covers, type KeepFetchingCovers } from "../shared/covers.ts";
 import { cover_scheme } from "../shared/page_api.ts";
 import { keep_checking_releases } from "../shared/books/schedule.ts";
 import { keep_reading_steam_categories } from "../shared/games/schedule.ts";
 import { launcher_schemes } from "../shared/games/launch.ts";
 import { steam_manifest } from "../shared/games/manifests.ts";
-import { is_switched_on, plugin_settings } from "../shared/plugins/host.ts";
+import { is_switched_on, plugin_settings, use_folder_plugins, type MediaPluginApi } from "../shared/plugins/host.ts";
 import { keep_importing } from "../shared/sources/schedule.ts";
 import { stremio_scheme } from "../shared/sources/stremio/links.ts";
 import { bind_methods, needs_upgrade, open_store, sync_engine } from "../shared/store.ts";
 import { read_local_lutris_games } from "./lutris.ts";
 import { read_local_steam_categories } from "./steam_categories.ts";
+import { read_plugin_file } from "./plugin_files.ts";
 
 // ── Profile ──────────────────────────────────────────────────────────────────
 
@@ -86,6 +88,14 @@ const backing_up = keep_backing_up(kept, read_backup_schedule);
 
 // Kept beside the database and shown to the page as x-media-cover://<name>.
 const covers = folder_file_store(join(profile, "covers"));
+
+// Plugins the user installed in the profile, each run with the app's full rights; their store side joins every plugin
+// host, and the page imports their web side through its bridge.
+const plugins_folder = join(profile, "plugins");
+void load_plugin_folder<MediaPluginApi>(plugins_folder, "store").then((loaded) => {
+  use_folder_plugins(loaded.plugins);
+  for (const problem of loaded.problems) console.warn(`plugin ${problem.name}: ${problem.problem}`);
+});
 register_file_scheme(protocol, cover_scheme);
 let fetching_covers: KeepFetchingCovers | undefined;
 
@@ -172,6 +182,7 @@ if (hold_single_instance(app, show_existing_window)) {
     trust_in_session(session.defaultSession, certificates.is_trusted);
     steam_files_bridge.handle(ipcMain, { read_steam_categories }, { trusted, envelopes: true });
     launchers_bridge.handle(ipcMain, { list_lutris_games: read_local_lutris_games }, { trusted, envelopes: true });
+    plugin_files_bridge.handle(ipcMain, { read_plugin_file: (path) => read_plugin_file(plugins_folder, path) }, { trusted, envelopes: true });
     device_bridge.handle(
       ipcMain,
       {
