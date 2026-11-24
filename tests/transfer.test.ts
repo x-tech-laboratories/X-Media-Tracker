@@ -70,6 +70,16 @@ describe("Movies & Series files", () => {
     }
   });
 
+  it("carries a title known only by another catalogue's id, and finds it by that id coming back", () => {
+    const from = store();
+    from.database.exec(`INSERT INTO library_titles (id, media_type, name, other_ids) VALUES ('shelfdb:8', 'movie', 'A Short Film', '{"shelfdb":"8"}')`);
+    const to = store();
+
+    expect(to.methods.import_library_file({ csv: from.methods.export_library_csv() })).toMatchObject({ added: 1 });
+    expect(to.methods.get_title("shelfdb:8")).toMatchObject({ other_ids: { shelfdb: "8" } });
+    expect(to.methods.import_library_file({ json: from.methods.export_library_json() })).toMatchObject({ added: 0, unchanged: 1 });
+  });
+
   it("changes nothing when the library's own export comes back", () => {
     const { methods, database } = store();
     seed_library(database);

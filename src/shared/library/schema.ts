@@ -26,6 +26,8 @@ export const library_titles = sqliteTable(
     tmdb_id: text().notNull().default(""),
     imdb_id: text().notNull().default(""),
     trakt_id: text().notNull().default(""),
+    // Ids from catalogues with no column of their own, by the catalogue's source, as a JSON object.
+    other_ids: text().notNull().default("{}"),
     media_type: text().notNull(),
     name: text().notNull(),
     year: text().notNull().default(""),

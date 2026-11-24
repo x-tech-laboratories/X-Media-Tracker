@@ -46,8 +46,9 @@ on the Settings page.
 - `model.ts` holds the rules that need no database, and is the one library file the page imports for more than types:
   episode runs (`s01e01-e10,s02e01`), status from progress, title keys, pasted links, sorting, and the Library's
   filters with each choice's count narrowed by every other filter but its own.
-- `schema.ts`: `library_titles`, keyed by the strongest id (`tmdb:…`, else `imdb:…`, else `trakt:…`) so two devices
-  adding the same title make one row; `library_episodes`, one row per watched episode, so two devices ticking
+- `schema.ts`: `library_titles`, keyed by the strongest id (`tmdb:…`, else `imdb:…`, else `trakt:…`, else a catalogue
+  from the plugins folder's, such as `shelfdb:8`) so two devices adding the same title make one row, with `other_ids`
+  for catalogues with no column of their own, as games and books keep theirs; `library_episodes`, one row per watched episode, so two devices ticking
   different episodes both keep theirs; `library_collections` with an optional `library_collection_groups` row, and
   `library_title_collections` between titles and collections.
 - `tmdb.ts` is the TMDB client.
@@ -163,8 +164,11 @@ Sources:
   `keep_reading_steam_categories` (`src/shared/games/schedule.ts`) reads Steam's categories file hourly on the desktop.
 
 TMDB (`src/shared/library/plugins.ts`) provides the `title_catalog`: its client with the key from its settings, or
-why it cannot be asked. `tmdb_of` refuses with that reason, or because the plugin is off, and `tmdb_if_ready` gives
-null instead, for a refresh or an import that goes on without TMDB.
+why it cannot be asked, and a search and a lookup in the `TitleCatalog` shape every movies and shows catalogue shares.
+`tmdb_of` refuses with that reason, or because the plugin is off, and `tmdb_if_ready` gives null instead, for a refresh
+or an import that goes on without TMDB. Cast, seasons, IMDb lookups and links stay TMDB's own. `search_titles` joins every
+catalogue's search; adding by `add_title_by_ids`, a refresh and `lookup_title_sources` ask each other catalogue by its own
+id first, for a TMDB or IMDb id it may know, then TMDB, whose answer wins.
 
 Book catalogues (`src/shared/books/plugins.ts`): each provides a `BookCatalog` (`src/shared/books/catalog.ts`) with
 what it can do, such as a series in order or new books by a kind of follow. Adding or refreshing a book asks them from

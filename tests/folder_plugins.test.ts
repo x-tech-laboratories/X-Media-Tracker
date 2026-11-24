@@ -5,13 +5,14 @@ import { DatabaseSync } from "node:sqlite";
 
 import { define_plugin } from "@x-tech-laboratories/x-libs/plugins";
 import { hash_password } from "@x-tech-laboratories/x-libs/server/passwords";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { read_plugin_file } from "../src/main/plugin_files.ts";
 import { build_app } from "../src/server/app.ts";
 import { empty_book } from "../src/shared/books/catalog.ts";
 import { book_catalog_manifests } from "../src/shared/books/manifests.ts";
 import { empty_game } from "../src/shared/games/catalog.ts";
+import { empty_title } from "../src/shared/library/plugins.ts";
 import { game_catalog_manifests } from "../src/shared/games/manifests.ts";
 import { app_info } from "../src/shared/plugins/app.ts";
 import { use_folder_plugins, type MediaPluginApi } from "../src/shared/plugins/host.ts";
@@ -207,5 +208,108 @@ describe("a book catalogue from the plugins folder", () => {
 
     expect(merged.other_ids).toEqual({ shelfdb: "7" });
     expect(store.get_book("shelfdb:8")).toBeNull();
+  });
+});
+
+// A movies and shows catalogue as one from the plugins folder would be: one film it knows TMDB's id for, one it alone knows.
+const shelf_titles_plugin = define_plugin<MediaPluginApi>({
+  id: "someone.shelf-titles",
+  name: "ShelfDB Films",
+  version: "1.0.0",
+  app: app_info.id,
+  start: (context) => {
+    const films: Record<string, ReturnType<typeof empty_title>> = {
+      "7": { ...empty_title("movie"), other_ids: { shelfdb: "7" }, tmdb_id: "693134", name: "Dune Part Two (ShelfDB)", genres: "Epic", overview: "From ShelfDB." },
+      "8": { ...empty_title("movie"), other_ids: { shelfdb: "8" }, name: "A Short Film", year: "2025", poster_path: "https://shelfdb.example/8.jpg", runtime: 12 },
+    };
+    context.provide("title_catalog", "shelfdb", {
+      source: "shelfdb",
+      label: "ShelfDB Films",
+      missing: "",
+      client: null,
+      title: async (_media_type, id) => films[id] ?? Promise.reject(new Error("no such film")),
+      search: async () => Object.values(films),
+    });
+  },
+});
+
+// TMDB as the store asks it, with one film.
+function stub_tmdb(): void {
+  vi.stubGlobal("fetch", async (address: string) => {
+    const path = new URL(address).pathname;
+    if (path === "/3/movie/693134") return Response.json({ id: 693134, title: "Dune: Part Two", release_date: "2024-02-27", poster_path: "/dune.jpg", runtime: 166, imdb_id: "tt15239678" });
+    if (path === "/3/search/multi") return Response.json({ results: [{ id: 693134, media_type: "movie", title: "Dune: Part Two" }] });
+    return Response.json({ status_message: "Not found." }, { status: 404 });
+  });
+}
+
+describe("a movies and shows catalogue from the plugins folder", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  function open_with_shelf_titles() {
+    stub_tmdb();
+    use_folder_plugins([shelf_titles_plugin]);
+    const database = new DatabaseSync(":memory:");
+    open_store(database);
+    const store = bind_methods(() => database, () => undefined);
+    store.set_setting("plugins", { "x-media-tracker.tmdb": { settings: { api_key: "test-key" } } });
+    return store;
+  }
+
+  it("is searched beside TMDB, the same film found by both joined", async () => {
+    const store = open_with_shelf_titles();
+
+    const search = await store.search_titles("dune", "all");
+
+    expect(search.results).toEqual([
+      expect.objectContaining({ name: "Dune: Part Two", tmdb_id: "693134", other_ids: { shelfdb: "7" }, sources: ["tmdb", "shelfdb"] }),
+      expect.objectContaining({ name: "A Short Film", other_ids: { shelfdb: "8" }, sources: ["shelfdb"] }),
+    ]);
+    expect(search.labels).toEqual({ tmdb: "TMDB", shelfdb: "ShelfDB Films" });
+  });
+
+  it("adds a film by its id there, TMDB's answer winning and its own filling the rest", async () => {
+    const store = open_with_shelf_titles();
+
+    expect(await store.add_title_by_ids("movie", { other_ids: { shelfdb: "7" } })).toEqual({ id: "tmdb:693134", name: "Dune: Part Two", existed: false });
+    expect(store.get_title("tmdb:693134")).toMatchObject({ other_ids: { shelfdb: "7" }, imdb_id: "tt15239678", runtime: 166, genres: "Epic" });
+    expect((await store.lookup_title_sources("tmdb:693134")).answers.map((answer) => answer.label)).toEqual(["TMDB", "ShelfDB Films"]);
+  });
+
+  it("tracks a film only it knows by its id there, with its own poster and no cast to look up", async () => {
+    const store = open_with_shelf_titles();
+
+    expect(await store.add_title_by_ids("movie", { other_ids: { shelfdb: "8" } })).toEqual({ id: "shelfdb:8", name: "A Short Film", existed: false });
+    expect(store.get_title("shelfdb:8")).toMatchObject({ poster_path: "https://shelfdb.example/8.jpg", runtime: 12 });
+    expect(await store.lookup_title_details("shelfdb:8")).toMatchObject({ name: "A Short Film", cast: [], seasons: [] });
+    expect((await store.add_title_by_ids("movie", { other_ids: { shelfdb: "8" } })).existed).toBe(true);
+    await expect(store.add_title_by_ids("movie", { other_ids: { nowhere: "1" } })).rejects.toThrow("No catalogue named nowhere is on.");
+  });
+
+  it("refreshes a film only it knows from it, keeping its id", async () => {
+    const store = open_with_shelf_titles();
+    await store.add_title_by_ids("movie", { other_ids: { shelfdb: "8" } });
+    store.merge_titles(["shelfdb:8"], "shelfdb:8", { runtime: 5 });
+
+    store.refresh_library();
+    let refresh = store.get_library_refresh();
+    while (refresh.state === "running") {
+      await new Promise((resolve) => setTimeout(resolve, 1));
+      refresh = store.get_library_refresh();
+    }
+
+    expect(refresh.report).toMatchObject({ metadata_updated: 1, failed: 0 });
+    expect(store.get_title("shelfdb:8")).toMatchObject({ runtime: 12, other_ids: { shelfdb: "8" } });
+  });
+
+  it("keeps every merged title's ids from it on the one kept", async () => {
+    const store = open_with_shelf_titles();
+    await store.add_title_by_ids("movie", { other_ids: { shelfdb: "8" } });
+    await store.add_title("movie", "693134");
+
+    const merged = store.merge_titles(["tmdb:693134", "shelfdb:8"], "tmdb:693134", {});
+
+    expect(merged.other_ids).toEqual({ shelfdb: "8" });
+    expect(store.get_title("shelfdb:8")).toBeNull();
   });
 });

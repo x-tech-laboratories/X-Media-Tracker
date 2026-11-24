@@ -1,5 +1,5 @@
-// Searching from the top bar: the library's own titles and TMDB's at once on a results page, each TMDB result added
-// with a button, or a pasted TMDB or IMDb link added straight away.
+// Searching from the top bar: the library's own titles and the catalogues' at once on a results page, each found title
+// added with a button, or a pasted TMDB or IMDb link added straight away.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -15,7 +15,7 @@ import { toast } from "@x-tech-laboratories/x-libs/web/react/toasts";
 
 import { calls, use_data, use_settings } from "../api.ts";
 import { filter_titles, image_url, no_filters, parse_media_link, status_labels, type MediaType } from "../../shared/library/model.ts";
-import type { Added, SearchResult } from "../../shared/library/store.ts";
+import type { Added, TitleSearchResult } from "../../shared/library/store.ts";
 
 // ── Links ────────────────────────────────────────────────────────────────────
 
@@ -52,7 +52,7 @@ export function SearchBar() {
   };
   return (
     <SearchBox
-      label="Search your library and TMDB, or paste a link"
+      label="Search your library and the catalogues, or paste a link"
       value={query}
       submit_label={parse_media_link(query) ? "Add" : "Search"}
       on_input={set_query}
@@ -88,18 +88,30 @@ function LibraryMatches({ query, poster_size }: { query: string; poster_size: st
   );
 }
 
-function TmdbMatches({ query, poster_size }: { query: string; poster_size: string }) {
+// A result's own key, by its strongest id.
+function result_key(result: TitleSearchResult): string {
+  const [other] = Object.entries(result.other_ids);
+  return `${result.media_type}:${result.tmdb_id ? `tmdb:${result.tmdb_id}` : result.imdb_id ? `imdb:${result.imdb_id}` : other ? other.join(":") : result.name}`;
+}
+
+// Where a result not yet tracked links to: its TMDB page, else nowhere new.
+function outside_href(result: TitleSearchResult): string {
+  return result.tmdb_id ? `https://www.themoviedb.org/${result.media_type === "show" ? "tv" : "movie"}/${result.tmdb_id}` : "#/movies";
+}
+
+function CatalogMatches({ query, poster_size }: { query: string; poster_size: string }) {
   const [scope, set_scope] = use_pref<Scope>("x-media-tracker-add-scope", "all", one_of("all", "movie", "show"));
-  const results = use_resource(() => calls().search_tmdb(query, scope), [query, scope]);
+  const search = use_resource(() => calls().search_titles(query, scope), [query, scope]);
   const [added, set_added] = useState<Record<string, string>>({});
   const [adding, set_adding] = useState<string | null>(null);
 
-  const add = async (result: SearchResult) => {
-    set_adding(result.tmdb_id);
+  const add = async (result: TitleSearchResult) => {
+    const key = result_key(result);
+    set_adding(key);
     try {
-      const done = await calls().add_title(result.media_type, result.tmdb_id);
+      const done = await calls().add_title_by_ids(result.media_type, { tmdb_id: result.tmdb_id, imdb_id: result.imdb_id, other_ids: result.other_ids });
       report_added(done);
-      set_added({ ...added, [`${result.media_type}:${result.tmdb_id}`]: done.id });
+      set_added({ ...added, [key]: done.id });
     } catch (error) {
       toast((error as Error).message, { tone: "bad" });
     } finally {
@@ -109,7 +121,7 @@ function TmdbMatches({ query, poster_size }: { query: string; poster_size: strin
 
   const scope_choice = (
     <Segmented
-      label="Search TMDB for"
+      label="Search the catalogues for"
       choices={[
         { value: "all", label: "All" },
         { value: "movie", label: "Movies" },
@@ -121,29 +133,32 @@ function TmdbMatches({ query, poster_size }: { query: string; poster_size: strin
   );
 
   return (
-    <Section title="From TMDB" tools={scope_choice}>
-      {results.status === "loading" && <Skeleton lines={4} />}
-      {results.status === "failed" && <Failure error={results.error} retry={() => void results.reload()} />}
-      {results.data &&
-        (results.data.length === 0 ? (
-          <Empty title={`TMDB has nothing for “${query}”.`} />
+    <Section title="From the catalogues" tools={scope_choice}>
+      {search.status === "loading" && <Skeleton lines={4} />}
+      {search.status === "failed" && <Failure error={search.error} retry={() => void search.reload()} />}
+      {search.data && search.data.failures.length > 0 && <p className="muted">Left out: {search.data.failures.join("; ")}</p>}
+      {search.data &&
+        (search.data.results.length === 0 ? (
+          <Empty title={`No catalogue has anything for “${query}”.`} />
         ) : (
-          <MediaGrid label="From TMDB">
-            {results.data.map((result) => {
-              const tracked_id = result.tracked_id ?? added[`${result.media_type}:${result.tmdb_id}`];
+          <MediaGrid label="From the catalogues">
+            {search.data.results.map((result) => {
+              const key = result_key(result);
+              const tracked_id = result.tracked_id || added[key];
+              const from = result.sources.map((source) => search.data!.labels[source] ?? source).join(", ");
               return (
                 <MediaTile
-                  key={`${result.media_type}:${result.tmdb_id}`}
+                  key={key}
                   title={result.name}
-                  href={tracked_id ? href_of(tracked_id) : `https://www.themoviedb.org/${result.media_type === "show" ? "tv" : "movie"}/${result.tmdb_id}`}
+                  href={tracked_id ? href_of(tracked_id) : outside_href(result)}
                   image={image_url(result.poster_path, poster_size)}
-                  lines={[type_line(result.year, result.media_type), result.overview]}
+                  lines={[type_line(result.year, result.media_type), from, result.overview]}
                   actions={
                     tracked_id ? (
                       <Badge tone="good">✓ In library</Badge>
                     ) : (
                       <button type="button" disabled={adding !== null} onClick={() => void add(result)}>
-                        {adding === result.tmdb_id ? "Adding…" : "Add"}
+                        {adding === key ? "Adding…" : "Add"}
                       </button>
                     )
                   }
@@ -162,9 +177,9 @@ export function SearchView({ query }: { query: string }) {
   return (
     <div className="search-page">
       <Stack>
-        <PageHeading title="Search" subtitle={`Results for “${query}” in your library and on TMDB.`} />
+        <PageHeading title="Search" subtitle={`Results for “${query}” in your library and the catalogues.`} />
         <LibraryMatches query={query} poster_size={poster_size} />
-        <TmdbMatches query={query} poster_size={poster_size} />
+        <CatalogMatches query={query} poster_size={poster_size} />
       </Stack>
     </div>
   );

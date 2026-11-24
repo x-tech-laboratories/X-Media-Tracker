@@ -74,7 +74,7 @@ describe("search", () => {
     fake_page(seed_library);
     render(<App />);
 
-    const box = await screen.findByLabelText("Search your library and TMDB, or paste a link");
+    const box = await screen.findByLabelText("Search your library and the catalogues, or paste a link");
     fireEvent.change(box, { target: { value: "dune" } });
     fireEvent.keyDown(box, { key: "Enter" });
     expect(window.location.hash).toBe("#/movies/search/dune");
@@ -84,7 +84,7 @@ describe("search", () => {
     const mine = screen.getByRole("heading", { name: "In your library" }).closest("section")!;
     expect(within(mine).getByRole("link", { name: "Dune: Part Two" })).toBeTruthy();
     expect(within(mine).queryByRole("link", { name: "Severance" })).toBeNull();
-    expect(screen.getByRole("heading", { name: "From TMDB" })).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "From the catalogues" })).toBeTruthy();
   });
 });
 
