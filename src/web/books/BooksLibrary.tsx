@@ -97,7 +97,7 @@ const table_columns: TableColumn<LibraryBook>[] = [
 ];
 
 function BookTable({ books }: { books: LibraryBook[] }) {
-  return <DataTable caption="Books" columns={table_columns} rows={books} row_key={(book) => book.id} />;
+  return <DataTable caption="Books" columns={table_columns} rows={books} row_key={(book) => book.id} wrap_class="sticky-head" />;
 }
 
 function BookList({ books, grouping, size, layout }: { books: LibraryBook[]; grouping: Grouping<LibraryBook> | undefined; size: MediaGridSize; layout: Layout }) {
