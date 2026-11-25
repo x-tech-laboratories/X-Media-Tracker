@@ -3,6 +3,8 @@
 X-Media-Tracker loads plugins from a folder as well as its bundled ones. A plugin from the folder runs with the app's
 full rights and is not sandboxed, so install only plugins you trust.
 
+A complete, runnable example is in [`examples/shelfdb`](../examples/shelfdb): a game catalogue in plain JavaScript with no build.
+
 ## Where plugins go
 
 - The server: `plugins/` beside its database.

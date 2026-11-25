@@ -3,7 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
-import { read_plugin_file } from "@x-tech-laboratories/x-libs/plugin_folder";
+import { load_plugin_folder, plugin_entries, read_plugin_file } from "@x-tech-laboratories/x-libs/plugin_folder";
 import { define_plugin } from "@x-tech-laboratories/x-libs/plugins";
 import { hash_password } from "@x-tech-laboratories/x-libs/server/passwords";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -346,5 +346,24 @@ describe("a movies and shows catalogue from the plugins folder", () => {
     await expect(store.set_title_ids("tmdb:693134", { other_ids: { shelfdb: "8" } })).rejects.toThrow("A Short Film already has that shelfdb id");
     expect(await store.set_title_ids("tmdb:693134", { other_ids: { shelfdb: "7", tmdb: "1" } })).toMatchObject({ other_ids: { shelfdb: "7" }, genres: "Epic", name: "Dune: Part Two" });
     expect((await store.set_title_ids("tmdb:693134", { other_ids: { shelfdb: "" } })).other_ids).toEqual({});
+  });
+});
+
+describe("the example plugin", () => {
+  it("loads from its folder on both sides and gives a game catalogue that adds and finds games", async () => {
+    const folder = join(import.meta.dirname, "..", "examples");
+    expect(plugin_entries(folder, "web").entries.map((entry) => entry.name)).toEqual(["shelfdb"]);
+    const loaded = await load_plugin_folder<MediaPluginApi>(folder, "store");
+    expect(loaded.problems).toEqual([]);
+
+    use_folder_plugins(loaded.plugins);
+    const database = new DatabaseSync(":memory:");
+    open_store(database);
+    const store = bind_methods(() => database, () => undefined);
+    store.set_setting("plugins", Object.fromEntries(game_catalog_manifests.map((manifest) => [manifest.id, { enabled: false }])));
+
+    expect((await store.search_games("tunic")).results).toEqual([expect.objectContaining({ title: "Tunic", other_ids: { shelfdb: "2" } })]);
+    expect(await store.add_game("shelfdb", "3")).toEqual({ id: "shelfdb:3", title: "Hades", existed: false });
+    expect(store.get_game("shelfdb:3")).toMatchObject({ year: "2020", developers: "Supergiant Games" });
   });
 });
