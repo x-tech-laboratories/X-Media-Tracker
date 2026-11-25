@@ -1,0 +1,8 @@
+{
+  "name": "x-media-tracker-shelfdb-example",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "An example X-Media-Tracker plugin: a game catalogue called ShelfDB, with no build step.",
+  "x-plugin": { "store": "store.js", "web": "web.js" }
+}
