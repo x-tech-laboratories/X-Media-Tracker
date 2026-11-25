@@ -89,10 +89,20 @@ export const games_api = {
             itchio_id: text("An itch.io game page as its creator and slug such as innersloth/among-us, or its link, or empty to clear it."),
             steamgriddb_id: text("A SteamGridDB game number or link, or empty to clear it."),
             epic_id: text("An Epic Games Store catalogue item id, 32 letters and digits, or empty to clear it."),
+            other_ids: {
+              type: "object",
+              description:
+                "Ids from catalogues the plugins folder adds, by the source list_folder_game_catalogs names, such as {\"shelfdb\": \"7\"}; an empty one clears it, and a source left out stays as it is.",
+              additionalProperties: { type: "string" },
+            },
           },
         },
       },
     ],
+  },
+  list_folder_game_catalogs: {
+    description: "Lists the game catalogues that plugins from the plugins folder add and that are on, each with the source its ids are kept under and its name.",
+    params: [],
   },
   set_game_base: {
     description:

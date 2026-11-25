@@ -10,7 +10,7 @@ import { asc, eq, inArray, or, sql, synced_tables } from "@x-tech-laboratories/x
 import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 
 import { custom_cover, serves_image } from "../covers.ts";
-import { other_id_path } from "../other_ids.ts";
+import { other_id_path, with_typed_other_ids, type OtherCatalog } from "../other_ids.ts";
 import { Background, define_feature, drizzle_of, new_id } from "../feature.ts";
 import { merge_columns, merge_ids, type SourceAnswers } from "../merging.ts";
 import { move_settings_into_plugins, open_plugin_host, plugin_settings, require_switched_on } from "../plugins/host.ts";
@@ -856,10 +856,17 @@ function clean_launch_ids(ids: Partial<GameLaunchIds>): Partial<GameLaunchIds> {
   return cleaned;
 }
 
+// The catalogues from the plugins folder that are on, whose ids a game holds in other_ids.
+async function folder_catalogs(database: SqlDatabase): Promise<OtherCatalog[]> {
+  return (await catalogs_of(database)).filter((catalog) => !(catalog.source in key_fields)).map(({ source, label }) => ({ source, label }));
+}
+
 // The game keeps its own id and everything about it; only the catalogue ids change, and then its details are fetched again.
-async function set_ids(database: SqlDatabase, id: string, ids: Partial<GameIds>): Promise<LibraryGame> {
-  require_game(database, id);
+async function set_ids(database: SqlDatabase, id: string, ids: Partial<GameIds> & { other_ids?: Record<string, string> }): Promise<LibraryGame> {
+  const game = require_game(database, id);
   const cleaned = clean_ids(ids);
+  const typed = Object.fromEntries(Object.entries(ids.other_ids ?? {}).filter(([source]) => !(source in key_fields)));
+  const other_ids = with_typed_other_ids(game.other_ids, typed);
   const db = drizzle_of(database);
   in_transaction(database, () => {
     for (const [key, value] of Object.entries(cleaned) as [keyof GameIds, string][]) {
@@ -867,7 +874,13 @@ async function set_ids(database: SqlDatabase, id: string, ids: Partial<GameIds>)
       const other = db.select({ id: games_games.id, title: games_games.title }).from(games_games).where(eq(games_games[key], value)).all().find((row) => row.id !== id);
       if (other) throw new Error(`${other.title} already has that ${id_labels[key]}; remove one of the two games first.`);
     }
-    db.update(games_games).set(cleaned).where(eq(games_games.id, id)).run();
+    for (const source of Object.keys(typed)) {
+      if (!other_ids[source]) continue;
+      const match = sql`json_extract(${games_games.other_ids}, ${other_id_path(source)}) = ${other_ids[source]}`;
+      const other = db.select({ id: games_games.id, title: games_games.title }).from(games_games).where(match).all().find((row) => row.id !== id);
+      if (other) throw new Error(`${other.title} already has that ${source} id; remove one of the two games first.`);
+    }
+    db.update(games_games).set({ ...cleaned, other_ids: JSON.stringify(other_ids) }).where(eq(games_games.id, id)).run();
   });
   await refresh_game(database, require_game(database, id)).catch(() => false);
   return require_game(database, id);
@@ -1088,7 +1101,9 @@ export const games_feature = define_feature({
       return add_from(database, parsed.source, parsed.id);
     },
 
-    set_game_ids: (database: SqlDatabase, id: string, ids: Partial<GameIds>): Promise<LibraryGame> => set_ids(database, id, ids),
+    set_game_ids: (database: SqlDatabase, id: string, ids: Partial<GameIds> & { other_ids?: Record<string, string> }): Promise<LibraryGame> => set_ids(database, id, ids),
+
+    list_folder_game_catalogs: (database: SqlDatabase): Promise<OtherCatalog[]> => folder_catalogs(database),
 
     lookup_game_sources: (database: SqlDatabase, id: string): Promise<SourceAnswers> => game_sources(database, require_game(database, id)),
 

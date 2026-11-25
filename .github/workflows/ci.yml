@@ -20,7 +20,8 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
       - run: npm run build
-      - run: npm test
+      - run: npm run coverage
+      - run: git diff --exit-code vitest.config.ts
       - run: npm run lint
 
   # Builds the package TechNet deploys and the desktop app, so a dependency bump that breaks either fails here.

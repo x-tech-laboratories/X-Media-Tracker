@@ -118,6 +118,32 @@ export const library_api = {
       { name: "status", schema: { type: "string", enum: [...statuses], description: "The new status." } },
     ],
   },
+  set_title_ids: {
+    description:
+      "Sets a tracked title's ids from catalogues the plugins folder adds, so a title they did not match can be pointed at the right one; then asks the " +
+      "catalogues about it again. An id another tracked title already has is refused. The title keeps its own id, status, rating and watched episodes. Gives back the title.",
+    params: [
+      { name: "id", schema: title_id },
+      {
+        name: "ids",
+        schema: {
+          type: "object",
+          properties: {
+            other_ids: {
+              type: "object",
+              description:
+                "Ids by the source list_folder_title_catalogs names, such as {\"shelfdb\": \"7\"}; an empty one clears it, and a source left out stays as it is.",
+              additionalProperties: { type: "string" },
+            },
+          },
+        },
+      },
+    ],
+  },
+  list_folder_title_catalogs: {
+    description: "Lists the movie and show catalogues that plugins from the plugins folder add and that are on, each with the source its ids are kept under and its name.",
+    params: [],
+  },
   set_title_notes: {
     description: "Sets your own notes on a movie or show, in Markdown, replacing any before; empty clears them. Notes are kept apart from any review.",
     params: [

@@ -9,7 +9,7 @@ import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sq
 
 import { Background, define_feature, drizzle_of, new_id } from "../feature.ts";
 import { merge_columns, merge_ids, type SourceAnswers } from "../merging.ts";
-import { clean_other_ids, other_id_path, type OtherIds } from "../other_ids.ts";
+import { clean_other_ids, other_id_path, with_typed_other_ids, type OtherCatalog, type OtherIds } from "../other_ids.ts";
 import { move_settings_into_plugins, open_plugin_host } from "../plugins/host.ts";
 import type { TransferFile, TransferInput, TransferReport } from "../transfer.ts";
 import { library_api } from "./api.ts";
@@ -432,31 +432,58 @@ function snapshot_of(refresh: LibraryRefresh): LibraryRefresh {
 
 // Fetches every title's metadata again, fills in missing ids and episode counts, and sets each show's status from its
 // episodes, counting each title as it goes; it never changes a rating or unwatches an episode.
+// Asks the catalogues about one title again and writes what they say: true when something changed, false when not or
+// when none of them can be asked about it; throws when asking failed.
+async function refresh_details(database: SqlDatabase, title: LibraryTitle, tmdb_ready: boolean, others: TitleCatalog[]): Promise<boolean> {
+  if (!tmdb_ready && !others.some((catalog) => title.other_ids[catalog.source])) return false;
+  const details = await gather(database, start_of(title));
+  const row: Record<string, unknown> = { ...title, other_ids: JSON.stringify(title.other_ids) };
+  const fields = {
+    ...keep_known(row, metadata_of(details)),
+    imdb_id: details.imdb_id || title.imdb_id,
+    total_episodes: details.total_episodes || title.total_episodes,
+  };
+  if (!Object.entries(fields).some(([key, value]) => value !== row[key])) return false;
+  drizzle_of(database).update(library_titles).set(fields).where(eq(library_titles.id, title.id)).run();
+  return true;
+}
+
+// The catalogues besides TMDB that can be asked for a title by their own id.
+async function other_title_catalogs(database: SqlDatabase): Promise<TitleCatalog[]> {
+  return (await catalogs_of(database)).filter((catalog) => catalog.source !== "tmdb" && catalog.title);
+}
+
+// The title keeps its own id and everything about it; only other catalogues' ids change, and then it is asked about again.
+async function set_ids(database: SqlDatabase, id: string, ids: { other_ids?: Record<string, string> }): Promise<LibraryTitle> {
+  const title = require_title(database, id);
+  const typed = Object.fromEntries(Object.entries(ids.other_ids ?? {}).filter(([source]) => source !== "tmdb"));
+  const other_ids = with_typed_other_ids(title.other_ids, typed);
+  const db = drizzle_of(database);
+  in_transaction(database, () => {
+    for (const source of Object.keys(typed)) {
+      if (!other_ids[source]) continue;
+      const match = sql`json_extract(${library_titles.other_ids}, ${other_id_path(source)}) = ${other_ids[source]}`;
+      const other = db.select({ id: library_titles.id, name: library_titles.name }).from(library_titles).where(match).all().find((row) => row.id !== id);
+      if (other) throw new Error(`${other.name} already has that ${source} id; remove one of the two titles first.`);
+    }
+    db.update(library_titles).set({ other_ids: JSON.stringify(other_ids) }).where(eq(library_titles.id, id)).run();
+  });
+  await refresh_details(database, require_title(database, id), !!(await tmdb_if_ready(database)), await other_title_catalogs(database)).catch(() => false);
+  return require_title(database, id);
+}
+
 async function run_refresh(database: SqlDatabase, refresh: LibraryRefresh): Promise<void> {
   try {
     const titles = list_titles(database);
     const report: RefreshReport = { total: titles.length, metadata_updated: 0, status_updated: 0, failed: 0 };
     refresh.total = titles.length;
-    const tmdb = await tmdb_if_ready(database);
-    const others = (await catalogs_of(database)).filter((catalog) => catalog.source !== "tmdb" && catalog.title);
+    const tmdb_ready = !!(await tmdb_if_ready(database));
+    const others = await other_title_catalogs(database);
     const refresh_title = async (title: LibraryTitle): Promise<void> => {
-      if (tmdb || others.some((catalog) => title.other_ids[catalog.source])) {
-        try {
-          const details = await gather(database, start_of(title));
-          const row: Record<string, unknown> = { ...title, other_ids: JSON.stringify(title.other_ids) };
-          const fields = {
-            ...keep_known(row, metadata_of(details)),
-            imdb_id: details.imdb_id || title.imdb_id,
-            total_episodes: details.total_episodes || title.total_episodes,
-          };
-          const changed = Object.entries(fields).some(([key, value]) => value !== row[key]);
-          if (changed) {
-            drizzle_of(database).update(library_titles).set(fields).where(eq(library_titles.id, title.id)).run();
-            report.metadata_updated++;
-          }
-        } catch {
-          report.failed++;
-        }
+      try {
+        if (await refresh_details(database, title, tmdb_ready, others)) report.metadata_updated++;
+      } catch {
+        report.failed++;
       }
       if (title.media_type === "show" && settle_status(database, title.id) !== title.status) report.status_updated++;
       refresh.done++;
@@ -547,6 +574,11 @@ export const library_feature = define_feature({
         .where(eq(library_titles.id, id))
         .run();
     },
+
+    set_title_ids: (database: SqlDatabase, id: string, ids: { other_ids?: Record<string, string> }): Promise<LibraryTitle> => set_ids(database, id, ids),
+
+    list_folder_title_catalogs: async (database: SqlDatabase): Promise<OtherCatalog[]> =>
+      (await catalogs_of(database, true)).filter((catalog) => catalog.source !== "tmdb").map(({ source, label }) => ({ source, label })),
 
     set_title_notes: (database: SqlDatabase, id: string, notes: string): void => {
       require_title(database, id);

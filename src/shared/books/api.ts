@@ -84,10 +84,20 @@ export const books_api = {
             openlibrary_id: text("An Open Library work or edition, such as OL5738148W or OL7353617M, or a link to either; empty clears it."),
             hardcover_id: text("A Hardcover book's number, or empty to clear it."),
             isbn: text("An ISBN-13 or ISBN-10, or empty to clear it."),
+            other_ids: {
+              type: "object",
+              description:
+                "Ids from catalogues the plugins folder adds, by the source list_folder_book_catalogs names, such as {\"shelfdb\": \"7\"}; an empty one clears it, and a source left out stays as it is.",
+              additionalProperties: { type: "string" },
+            },
           },
         },
       },
     ],
+  },
+  list_folder_book_catalogs: {
+    description: "Lists the book catalogues that plugins from the plugins folder add and that are on, each with the source its ids are kept under and its name.",
+    params: [],
   },
   lookup_book_sources: {
     description:

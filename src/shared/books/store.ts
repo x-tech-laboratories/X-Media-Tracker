@@ -10,7 +10,7 @@ import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sq
 
 import { Background, define_feature, drizzle_of, new_id } from "../feature.ts";
 import { merge_columns, merge_ids, type SourceAnswers } from "../merging.ts";
-import { clean_other_ids, other_id_path, type OtherIds } from "../other_ids.ts";
+import { clean_other_ids, other_id_path, with_typed_other_ids, type OtherCatalog, type OtherIds } from "../other_ids.ts";
 import { move_settings_into_plugins, open_plugin_host, require_switched_on } from "../plugins/host.ts";
 import type { TransferFile, TransferInput, TransferReport } from "../transfer.ts";
 import { books_api } from "./api.ts";
@@ -614,9 +614,11 @@ async function clean_ids(database: SqlDatabase, ids: Partial<BookIds>): Promise<
 }
 
 // The book keeps its own id and everything about it; only the catalogue ids change, and then its details are fetched again.
-async function set_ids(database: SqlDatabase, id: string, ids: Partial<BookIds>): Promise<LibraryBook> {
-  require_book(database, id);
+async function set_ids(database: SqlDatabase, id: string, ids: Partial<BookIds> & { other_ids?: Record<string, string> }): Promise<LibraryBook> {
+  const book = require_book(database, id);
   const cleaned = await clean_ids(database, ids);
+  const typed = Object.fromEntries(Object.entries(ids.other_ids ?? {}).filter(([source]) => !(source in id_columns)));
+  const other_ids = with_typed_other_ids(book.other_ids, typed);
   const db = drizzle_of(database);
   in_transaction(database, () => {
     for (const [key, value] of Object.entries(cleaned) as [keyof BookIds, string][]) {
@@ -624,7 +626,13 @@ async function set_ids(database: SqlDatabase, id: string, ids: Partial<BookIds>)
       const other = db.select({ id: books_books.id, title: books_books.title }).from(books_books).where(eq(books_books[key], value)).all().find((row) => row.id !== id);
       if (other) throw new Error(`${other.title} already has that ${id_labels[key]}; remove one of the two books first.`);
     }
-    db.update(books_books).set(cleaned).where(eq(books_books.id, id)).run();
+    for (const source of Object.keys(typed)) {
+      if (!other_ids[source]) continue;
+      const match = sql`json_extract(${books_books.other_ids}, ${other_id_path(source)}) = ${other_ids[source]}`;
+      const other = db.select({ id: books_books.id, title: books_books.title }).from(books_books).where(match).all().find((row) => row.id !== id);
+      if (other) throw new Error(`${other.title} already has that ${source} id; remove one of the two books first.`);
+    }
+    db.update(books_books).set({ ...cleaned, other_ids: JSON.stringify(other_ids) }).where(eq(books_books.id, id)).run();
   });
   await refresh_book(database, require_book(database, id)).catch(() => false);
   return require_book(database, id);
@@ -813,7 +821,10 @@ export const books_feature = define_feature({
       return add_from(database, parsed.source, parsed.id);
     },
 
-    set_book_ids: (database: SqlDatabase, id: string, ids: Partial<BookIds>): Promise<LibraryBook> => set_ids(database, id, ids),
+    set_book_ids: (database: SqlDatabase, id: string, ids: Partial<BookIds> & { other_ids?: Record<string, string> }): Promise<LibraryBook> => set_ids(database, id, ids),
+
+    list_folder_book_catalogs: async (database: SqlDatabase): Promise<OtherCatalog[]> =>
+      (await catalogs_of(database, true)).filter((catalog) => !(catalog.source in id_columns)).map(({ source, label }) => ({ source, label })),
 
     lookup_book_sources: (database: SqlDatabase, id: string): Promise<SourceAnswers> => book_sources(database, require_book(database, id)),
 

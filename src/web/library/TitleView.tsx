@@ -3,10 +3,11 @@
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
+import { useState } from "react";
 import { Avatar } from "@x-tech-laboratories/x-libs/web/react/media";
 import { ChipField } from "@x-tech-laboratories/x-libs/web/react/chip_field";
 import { Segmented } from "@x-tech-laboratories/x-libs/web/react/controls";
-import { confirm_dialog } from "@x-tech-laboratories/x-libs/web/react/dialog";
+import { confirm_dialog, Dialog, open_dialog } from "@x-tech-laboratories/x-libs/web/react/dialog";
 import { Facts, PageHeading, Section, Stack } from "@x-tech-laboratories/x-libs/web/react/layout";
 import { PluginSlot } from "@x-tech-laboratories/x-libs/web/react/plugins";
 import { ProgressBar } from "@x-tech-laboratories/x-libs/web/react/progress";
@@ -22,6 +23,8 @@ import { set_status } from "./status.tsx";
 import { HeadPoster } from "../covers.tsx";
 import { MergeButton } from "../merging.tsx";
 import { NotesBox } from "../notes.tsx";
+import { OtherIdFields, other_id_catalogs, typed_other_ids } from "../OtherIdFields.tsx";
+import type { OtherCatalog } from "../../shared/other_ids.ts";
 import { title_merge } from "./merge.tsx";
 
 // ── Episodes ─────────────────────────────────────────────────────────────────
@@ -123,11 +126,39 @@ function Collections({ title, collections }: { title: LibraryTitle; collections:
   return <ChipField label="Collections" values={chosen} suggestions={collections.map((collection) => collection.name)} list_on_focus add_label="Add" placeholder="Add to a collection" on_change={(next) => void save(next)} />;
 }
 
+// Ids from catalogues the plugins folder adds, typed by hand.
+function IdsDialog({ title, catalogs, close }: { title: LibraryTitle; catalogs: OtherCatalog[]; close: () => void }) {
+  const [other_ids, set_other_ids] = useState({ ...title.other_ids });
+  const [busy, set_busy] = useState(false);
+  return (
+    <Dialog
+      title="Change ids"
+      subtitle={title.name}
+      on_close={close}
+      form={{
+        submit_label: busy ? "Saving…" : "Save",
+        on_submit: (event) => {
+          event.preventDefault();
+          set_busy(true);
+          calls()
+            .set_title_ids(title.id, { other_ids: typed_other_ids(catalogs, other_ids) })
+            .then(close)
+            .catch((error: unknown) => toast((error as Error).message, { tone: "bad" }))
+            .finally(() => set_busy(false));
+        },
+      }}
+    >
+      <OtherIdFields prefix="title" catalogs={catalogs} values={other_ids} on_change={set_other_ids} />
+    </Dialog>
+  );
+}
+
 function TitlePage({ title, titles, collections, settings }: { title: LibraryTitle; titles: LibraryTitle[]; collections: Collection[]; settings: Record<string, unknown> }) {
   // TMDB is asked once per visit, not after each tick.
   const details = use_resource(() => calls().lookup_title_details(title.id), [title.id]);
   const genres_on = settings["library.genres_enabled"] !== false;
   const plugins = use_page_plugins();
+  const id_catalogs = other_id_catalogs(use_data((api) => api.list_folder_title_catalogs()).data ?? [], title.other_ids);
 
   const remove = () =>
     confirm_dialog({
@@ -150,6 +181,11 @@ function TitlePage({ title, titles, collections, settings }: { title: LibraryTit
         actions={
           <>
             {plugins && <PluginSlot host={plugins} name="title_actions" props={{ media_type: title.media_type, imdb_id: title.imdb_id || tmdb?.imdb_id || "" }} />}
+            {id_catalogs.length > 0 && (
+              <button type="button" onClick={() => open_dialog((close) => <IdsDialog title={title} catalogs={id_catalogs} close={close} />)}>
+                Change ids
+              </button>
+            )}
             <MergeButton kind={title_merge} start={title} items={titles} />
             <button type="button" className="danger" onClick={remove}>
               Remove

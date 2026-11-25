@@ -17,6 +17,7 @@ import { Empty, Failure, Loaded, Skeleton, use_resource } from "@x-tech-laborato
 import { today } from "@x-tech-laboratories/x-libs/dates";
 
 import { calls, use_data } from "../api.ts";
+import { OtherIdFields, other_id_catalogs, typed_other_ids } from "../OtherIdFields.tsx";
 import { HistoryButton } from "../history/HistoryView.tsx";
 import {
   book_format_labels,
@@ -90,6 +91,8 @@ const id_fields: [keyof BookIds, string, string][] = [
 
 function IdsDialog({ book, close }: { book: LibraryBook; close: () => void }) {
   const [ids, set_ids] = useState<BookIds>({ bookbrainz_id: book.bookbrainz_id, openlibrary_id: book.openlibrary_id, hardcover_id: book.hardcover_id, isbn: book.isbn });
+  const [other_ids, set_other_ids] = useState({ ...book.other_ids });
+  const catalogs = other_id_catalogs(use_data((api) => api.list_folder_book_catalogs()).data ?? [], book.other_ids);
   const [busy, set_busy] = useState(false);
   return (
     <Dialog
@@ -103,7 +106,7 @@ function IdsDialog({ book, close }: { book: LibraryBook; close: () => void }) {
           set_busy(true);
           attempt(
             calls()
-              .set_book_ids(book.id, ids)
+              .set_book_ids(book.id, { ...ids, other_ids: typed_other_ids(catalogs, other_ids) })
               .then(close)
               .finally(() => set_busy(false)),
           );
@@ -115,6 +118,7 @@ function IdsDialog({ book, close }: { book: LibraryBook; close: () => void }) {
           <input id={`book-${key}`} autoComplete="off" spellCheck={false} value={ids[key]} onChange={(event) => set_ids({ ...ids, [key]: event.currentTarget.value })} />
         </FormRow>
       ))}
+      <OtherIdFields prefix="book" catalogs={catalogs} values={other_ids} on_change={set_other_ids} />
     </Dialog>
   );
 }

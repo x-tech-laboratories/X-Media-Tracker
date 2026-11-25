@@ -37,3 +37,21 @@ export function other_ids_differ(first: OtherIds, second: OtherIds): boolean {
 export function other_id_path(source: string): string {
   return `$."${source.replace(/"/g, "")}"`;
 }
+
+// A catalogue with no column of its own whose plugin is on, as the page offers it for typing an id by hand.
+export interface OtherCatalog {
+  source: string;
+  label: string;
+}
+
+// Ids typed by hand laid over the ones a thing has: each one given replaces its source's, and an empty one clears it.
+export function with_typed_other_ids(current: OtherIds, typed: unknown): OtherIds {
+  const next = { ...current };
+  if (!typed || typeof typed !== "object" || Array.isArray(typed)) return next;
+  for (const [source, id] of Object.entries(typed)) {
+    if (!source || typeof id !== "string") continue;
+    if (id.trim()) next[source] = id.trim();
+    else delete next[source];
+  }
+  return next;
+}
