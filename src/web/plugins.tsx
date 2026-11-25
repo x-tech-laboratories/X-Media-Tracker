@@ -9,6 +9,7 @@ import { useEffect, useState, type ComponentType } from "react";
 import * as jsx_runtime from "react/jsx-runtime";
 import { create_plugin_host, define_plugin, type Plugin, type PluginHost, type PluginManifest, type PluginRecords } from "@x-tech-laboratories/x-libs/plugins";
 import { bridge_fetch_text, load_plugin_modules, share_modules } from "@x-tech-laboratories/x-libs/web/plugin_imports";
+import { SettingsDialogRow } from "@x-tech-laboratories/x-libs/web/react/dialog";
 import { PluginSettings, PluginSlot, use_plugins } from "@x-tech-laboratories/x-libs/web/react/plugins";
 import { Skeleton } from "@x-tech-laboratories/x-libs/web/react/states";
 
@@ -18,7 +19,6 @@ import { HardcoverKeyLink } from "./books/HardcoverKeyLink.tsx";
 import type { FeatureSettingsProps } from "./features.tsx";
 import { IgdbImport } from "./games/IgdbImport.tsx";
 import { EpicPanel, ItchioPanel, SteamPanel } from "./games/StorePanels.tsx";
-import { SourceRow } from "./settings/rows.tsx";
 import { StremioPanel } from "./sources/StremioPanel.tsx";
 import { StremioTitleLinks } from "./sources/StremioTitleLinks.tsx";
 import { TraktPanel } from "./sources/TraktPanel.tsx";
@@ -133,15 +133,6 @@ export function forget_page_plugins(): void {
 
 // ── Settings ─────────────────────────────────────────────────────────────────
 
-// The host as one plugin sees it, so the shared widgets draw only that plugin's settings and panel.
-function only_plugin(host: PluginHost<PagePluginApi>, plugin_id: string): PluginHost<PagePluginApi> {
-  return {
-    ...host,
-    list: () => host.list().filter((status) => status.manifest.id === plugin_id),
-    slot: ((name) => host.slot(name).filter((part) => part.plugin_id === plugin_id)) as PluginHost<PagePluginApi>["slot"],
-  };
-}
-
 // "No key" while a secret setting is empty, so a catalogue that answers nothing yet says why.
 function status_of(host: PluginHost<PagePluginApi>, manifest: PluginManifest, state: string): string {
   if (state === "off") return "Off";
@@ -157,12 +148,11 @@ function Rows({ host, manifests, settings, set_setting }: { host: PluginHost<Pag
       {manifests.map((manifest) => {
         const state = statuses.find((status) => status.manifest.id === manifest.id)?.state;
         if (!state) return null;
-        const one = only_plugin(host, manifest.id);
         return (
-          <SourceRow key={manifest.id} name={manifest.name} status={status_of(host, manifest, state)} about={manifest.description}>
-            <PluginSettings host={one} heading={null} />
-            {state === "running" ? <PluginSlot host={one} name="panel" props={{ settings, set_setting }} /> : <p className="source-hint">Turn {manifest.name} on to use it.</p>}
-          </SourceRow>
+          <SettingsDialogRow key={manifest.id} name={manifest.name} status={status_of(host, manifest, state)} about={manifest.description}>
+            <PluginSettings host={host} plugin_id={manifest.id} heading={null} />
+            {state === "running" ? <PluginSlot host={host} plugin_id={manifest.id} name="panel" props={{ settings, set_setting }} /> : <p className="source-hint">Turn {manifest.name} on to use it.</p>}
+          </SettingsDialogRow>
         );
       })}
     </>
