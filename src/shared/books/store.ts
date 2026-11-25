@@ -783,7 +783,7 @@ function require_day(day: string, what: string): void {
 export const books_feature = define_feature({
   id: "books",
   migrations: migrations.map((migration) => migration.statements),
-  tables: synced_tables(books_tables),
+  tables: synced_tables(books_tables, { map_columns: { books_books: ["other_ids"] } }),
   setting_defaults: books_setting_defaults,
   secret_settings: books_secret_settings,
   on_open: (database: SqlDatabase) => move_settings_into_plugins(database, moved_book_keys),

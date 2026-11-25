@@ -20,7 +20,7 @@ import { register_file_scheme, serve_files } from "@x-tech-laboratories/x-libs/e
 import { folder_file_store } from "@x-tech-laboratories/x-libs/node_file_store";
 import { create_sync_client, sync_device_methods } from "@x-tech-laboratories/x-libs/sync_client";
 import { file_sync_storage } from "@x-tech-laboratories/x-libs/sync_file_storage";
-import { load_plugin_folder } from "@x-tech-laboratories/x-libs/plugin_folder";
+import { load_plugin_folder, read_plugin_file } from "@x-tech-laboratories/x-libs/plugin_folder";
 
 import { media_backup_naming, read_schedule } from "../shared/backups.ts";
 import { certificate_bridge, device_bridge, launchers_bridge, media_bridge, media_events, plugin_files_bridge, steam_files_bridge } from "../shared/bridge.ts";
@@ -36,7 +36,6 @@ import { stremio_scheme } from "../shared/sources/stremio/links.ts";
 import { bind_methods, needs_upgrade, open_store, sync_engine } from "../shared/store.ts";
 import { read_local_lutris_games } from "./lutris.ts";
 import { read_local_steam_categories } from "./steam_categories.ts";
-import { read_plugin_file } from "./plugin_files.ts";
 
 // ── Profile ──────────────────────────────────────────────────────────────────
 

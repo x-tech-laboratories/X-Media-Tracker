@@ -3,11 +3,11 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
+import { read_plugin_file } from "@x-tech-laboratories/x-libs/plugin_folder";
 import { define_plugin } from "@x-tech-laboratories/x-libs/plugins";
 import { hash_password } from "@x-tech-laboratories/x-libs/server/passwords";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { read_plugin_file } from "../src/main/plugin_files.ts";
 import { build_app } from "../src/server/app.ts";
 import { empty_book } from "../src/shared/books/catalog.ts";
 import { book_catalog_manifests } from "../src/shared/books/manifests.ts";
