@@ -22,6 +22,7 @@
     "typecheck": "tsc -b",
     "db:generate": "for config in src/shared/*/drizzle.config.ts src/shared/*/*/drizzle.config.ts; do drizzle-kit generate --config \"$config\" && x-libs-bundle-migrations \"$(dirname \"$config\")/migrations\" || exit 1; done",
     "test": "vitest run",
+    "coverage": "vitest run --coverage",
     "lint": "oxlint",
     "icons": "x-libs-icons"
   },
@@ -51,6 +52,7 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.2.1",
+    "@vitest/coverage-v8": "^5.1.1",
     "drizzle-kit": "1.0.0-rc.6",
     "electron": "^45.4.1",
     "electron-vite": "^6.0.0",

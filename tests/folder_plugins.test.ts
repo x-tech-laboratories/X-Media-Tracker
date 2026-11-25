@@ -155,6 +155,18 @@ describe("a game catalogue from the plugins folder", () => {
     expect(merged.other_ids).toEqual({ shelfdb: "7" });
     expect(store.get_game("shelfdb:8")).toBeNull();
   });
+
+  it("takes its id typed by hand, refusing one another game has and clearing one left empty", async () => {
+    const store = open_with_shelfdb();
+    await store.add_game("shelfdb", "7");
+    await store.add_game("shelfdb", "8");
+    expect(await store.list_folder_game_catalogs()).toEqual([{ source: "shelfdb", label: "ShelfDB" }]);
+
+    await expect(store.set_game_ids("shelfdb:8", { other_ids: { shelfdb: "7" } })).rejects.toThrow("Outer Wilds already has that shelfdb id");
+    expect((await store.set_game_ids("shelfdb:8", { other_ids: { shelfdb: " 9 ", rawg: "portal-2" } })).other_ids).toEqual({ shelfdb: "9" });
+    expect(store.get_game("shelfdb:8")).toMatchObject({ rawg_id: "", overview: "Game 9 from ShelfDB." });
+    expect((await store.set_game_ids("shelfdb:8", { other_ids: { shelfdb: "" } })).other_ids).toEqual({});
+  });
 });
 
 // A book catalogue as one from the plugins folder would be, with no authors or series to follow.
@@ -208,6 +220,18 @@ describe("a book catalogue from the plugins folder", () => {
 
     expect(merged.other_ids).toEqual({ shelfdb: "7" });
     expect(store.get_book("shelfdb:8")).toBeNull();
+  });
+
+  it("takes its id typed by hand, refusing one another book has and clearing one left empty", async () => {
+    const store = open_with_shelf_books();
+    await store.add_book("shelfdb", "7");
+    await store.add_book("shelfdb", "8");
+    expect(await store.list_folder_book_catalogs()).toEqual([{ source: "shelfdb", label: "ShelfDB Books" }]);
+
+    await expect(store.set_book_ids("shelfdb:8", { other_ids: { shelfdb: "7" } })).rejects.toThrow("Piranesi already has that shelfdb id");
+    expect((await store.set_book_ids("shelfdb:8", { other_ids: { shelfdb: "9", hardcover: "12" } })).other_ids).toEqual({ shelfdb: "9" });
+    expect(store.get_book("shelfdb:8")).toMatchObject({ hardcover_id: "", overview: "Book 9 from ShelfDB." });
+    expect((await store.set_book_ids("shelfdb:8", { other_ids: { shelfdb: "" } })).other_ids).toEqual({});
   });
 });
 
@@ -311,5 +335,16 @@ describe("a movies and shows catalogue from the plugins folder", () => {
 
     expect(merged.other_ids).toEqual({ shelfdb: "8" });
     expect(store.get_title("shelfdb:8")).toBeNull();
+  });
+
+  it("takes its id typed by hand and asks it about the title, refusing one another title has", async () => {
+    const store = open_with_shelf_titles();
+    await store.add_title("movie", "693134");
+    await store.add_title_by_ids("movie", { other_ids: { shelfdb: "8" } });
+    expect(await store.list_folder_title_catalogs()).toEqual([{ source: "shelfdb", label: "ShelfDB Films" }]);
+
+    await expect(store.set_title_ids("tmdb:693134", { other_ids: { shelfdb: "8" } })).rejects.toThrow("A Short Film already has that shelfdb id");
+    expect(await store.set_title_ids("tmdb:693134", { other_ids: { shelfdb: "7", tmdb: "1" } })).toMatchObject({ other_ids: { shelfdb: "7" }, genres: "Epic", name: "Dune: Part Two" });
+    expect((await store.set_title_ids("tmdb:693134", { other_ids: { shelfdb: "" } })).other_ids).toEqual({});
   });
 });

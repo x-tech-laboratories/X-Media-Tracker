@@ -16,6 +16,7 @@ import { ComboField } from "@x-tech-laboratories/x-libs/web/react/suggestions";
 import { Empty, Loaded } from "@x-tech-laboratories/x-libs/web/react/states";
 
 import { calls, use_data } from "../api.ts";
+import { OtherIdFields, other_id_catalogs, typed_other_ids } from "../OtherIdFields.tsx";
 import { HistoryButton } from "../history/HistoryView.tsx";
 import {
   common_platforms,
@@ -132,6 +133,8 @@ function IdsDialog({ game, close }: { game: LibraryGame; close: () => void }) {
     gog_product_id: game.gog_product_id,
     lutris_slug: game.lutris_slug,
   });
+  const [other_ids, set_other_ids] = useState({ ...game.other_ids });
+  const catalogs = other_id_catalogs(use_data((api) => api.list_folder_game_catalogs()).data ?? [], game.other_ids);
   const [busy, set_busy] = useState(false);
   return (
     <Dialog
@@ -146,7 +149,7 @@ function IdsDialog({ game, close }: { game: LibraryGame; close: () => void }) {
           attempt(
             calls()
               .set_game_launch_ids(game.id, launch_ids)
-              .then(() => calls().set_game_ids(game.id, ids))
+              .then(() => calls().set_game_ids(game.id, { ...ids, other_ids: typed_other_ids(catalogs, other_ids) }))
               .then(close)
               .finally(() => set_busy(false)),
           );
@@ -158,6 +161,7 @@ function IdsDialog({ game, close }: { game: LibraryGame; close: () => void }) {
           <input id={`game-${key}`} autoComplete="off" spellCheck={false} value={ids[key]} onChange={(event) => set_ids({ ...ids, [key]: event.currentTarget.value })} />
         </FormRow>
       ))}
+      <OtherIdFields prefix="game" catalogs={catalogs} values={other_ids} on_change={set_other_ids} />
       {launch_fields.map(([key, label, hint]) => (
         <FormRow key={key} label={label} id={`game-${key}`} hint={hint}>
           <input id={`game-${key}`} autoComplete="off" spellCheck={false} value={launch_ids[key]} onChange={(event) => set_launch_ids({ ...launch_ids, [key]: event.currentTarget.value })} />
