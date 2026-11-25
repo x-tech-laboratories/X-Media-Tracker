@@ -8,7 +8,7 @@ import * as React from "react";
 import { useEffect, useState, type ComponentType } from "react";
 import * as jsx_runtime from "react/jsx-runtime";
 import { create_plugin_host, define_plugin, type Plugin, type PluginHost, type PluginManifest, type PluginRecords } from "@x-tech-laboratories/x-libs/plugins";
-import { load_plugin_modules, share_modules } from "@x-tech-laboratories/x-libs/web/plugin_imports";
+import { bridge_fetch_text, load_plugin_modules, share_modules } from "@x-tech-laboratories/x-libs/web/plugin_imports";
 import { PluginSettings, PluginSlot, use_plugins } from "@x-tech-laboratories/x-libs/web/react/plugins";
 import { Skeleton } from "@x-tech-laboratories/x-libs/web/react/states";
 
@@ -86,11 +86,7 @@ async function folder_pages(): Promise<Plugin<PagePluginApi>[]> {
   try {
     const loaded =
       host === "desktop"
-        ? await load_plugin_modules<PagePluginApi>(`${desktop_plugin_base}index.json`, async (url) => {
-            const text = await plugin_files!.read_plugin_file(url.slice(desktop_plugin_base.length));
-            if (!text) throw new Error(`${url} is not in the plugins folder.`);
-            return text;
-          })
+        ? await load_plugin_modules<PagePluginApi>(`${desktop_plugin_base}index.json`, bridge_fetch_text(desktop_plugin_base, (path) => plugin_files!.read_plugin_file(path)))
         : await load_plugin_modules<PagePluginApi>("api/plugins/index.json");
     for (const problem of loaded.problems) console.warn(`plugin ${problem.name}: ${problem.problem}`);
     return loaded.plugins;

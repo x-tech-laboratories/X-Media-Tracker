@@ -95,7 +95,8 @@ on the Settings page.
   stop filling it in. Its `status` column still defaults to an older status, read as Backlog, since changing a default
   rebuilds the table and would drop its collection links. `other_ids`, a JSON object of ids from catalogues with no column of
   their own, such as one from the plugins folder, by the catalogue's source, matched with `json_extract` and joined on a
-  refresh or a merge; it syncs as one value, so two devices adding different catalogues' ids at once keep the newer.
+  refresh or a merge; it is a sync map column, each catalogue's id syncing on its own, so two devices adding different
+  catalogues' ids at once keep both. The same holds for `books_books.other_ids` and `library_titles.other_ids`.
   `games_collections` and `games_game_collections`. All of them sync.
 - `rawg.ts`, `igdb.ts`, `mobygames.ts`, `giantbomb.ts`, `thegamesdb.ts`, `gog.ts`, `steamgriddb.ts`, `wikidata.ts`,
   `steam.ts` and `itchio.ts` are the catalogues' clients, each answering in `catalog.ts`'s shape. Adding or refreshing a game asks
@@ -145,7 +146,7 @@ service's own settings, its keys marked `secret`.
   every host after the bundled ones, and the host hands every plugin the `services` the store gives
   (`know_plugin_services` in `src/shared/store.ts`). The page imports their `web` side with `load_plugin_modules`: from
   the server's `/api/plugins/`, served by `register_plugin_files` behind sign-in, or on the desktop through the
-  `plugin_files` bridge (`src/main/plugin_files.ts`). A phone loads none.
+  `plugin_files` bridge, answered by X-Libs `read_plugin_file` and read with `bridge_fetch_text`. A phone loads none.
 - The page's side (`src/web/plugins.tsx`) gives each plugin a row in its feature's settings, whose dialog shows its on or
   off, its settings and what it puts in the `panel` slot, such as Trakt's sign-in, IGDB's data export or the link to make a Hardcover key; Stremio
   also fills `title_actions` on each title's page.

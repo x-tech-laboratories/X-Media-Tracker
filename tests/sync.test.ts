@@ -39,4 +39,20 @@ describe("sync between devices", () => {
       expect(store.get_title("tmdb:693134")!.rating).toBe(10);
     }
   });
+
+  it("keeps the ids two devices gave one title from different catalogues", () => {
+    const phone = open_device();
+    const desktop = open_device();
+    seed_library(phone);
+    push(phone, desktop);
+
+    phone.prepare(`UPDATE library_titles SET other_ids = '{"shelfdb":"7"}' WHERE id = 'tmdb:693134'`).run();
+    desktop.prepare(`UPDATE library_titles SET other_ids = '{"filmdb":"x1"}' WHERE id = 'tmdb:693134'`).run();
+    push(phone, desktop);
+    push(desktop, phone);
+
+    for (const database of [phone, desktop]) {
+      expect(bind_methods(() => database, () => undefined).get_title("tmdb:693134")!.other_ids).toEqual({ shelfdb: "7", filmdb: "x1" });
+    }
+  });
 });

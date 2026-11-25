@@ -1078,7 +1078,7 @@ function update_game(database: SqlDatabase, id: string, fields: Partial<typeof g
 export const games_feature = define_feature({
   id: "games",
   migrations: migrations.map((migration) => migration.statements),
-  tables: synced_tables(games_tables),
+  tables: synced_tables(games_tables, { map_columns: { games_games: ["other_ids"] } }),
   setting_defaults: games_setting_defaults,
   secret_settings: games_secret_settings,
   on_open: (database: SqlDatabase) => move_settings_into_plugins(database, moved_game_keys),

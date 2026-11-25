@@ -506,7 +506,7 @@ async function run_refresh(database: SqlDatabase, refresh: LibraryRefresh): Prom
 export const library_feature = define_feature({
   id: "library",
   migrations: migrations.map((migration) => migration.statements),
-  tables: synced_tables(library_tables),
+  tables: synced_tables(library_tables, { map_columns: { library_titles: ["other_ids"] } }),
   setting_defaults: library_setting_defaults,
   secret_settings: library_secret_settings,
   on_open: (database: SqlDatabase) => move_settings_into_plugins(database, moved_library_keys),
