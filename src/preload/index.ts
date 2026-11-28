@@ -4,7 +4,19 @@
 
 import { contextBridge, ipcRenderer } from "electron";
 
-import { certificate_bridge, device_bridge, launchers_bridge, media_bridge, media_events, plugin_files_bridge, steam_files_bridge } from "../shared/bridge.ts";
+import {
+  backup_bridge,
+  certificate_bridge,
+  connection_bridge,
+  desktop_bridge,
+  device_bridge,
+  launchers_bridge,
+  media_bridge,
+  media_events,
+  peer_listening_bridge,
+  plugin_files_bridge,
+  steam_files_bridge,
+} from "../shared/bridge.ts";
 
 // ── Bridge ───────────────────────────────────────────────────────────────────
 
@@ -14,4 +26,8 @@ certificate_bridge.expose(contextBridge, ipcRenderer, { envelopes: true });
 steam_files_bridge.expose(contextBridge, ipcRenderer, { envelopes: true });
 launchers_bridge.expose(contextBridge, ipcRenderer, { envelopes: true });
 plugin_files_bridge.expose(contextBridge, ipcRenderer, { envelopes: true });
+backup_bridge.expose(contextBridge, ipcRenderer, { envelopes: true });
+peer_listening_bridge.expose(contextBridge, ipcRenderer, { envelopes: true });
+desktop_bridge.expose(contextBridge, ipcRenderer, { envelopes: true });
+connection_bridge.expose(contextBridge, ipcRenderer, { envelopes: true });
 media_events.expose(contextBridge, ipcRenderer);

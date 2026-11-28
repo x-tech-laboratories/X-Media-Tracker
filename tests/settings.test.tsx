@@ -31,7 +31,7 @@ function fake_calls(saved: Record<string, unknown>): Client<MediaMethods> {
   } as unknown as Client<MediaMethods>;
 }
 
-const off = { state: "off", server_url: "", user: "", last_synced_at: "", pending_changes: 0, error: "" } as const;
+const off = { state: "off", device: "d1", name: "This device", addresses: [], peers: [], last_synced_at: "", pending_changes: 0, error: "" } as const;
 
 describe("settings", () => {
   it("lists the server's folder plugins under Plugins, saying when there are none", async () => {
@@ -67,22 +67,48 @@ describe("settings", () => {
     expect(screen.queryByRole("dialog", { name: "TMDB" })).toBeNull();
   });
 
-  it("offers sync on a device and signs it in with the choice of copy", async () => {
+  it("offers sync on a device and pairs it with another device's code", async () => {
     const device = {
       get_sync_status: vi.fn(async () => off),
-      connect_sync: vi.fn(async () => ({ ...off, state: "idle", server_url: "https://media.example.org/" })),
-      disconnect_sync: vi.fn(),
+      create_pairing_code: vi.fn(),
+      pair_device: vi.fn(async () => ({ ...off, state: "idle" })),
+      remove_device: vi.fn(),
       sync_now: vi.fn(),
     } as unknown as Client<DeviceMethods>;
     set_page_api({ host: "desktop", calls: fake_calls({}), device, cover_src: async () => "", on_change: () => () => undefined });
     render(<><SettingsView /><Dialogs /></>);
 
-    fireEvent.change(await screen.findByLabelText("Server address"), { target: { value: "https://media.example.org" } });
-    fireEvent.change(screen.getByLabelText("User name"), { target: { value: "ada" } });
-    fireEvent.change(screen.getByLabelText("Password"), { target: { value: "secret" } });
-    fireEvent.click(screen.getByRole("button", { name: "Use the server's media library" }));
-    fireEvent.click(await screen.findByRole("button", { name: "Use the server's" }));
-    await waitFor(() => expect(device.connect_sync).toHaveBeenCalledWith("https://media.example.org", { name: "ada", password: "secret" }, "download"));
+    fireEvent.change(await screen.findByPlaceholderText("x-sync:…"), { target: { value: "123-456" } });
+    fireEvent.click(screen.getByRole("button", { name: "Pair" }));
+    await waitFor(() => expect(device.pair_device).toHaveBeenCalledWith("123-456"));
+  });
+
+  it("shows a browser's server sync only to an admin", async () => {
+    const device = { get_sync_status: vi.fn(async () => off) } as unknown as Client<DeviceMethods>;
+    set_page_api({ host: "web", calls: fake_calls({}), device, cover_src: async () => "", on_change: () => () => undefined });
+    const { unmount } = render(<SettingsView is_admin={false} />);
+    expect((await screen.findAllByText("Plugins")).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Keep the server's library alike with the devices paired with it.")).toBeNull();
+    unmount();
+
+    render(<SettingsView />);
+    expect(await screen.findByText("Keep the server's library alike with the devices paired with it.")).toBeTruthy();
+  });
+
+  it("lists the daemons a desktop window can work on, and its own settings", async () => {
+    const view = { connections: [{ id: "local", name: "This computer", kind: "local" as const, address: "", user: "" }], current: "local" };
+    const connections = { list_connections: vi.fn(async () => view), add_connection: vi.fn(), rename_connection: vi.fn(), remove_connection: vi.fn(), choose_connection: vi.fn() };
+    const desktop = {
+      get_desktop_settings: vi.fn(async () => ({ keep_running_in_background: true, start_at_login: true })),
+      set_desktop_setting: vi.fn(async () => undefined),
+      quit_completely: vi.fn(async () => undefined),
+    };
+    set_page_api({ host: "desktop", calls: fake_calls({}), device: null, connections, desktop, cover_src: async () => "", on_change: () => () => undefined });
+    render(<><SettingsView /><Dialogs /></>);
+
+    expect(await screen.findByText("This computer")).toBeTruthy();
+    fireEvent.click(await screen.findByRole("switch", { name: "Start at login" }));
+    await waitFor(() => expect(desktop.set_desktop_setting).toHaveBeenCalledWith("start_at_login", false));
   });
 
   it("shows the server's backups in a browser and takes one by hand", async () => {

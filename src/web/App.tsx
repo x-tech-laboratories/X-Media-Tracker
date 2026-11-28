@@ -79,7 +79,7 @@ function Pages({ me, on_sign_out }: { me: Me | null; on_sign_out?: () => void })
     if (me && section === "account") return <AccountView client={accounts} />;
     if (section === "history") return <HistoryView />;
     // An admin signed in on the server manages users from Settings.
-    return <SettingsView server_sections={me ? users_settings({ client: accounts, me }) : []} />;
+    return <SettingsView server_sections={me ? users_settings({ client: accounts, me }) : []} is_admin={me === null || me.role === me.roles[me.roles.length - 1]} />;
   };
 
   return (

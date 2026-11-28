@@ -1,13 +1,21 @@
-// The bridges the hosts that hold a database use: the desktop app's main process and preload, and the web server.
+// The bridges the desktop app's main process and preload use, and the web server's call dispatch.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
 import { define_bridge } from "@x-tech-laboratories/x-libs/electron/bridge";
+import { backup_method_names, type BackupMethods } from "@x-tech-laboratories/x-libs/backup_protocol";
 import { certificate_method_names, type CertificateMethods } from "@x-tech-laboratories/x-libs/certificate_protocol";
+import { connection_method_names, type ConnectionMethods } from "@x-tech-laboratories/x-libs/connection_protocol";
+import { peer_listening_method_names, type PeerListeningMethods } from "@x-tech-laboratories/x-libs/sync_protocol";
 import { define_events } from "@x-tech-laboratories/x-libs/electron/events";
 
+import { desktop_method_names, type DesktopMethods } from "./desktop.ts";
 import {
+  backups_api_name,
   certificates_api_name,
+  connections_api_name,
+  desktop_api_name,
+  peer_listening_api_name,
   device_api_name,
   device_method_names,
   events_api_name,
@@ -39,5 +47,17 @@ export const steam_files_bridge = define_bridge<SteamFileMethods>(steam_files_ap
 
 export const launchers_bridge = define_bridge<LauncherMethods>(launchers_api_name, launcher_method_names);
 export const plugin_files_bridge = define_bridge<PluginFileMethods>(plugin_files_api_name, plugin_file_method_names);
+
+// Backups of the database the window works on: this computer's, or a server's, which only an admin reaches.
+export const backup_bridge = define_bridge<BackupMethods>(backups_api_name, backup_method_names);
+
+// The desktop app's own settings and quitting it completely.
+export const desktop_bridge = define_bridge<DesktopMethods>(desktop_api_name, desktop_method_names);
+
+// The daemons the desktop app can work on: this computer's, or a server signed in to as this device.
+export const connection_bridge = define_bridge<ConnectionMethods>(connections_api_name, connection_method_names);
+
+// Whether other devices may reach this computer's sync, and on which port.
+export const peer_listening_bridge = define_bridge<PeerListeningMethods>(peer_listening_api_name, peer_listening_method_names);
 
 export const media_events = define_events<MediaEvents>(events_api_name);

@@ -3,6 +3,7 @@
 // ── Imports ──────────────────────────────────────────────────────────────────
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { hostname } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { DatabaseSync } from "node:sqlite";
 
@@ -12,8 +13,11 @@ import { folder_file_store } from "@x-tech-laboratories/x-libs/node_file_store";
 import { load_accounts } from "@x-tech-laboratories/x-libs/server/passwords";
 import { sqlite_backups, take_staged_restore } from "@x-tech-laboratories/x-libs/server/sqlite_backups";
 import { load_plugin_folder } from "@x-tech-laboratories/x-libs/plugin_folder";
+import { create_sync_peer } from "@x-tech-laboratories/x-libs/sync_peer";
+import { file_sync_storage } from "@x-tech-laboratories/x-libs/sync_file_storage";
 
 import { media_backup_naming, read_schedule } from "../shared/backups.ts";
+import { referenced_covers } from "../shared/covers.ts";
 import { needs_upgrade, open_store, sync_engine } from "../shared/store.ts";
 import { use_folder_plugins, type MediaPluginApi } from "../shared/plugins/host.ts";
 import { build_app } from "./app.ts";
@@ -23,6 +27,8 @@ import { build_app } from "./app.ts";
 interface MediaConfig {
   database: string;
   backups_folder: string;
+  // Where other devices reach this server's sync, such as "https://media.example.org/api/"; none unless set.
+  sync_address?: string;
 }
 
 const server_config = read_server_config({
@@ -66,7 +72,7 @@ const kept = sqlite_backups({
 
 if (needs_upgrade(database)) await kept.create();
 open_store(database);
-// The restored data is no longer what the devices last saw, so each chooses again which copy to keep.
+// The restored data is no longer what the devices last saw, so each paired device is made to match it.
 if (restored) sync_engine.forget_history(database);
 
 // The schedule belongs to this server, so it is kept beside the database rather than in the synced settings.
@@ -85,13 +91,27 @@ for (const problem of folder.problems) console.warn(`plugin ${problem.name}: ${p
 
 // ── Server ───────────────────────────────────────────────────────────────────
 
+// Beside the database, so the server's data folder holds them.
+const covers = folder_file_store(join(dirname(database_path), "covers"));
+
 const app = await build_app({
   database,
   declared: load_accounts("X_MEDIA_TRACKER_PASSWORD_HASH_FILE"),
   web_folder: server_config.web_folder,
   plugins_folder,
-  // Beside the database, so the server's data folder holds them.
-  covers: folder_file_store(join(dirname(database_path), "covers")),
+  covers,
+  // The server is one sync peer among the devices, its pairings kept beside the database.
+  sync_peer: (on_remote_change) =>
+    create_sync_peer({
+      app: "x-media-tracker",
+      engine: sync_engine,
+      database: () => database,
+      storage: file_sync_storage({ file: join(dirname(database_path), "sync-peers.json"), back_up_before_replace: async () => void (await kept.create()) }),
+      files: { store: covers, referenced: referenced_covers },
+      device_name: `X-Media-Tracker server on ${hostname()}`,
+      addresses: () => (config.sync_address ? [config.sync_address] : []),
+      on_remote_change,
+    }),
   backups: {
     list_backups: kept.list,
     create_backup: () => kept.create(),

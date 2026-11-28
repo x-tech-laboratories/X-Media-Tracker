@@ -8,9 +8,14 @@ import type { FastifyInstance, InjectOptions } from "fastify";
 
 import { hidden_secret } from "@x-tech-laboratories/x-libs/plugins";
 import { hash_password } from "@x-tech-laboratories/x-libs/server/passwords";
+import { folder_file_store } from "@x-tech-laboratories/x-libs/node_file_store";
+import { create_sync_peer } from "@x-tech-laboratories/x-libs/sync_peer";
+import { file_sync_storage } from "@x-tech-laboratories/x-libs/sync_file_storage";
+import { put_file } from "@x-tech-laboratories/x-libs/sync_files";
 
 import { build_app } from "../src/server/app.ts";
-import { method_names, open_store } from "../src/shared/store.ts";
+import { referenced_covers } from "../src/shared/covers.ts";
+import { method_names, open_store, sync_engine } from "../src/shared/store.ts";
 
 let app: FastifyInstance;
 // The token every request but the sign-in tests carries.
@@ -43,10 +48,33 @@ const fake_backups = {
   set_backup_schedule: vi.fn(),
 };
 
+let covers: ReturnType<typeof folder_file_store>;
+
 async function start(web_folder = "/nonexistent"): Promise<FastifyInstance> {
   const database = new DatabaseSync(":memory:");
   open_store(database);
-  app = await build_app({ database, declared: new Map([["root", hash_password(password)]]), web_folder, backups: fake_backups });
+  const folder = mkdtempSync(join(tmpdir(), "x-media-tracker-server-"));
+  covers = folder_file_store(join(folder, "covers"));
+  app = await build_app({
+    database,
+    declared: new Map([["root", hash_password(password)]]),
+    web_folder,
+    backups: fake_backups,
+    covers,
+    auto_import: false,
+    release_checks: false,
+    sync_peer: (on_remote_change) =>
+      create_sync_peer({
+        app: "x-media-tracker",
+        engine: sync_engine,
+        database: () => database,
+        storage: file_sync_storage({ file: join(folder, "sync-peers.json"), back_up_before_replace: vi.fn() }),
+        files: { store: covers, referenced: referenced_covers },
+        device_name: "X-Media-Tracker test server",
+        addresses: () => ["https://media.example.org/api/"],
+        on_remote_change,
+      }),
+  });
   token = (await app.inject({ method: "POST", url: "/api/login", payload: { name: "root", password, device: "tests" } })).json().token;
   return app;
 }
@@ -142,14 +170,30 @@ describe("server", () => {
     expect(file.settings).not.toHaveProperty("library.tmdb_api_key");
   });
 
-  it("serves sync to devices", async () => {
+  it("answers other devices' sealed sync calls without a sign-in, and shows its pairings only to an admin", async () => {
     await start();
-    await signed({ method: "POST", url: "/api/call/save_collection_group", payload: [{ name: "Mood" }] });
-    const snapshot = await signed({ method: "GET", url: "/api/sync/snapshot" });
-    expect(snapshot.statusCode).toBe(200);
-    const { generation, changes } = snapshot.json() as { generation: string; changes: { table: string; key: string }[] };
-    expect(generation).not.toBe("");
-    expect(changes).toContainEqual(expect.objectContaining({ table: "library_collection_groups" }));
+
+    const peer_call = await app.inject({ method: "POST", url: "/api/sync/peer", headers: { "content-type": "application/octet-stream" }, payload: Buffer.from("not sealed") });
+    const signed_out = await app.inject({ method: "POST", url: "/api/device/create_pairing_code", payload: [] });
+    const code = await signed({ method: "POST", url: "/api/device/create_pairing_code", payload: [] });
+
+    expect(peer_call.statusCode).not.toBe(401);
+    expect(signed_out.statusCode).toBe(401);
+    expect(code.json()).toHaveProperty("code");
+  });
+
+  it("serves a kept cover by its name to a signed-in page or device, and nothing else", async () => {
+    await start();
+    const name = await put_file(covers, new Uint8Array([1, 2, 3]));
+
+    const signed_out = await app.inject({ method: "GET", url: `/api/covers/${name}` });
+    const kept = await signed({ method: "GET", url: `/api/covers/${name}` });
+    const missing = await signed({ method: "GET", url: "/api/covers/not-a-cover" });
+
+    expect(signed_out.statusCode).toBe(401);
+    expect(kept.statusCode).toBe(200);
+    expect([...kept.rawPayload]).toEqual([1, 2, 3]);
+    expect(missing.statusCode).toBe(404);
   });
 
   it("lets an admin list and take the server's backups, and refuses unknown backup calls", async () => {

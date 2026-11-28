@@ -1,5 +1,5 @@
-// The phone's page: it keeps its own database, answers its calls on it, backs it up daily, and syncs with a server when
-// one is set.
+// The phone's page: it keeps its own database, answers its calls on it, backs it up daily, and syncs with the devices it
+// is paired with.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
@@ -8,7 +8,7 @@ import type { Client } from "@x-tech-laboratories/x-libs/electron/bridge";
 import { keep_backing_up } from "@x-tech-laboratories/x-libs/backups";
 import { phone_backups } from "@x-tech-laboratories/x-libs/phone_backups";
 import { phone_certificates } from "@x-tech-laboratories/x-libs/phone_certificates";
-import { create_sync_client, sync_device_methods } from "@x-tech-laboratories/x-libs/sync_client";
+import { create_sync_peer, sync_device_methods } from "@x-tech-laboratories/x-libs/sync_peer";
 import { indexed_db_files, open_wasm_database } from "@x-tech-laboratories/x-libs/web/sqlite_wasm";
 import { local_sync_storage } from "@x-tech-laboratories/x-libs/web/sync_storage";
 
@@ -23,7 +23,7 @@ const files = indexed_db_files("x-media-tracker");
 // The covers kept on the phone, apart from the database, which is saved whole after every change.
 const covers = indexed_db_files("x-media-tracker-covers");
 const database_file = "media.db";
-const sync_config_key = "x-media-tracker-sync";
+const sync_peers_key = "x-media-tracker-sync-peers";
 // The schedule belongs to this phone, so it is kept in its own storage rather than in the synced settings.
 const schedule_key = "x-media-tracker-backup-schedule";
 
@@ -51,12 +51,11 @@ export async function android_api(): Promise<PageApi> {
   };
 
   // Backups go to a folder the user picks in the phone's storage; the ones taken on their own wait until there is one.
-  // A restore stops sync first, so the user picks again which copy wins.
+  // After a restore each paired device is made to match the restored copy.
   const kept = phone_backups({
     naming: media_backup_naming,
     database,
     after_restore: (connection) => {
-      sync.disconnect();
       open_store(connection);
       sync_engine.forget_history(connection);
     },
@@ -70,14 +69,14 @@ export async function android_api(): Promise<PageApi> {
   await database.save_now();
   const backing_up = keep_backing_up(kept, read_backup_schedule);
 
-  // The server and token stay in the app's private storage, never in the synced data.
-  const storage = local_sync_storage({ key: sync_config_key, back_up_before_download: back_up_if_folder });
-  const sync = create_sync_client({
+  // The paired devices and keys stay in the app's private storage, never in the synced data.
+  const storage = local_sync_storage({ key: sync_peers_key, back_up_before_replace: back_up_if_folder });
+  const sync = create_sync_peer({
+    app: "x-media-tracker",
     engine: sync_engine,
     database: () => database.connection,
     storage,
     files: { store: covers, referenced: referenced_covers },
-    data_name: "media library",
     device_name: "X-Media-Tracker on Android",
     on_remote_change: announce,
   });

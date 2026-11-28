@@ -7,7 +7,7 @@ import type { BackupClient } from "@x-tech-laboratories/x-libs/backup_protocol";
 import type { Client } from "@x-tech-laboratories/x-libs/electron/bridge";
 import { create_api } from "@x-tech-laboratories/x-libs/web/api";
 
-import type { PageApi } from "../../shared/page_api.ts";
+import type { DeviceMethods, PageApi } from "../../shared/page_api.ts";
 import type { MediaMethods } from "../../shared/store.ts";
 
 // ── Server calls ─────────────────────────────────────────────────────────────
@@ -16,7 +16,8 @@ import type { MediaMethods } from "../../shared/store.ts";
 const call_path = "api/call/";
 const backup_path = "api/backup/";
 const events_path = "api/events";
-const covers_path = "api/sync/files/";
+const covers_path = "api/covers/";
+const device_path = "api/device/";
 const client_id_header = "x-client-id";
 
 // Given by the server when the page connects, so the page is not told about its own changes.
@@ -69,6 +70,13 @@ function server_backups(): BackupClient {
   });
 }
 
+// The server's own sync peer; only its sync calls are offered, since its backups are server_backups.
+function server_device(): Client<DeviceMethods> {
+  return new Proxy({} as Client<DeviceMethods>, {
+    get: (_target, name) => (typeof name === "string" ? (...args: unknown[]) => call_server(name, args, device_path) : undefined),
+  });
+}
+
 export function web_api(): PageApi {
   const listeners = new Set<() => void>();
   follow_changes(() => {
@@ -78,7 +86,8 @@ export function web_api(): PageApi {
     host: "web",
     calls: server_calls(),
     backups: server_backups(),
-    device: null,
+    // The server's own sync peer, which only an admin pairs.
+    device: server_device(),
     cover_src: async (name) => covers_path + name,
     on_change: (listener) => {
       listeners.add(listener);
