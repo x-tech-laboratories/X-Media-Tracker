@@ -17,7 +17,7 @@ const call_path = "api/call/";
 const backup_path = "api/backup/";
 const events_path = "api/events";
 const covers_path = "api/covers/";
-const device_path = "api/device/";
+const device_path = "api/sync/";
 const client_id_header = "x-client-id";
 
 // Given by the server when the page connects, so the page is not told about its own changes.

@@ -63,7 +63,7 @@ const instructions = [
 
 // ── App ──────────────────────────────────────────────────────────────────────
 
-const admin_paths = ["/api/backup/", "/api/device/"];
+const admin_paths = ["/api/backup/", "/api/sync/"];
 
 export async function build_app(options: AppOptions): Promise<FastifyInstance> {
   const app = fastify({ forceCloseConnections: true });
@@ -125,7 +125,7 @@ export async function build_app(options: AppOptions): Promise<FastifyInstance> {
       if (options.plugins_folder) register_plugin_files(api, { folder: options.plugins_folder, prefix: "/plugins", side: "web" });
       if (sync) {
         register_sync_peer_routes(api, sync);
-        register_call_table(api, "/device", sync_device_methods(sync), { is_read_only });
+        register_call_table(api, "/sync", sync_device_methods(sync), { is_read_only });
       }
     },
     { prefix: "/api" },

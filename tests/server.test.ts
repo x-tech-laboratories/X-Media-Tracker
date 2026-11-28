@@ -174,8 +174,8 @@ describe("server", () => {
     await start();
 
     const peer_call = await app.inject({ method: "POST", url: "/api/sync/peer", headers: { "content-type": "application/octet-stream" }, payload: Buffer.from("not sealed") });
-    const signed_out = await app.inject({ method: "POST", url: "/api/device/create_pairing_code", payload: [] });
-    const code = await signed({ method: "POST", url: "/api/device/create_pairing_code", payload: [] });
+    const signed_out = await app.inject({ method: "POST", url: "/api/sync/create_pairing_code", payload: [] });
+    const code = await signed({ method: "POST", url: "/api/sync/create_pairing_code", payload: [] });
 
     expect(peer_call.statusCode).not.toBe(401);
     expect(signed_out.statusCode).toBe(401);
