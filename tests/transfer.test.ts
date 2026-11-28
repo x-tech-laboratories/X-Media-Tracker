@@ -210,8 +210,8 @@ describe("Settings files", () => {
     to.methods.set_setting("library.tmdb_api_key", "this-device-key");
     to.methods.set_setting("library.poster_size", "w342");
     expect(to.methods.import_settings(JSON.stringify(from.methods.export_settings(false)))).toEqual({ changed: 0, unchanged: 1 });
-    expect(to.methods.get_settings()["library.tmdb_api_key"]).toBe("this-device-key");
+    expect(to.methods.export_settings(true).settings["library.tmdb_api_key"]).toBe("this-device-key");
     expect(to.methods.import_settings(from.methods.export_settings(true))).toEqual({ changed: 1, unchanged: 1 });
-    expect(() => to.methods.import_settings(from.methods.export_library_json())).toThrow("not an X-Media-Tracker settings export");
+    expect(() => to.methods.import_settings(from.methods.export_library_json())).toThrow("That file holds no settings.");
   });
 });

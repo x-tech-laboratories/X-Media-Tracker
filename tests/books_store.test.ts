@@ -494,7 +494,7 @@ describe("book catalogue plugins", () => {
     open_store(database);
 
     expect(store.get_settings()["books.hardcover_api_key"]).toBeUndefined();
-    expect(store.get_settings().plugins).toMatchObject({ "x-media-tracker.hardcover": { settings: { api_key: "hardcover-key" } } });
+    expect(store.export_settings(true).settings.plugins).toMatchObject({ "x-media-tracker.hardcover": { settings: { api_key: "hardcover-key" } } });
   });
 
   it("ask Hardcover only once its key is set, and leave a catalogue that is off out of search", async () => {

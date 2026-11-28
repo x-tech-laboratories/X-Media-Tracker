@@ -5,13 +5,14 @@
 // ── Imports ──────────────────────────────────────────────────────────────────
 
 import { desc, eq, synced_tables } from "@x-tech-laboratories/x-libs/drizzle";
+import { read_stored_settings, write_setting } from "@x-tech-laboratories/x-libs/settings";
 import type { SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 
+import { feature_settings } from "../../settings.ts";
 import { define_feature, drizzle_of, new_id } from "../../feature.ts";
 import { apply_import } from "../../library/importing.ts";
 import { has_episode, parse_episodes } from "../../library/model.ts";
 import { find_title, list_titles, type ImportReport } from "../../library/store.ts";
-import { settings_feature } from "../../settings.ts";
 import { require_switched_on } from "../../plugins/host.ts";
 import { trakt_manifest } from "../manifests.ts";
 import { trakt_api } from "./api.ts";
@@ -79,7 +80,7 @@ const archive_lists = {
 type Json = Record<string, unknown>;
 
 function credentials_of(database: SqlDatabase): TraktCredentials {
-  const values = { ...trakt_setting_defaults, ...settings_feature.methods.get_settings(database) };
+  const values = { ...trakt_setting_defaults, ...read_stored_settings(database) };
   return {
     client_id: String(values["trakt.client_id"]),
     client_secret: String(values["trakt.client_secret"]),
@@ -90,9 +91,9 @@ function credentials_of(database: SqlDatabase): TraktCredentials {
 }
 
 function save_tokens(database: SqlDatabase, tokens: TraktTokens): void {
-  settings_feature.methods.set_setting(database, "trakt.access_token", tokens.access_token);
-  settings_feature.methods.set_setting(database, "trakt.refresh_token", tokens.refresh_token);
-  settings_feature.methods.set_setting(database, "trakt.expires_at", tokens.expires_at);
+  write_setting(database, "trakt.access_token", tokens.access_token);
+  write_setting(database, "trakt.refresh_token", tokens.refresh_token);
+  write_setting(database, "trakt.expires_at", tokens.expires_at);
 }
 
 export function is_trakt_ready(database: SqlDatabase): boolean {
@@ -145,8 +146,7 @@ export const trakt_feature = define_feature({
   id: "trakt",
   migrations: migrations.map((migration) => migration.statements),
   tables: synced_tables(trakt_tables),
-  setting_defaults: trakt_setting_defaults,
-  secret_settings: trakt_secret_settings,
+  settings: feature_settings(trakt_setting_defaults, trakt_secret_settings),
   methods: {
     get_trakt_status: (database: SqlDatabase): TraktStatus => {
       const credentials = credentials_of(database);
@@ -155,8 +155,8 @@ export const trakt_feature = define_feature({
 
     // A blank secret keeps the one already set, so the page never needs to read it back.
     set_trakt_app: (database: SqlDatabase, client_id: string, client_secret: string): void => {
-      settings_feature.methods.set_setting(database, "trakt.client_id", client_id.trim());
-      if (client_secret.trim()) settings_feature.methods.set_setting(database, "trakt.client_secret", client_secret.trim());
+      write_setting(database, "trakt.client_id", client_id.trim());
+      if (client_secret.trim()) write_setting(database, "trakt.client_secret", client_secret.trim());
     },
 
     start_trakt_sign_in: async (database: SqlDatabase): Promise<DeviceCode> => {

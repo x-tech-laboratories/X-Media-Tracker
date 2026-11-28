@@ -2,12 +2,13 @@
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
+import { read_stored_settings, write_setting } from "@x-tech-laboratories/x-libs/settings";
 import type { SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 
+import { feature_settings } from "../../settings.ts";
 import { define_feature } from "../../feature.ts";
 import { apply_import } from "../../library/importing.ts";
 import type { ImportReport } from "../../library/store.ts";
-import { settings_feature } from "../../settings.ts";
 import { require_switched_on } from "../../plugins/host.ts";
 import { stremio_manifest } from "../manifests.ts";
 import { stremio_api } from "./api.ts";
@@ -18,7 +19,7 @@ import { stremio_secret_settings, stremio_setting_defaults } from "./settings.ts
 // ── Settings ─────────────────────────────────────────────────────────────────
 
 function values_of(database: SqlDatabase): typeof stremio_setting_defaults {
-  return { ...stremio_setting_defaults, ...settings_feature.methods.get_settings(database) } as typeof stremio_setting_defaults;
+  return { ...stremio_setting_defaults, ...read_stored_settings(database) } as typeof stremio_setting_defaults;
 }
 
 export function is_stremio_ready(database: SqlDatabase): boolean {
@@ -38,8 +39,7 @@ export const stremio_feature = define_feature({
   id: "stremio",
   migrations: [],
   tables: [],
-  setting_defaults: stremio_setting_defaults,
-  secret_settings: stremio_secret_settings,
+  settings: feature_settings(stremio_setting_defaults, stremio_secret_settings),
   methods: {
     get_stremio_status: (database: SqlDatabase): { signed_in: boolean; email: string } => {
       const values = values_of(database);
@@ -48,12 +48,12 @@ export const stremio_feature = define_feature({
     sign_in_stremio: async (database: SqlDatabase, email: string, password: string): Promise<void> => {
       require_switched_on(database, stremio_manifest);
       const auth_key = await stremio_sign_in(email, password);
-      settings_feature.methods.set_setting(database, "stremio.auth_key", auth_key);
-      settings_feature.methods.set_setting(database, "stremio.email", email.trim());
+      write_setting(database, "stremio.auth_key", auth_key);
+      write_setting(database, "stremio.email", email.trim());
     },
     sign_out_stremio: (database: SqlDatabase): void => {
-      settings_feature.methods.set_setting(database, "stremio.auth_key", "");
-      settings_feature.methods.set_setting(database, "stremio.email", "");
+      write_setting(database, "stremio.auth_key", "");
+      write_setting(database, "stremio.email", "");
     },
     import_stremio,
   },

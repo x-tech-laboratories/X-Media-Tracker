@@ -7,8 +7,10 @@
 
 import { today } from "@x-tech-laboratories/x-libs/dates";
 import { asc, eq, inArray, or, sql, synced_tables } from "@x-tech-laboratories/x-libs/drizzle";
+import { read_setting, write_setting } from "@x-tech-laboratories/x-libs/settings";
 import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 
+import { feature_settings } from "../settings.ts";
 import { custom_cover, serves_image } from "../covers.ts";
 import { other_id_path, with_typed_other_ids, type OtherCatalog } from "../other_ids.ts";
 import { Background, define_feature, drizzle_of, new_id } from "../feature.ts";
@@ -123,12 +125,11 @@ export interface GamesRefresh {
 type GamesSetting = keyof typeof games_setting_defaults;
 
 export function games_setting<Key extends GamesSetting>(database: SqlDatabase, key: Key): (typeof games_setting_defaults)[Key] {
-  const row = database.prepare("SELECT value FROM settings WHERE key = ?").get(key) as { value: string } | undefined;
-  return row ? JSON.parse(row.value) : games_setting_defaults[key];
+  return (read_setting(database, key) ?? games_setting_defaults[key]) as never;
 }
 
 function set_games_setting(database: SqlDatabase, key: GamesSetting, value: unknown): void {
-  database.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value").run(key, JSON.stringify(value));
+  write_setting(database, key, value);
 }
 
 // The user's statuses, or the built-in ones while none are set.
@@ -1079,8 +1080,7 @@ export const games_feature = define_feature({
   id: "games",
   migrations: migrations.map((migration) => migration.statements),
   tables: synced_tables(games_tables, { map_columns: { games_games: ["other_ids"] } }),
-  setting_defaults: games_setting_defaults,
-  secret_settings: games_secret_settings,
+  settings: feature_settings(games_setting_defaults, games_secret_settings),
   on_open: (database: SqlDatabase) => move_settings_into_plugins(database, moved_game_keys),
   methods: {
     list_games: (database: SqlDatabase): Games => ({

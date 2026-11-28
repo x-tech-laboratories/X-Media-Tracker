@@ -213,7 +213,7 @@ describe("games settings", () => {
     fireEvent.change(key, { target: { value: "rawg-key" } });
     await act(async () => void fireEvent.blur(key));
 
-    await waitFor(() => expect(store.get_settings().plugins).toMatchObject({ "x-media-tracker.rawg": { settings: { api_key: "rawg-key" } } }));
+    await waitFor(() => expect(store.export_settings(true).settings.plugins).toMatchObject({ "x-media-tracker.rawg": { settings: { api_key: "rawg-key" } } }));
     expect(screen.getByRole("button", { name: "Open Wikidata" })).toBeTruthy();
     fireEvent.click(within(dialog).getByRole("button", { name: "Done" }));
     expect(screen.getAllByText("No key").length).toBeGreaterThan(0);
