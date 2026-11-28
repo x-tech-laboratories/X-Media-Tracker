@@ -4,6 +4,7 @@
 // ── Imports ──────────────────────────────────────────────────────────────────
 
 import { create_plugin_host, type Plugin, type PluginHost, type PluginManifest, type PluginRecords, type PluginStorage, type SettingValues } from "@x-tech-laboratories/x-libs/plugins";
+import { read_stored_settings, write_setting } from "@x-tech-laboratories/x-libs/settings";
 import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 
 import type { BookCatalog } from "../books/catalog.ts";
@@ -15,7 +16,6 @@ import type { ImportItem } from "../library/importing.ts";
 import type { GameCatalog } from "../games/catalog.ts";
 import type { TitleCatalog } from "../library/plugins.ts";
 import type { ImportReport } from "../library/store.ts";
-import { settings_feature } from "../settings.ts";
 import { app_info, plugins_setting } from "./app.ts";
 
 // ── Api ──────────────────────────────────────────────────────────────────────
@@ -49,14 +49,14 @@ export type MediaPlugin = Plugin<MediaPluginApi>;
 // ── Storage ──────────────────────────────────────────────────────────────────
 
 export function plugin_records(database: SqlDatabase): PluginRecords {
-  const saved = settings_feature.methods.get_settings(database)[plugins_setting];
+  const saved = read_stored_settings(database)[plugins_setting];
   return saved && typeof saved === "object" && !Array.isArray(saved) ? (saved as PluginRecords) : {};
 }
 
 function settings_storage(database: SqlDatabase): PluginStorage {
   return {
     read: () => plugin_records(database),
-    write: (records) => settings_feature.methods.set_setting(database, plugins_setting, records),
+    write: (records) => write_setting(database, plugins_setting, records),
   };
 }
 
@@ -66,7 +66,7 @@ export type SettingMove = { plugin: string; field: string; as?: "switch" } | nul
 
 // Moves settings kept before their service was a plugin into that plugin's settings, once: a value set there already wins.
 export function move_settings_into_plugins(database: SqlDatabase, moves: Record<string, SettingMove>): void {
-  const stored = settings_feature.methods.get_settings(database);
+  const stored = read_stored_settings(database);
   const found = Object.keys(moves).filter((key) => key in stored);
   if (found.length === 0) return;
   const records = { ...plugin_records(database) };
@@ -79,7 +79,7 @@ export function move_settings_into_plugins(database: SqlDatabase, moves: Record<
     if (value !== "" && value !== false && !settings[move.field]) records[move.plugin] = { ...records[move.plugin], settings: { ...settings, [move.field]: value } };
   }
   in_transaction(database, () => {
-    settings_feature.methods.set_setting(database, plugins_setting, records);
+    write_setting(database, plugins_setting, records);
     for (const key of found) database.prepare("DELETE FROM settings WHERE key = ?").run(key);
   });
 }

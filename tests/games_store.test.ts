@@ -6,8 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { games_feature } from "../src/shared/games/store.ts";
 import { hidden_secret } from "@x-tech-laboratories/x-libs/plugins";
 
-import { without_secret_settings } from "../src/shared/settings.ts";
-import { bind_methods, open_store, secret_settings } from "../src/shared/store.ts";
+import { bind_methods, open_store, settings_store } from "../src/shared/store.ts";
 import { insert_games, type SampleGame } from "./games_sample.ts";
 
 // ── Catalogue stand-ins ──────────────────────────────────────────────────────
@@ -531,7 +530,7 @@ describe("the Epic Games Store", () => {
 
   it("signs in with the code from Epic's answer and keeps the sign-in", async () => {
     const methods = await signed_in();
-    expect(methods.get_settings()).toMatchObject({ "games.epic_account": "Player One", "games.epic_refresh_token": "refresh-1" });
+    expect(methods.export_settings(true).settings).toMatchObject({ "games.epic_account": "Player One", "games.epic_refresh_token": "refresh-1" });
     const [address, init] = fetch_stub.mock.calls[0] as unknown as [string, RequestInit];
     expect(address).not.toContain("abcdef0123456789abcdef");
     expect(String(init.body)).toContain("grant_type=authorization_code");
@@ -716,7 +715,8 @@ describe("Steam", () => {
   });
 
   it("keeps the store keys out of what other programs read", () => {
-    expect(secret_settings).toEqual(expect.arrayContaining(["games.itchio_api_key", "games.epic_client_secret", "games.epic_refresh_token", "games.steam_api_key"]));
+    const secret_keys = Object.keys(settings_store.specs).filter((key) => settings_store.specs[key]!.secret);
+    expect(secret_keys).toEqual(expect.arrayContaining(["games.itchio_api_key", "games.epic_client_secret", "games.epic_refresh_token", "games.steam_api_key"]));
   });
 });
 
@@ -874,7 +874,7 @@ describe("catalogue plugins", () => {
     expect(settings["games.rawg_api_key"]).toBeUndefined();
     expect(settings["games.igdb_client_id"]).toBeUndefined();
     expect(settings["games.thegamesdb_api_key"]).toBeUndefined();
-    expect(settings.plugins).toMatchObject({
+    expect(methods.export_settings(true).settings.plugins).toMatchObject({
       "x-media-tracker.rawg": { settings: { api_key: "rawg-key" } },
       "x-media-tracker.igdb": { settings: { client_id: "twitch-app" } },
       "x-media-tracker.thegamesdb": { settings: { api_key: "new-key" } },
@@ -889,12 +889,12 @@ describe("catalogue plugins", () => {
     const methods = open_methods();
     set_plugin_settings(methods, { rawg: { api_key: "rawg-key" }, igdb: { client_id: "twitch-app", client_secret: "twitch-secret" } });
 
-    const hidden = without_secret_settings(methods.get_settings()).plugins as Record<string, { settings: Record<string, string> }>;
+    const hidden = methods.get_settings().plugins as Record<string, { settings: Record<string, string> }>;
     expect(hidden["x-media-tracker.rawg"]!.settings.api_key).toBe(hidden_secret);
     expect(hidden["x-media-tracker.igdb"]!.settings).toEqual({ client_id: "twitch-app", client_secret: hidden_secret });
 
     methods.set_setting("plugins", { ...hidden, "x-media-tracker.rawg": { enabled: true, settings: { api_key: hidden_secret } } });
-    expect(methods.get_settings().plugins).toMatchObject({ "x-media-tracker.rawg": { enabled: true, settings: { api_key: "rawg-key" } }, "x-media-tracker.igdb": { settings: { client_secret: "twitch-secret" } } });
+    expect(methods.export_settings(true).settings.plugins).toMatchObject({ "x-media-tracker.rawg": { enabled: true, settings: { api_key: "rawg-key" } }, "x-media-tracker.igdb": { settings: { client_secret: "twitch-secret" } } });
   });
 
   it("leave a catalogue that is turned off out of search", async () => {

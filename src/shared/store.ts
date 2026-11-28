@@ -15,24 +15,24 @@ import { is_read_only } from "./page_api.ts";
 import { apply_import } from "./library/importing.ts";
 import { library_feature } from "./library/store.ts";
 import { know_plugin_services } from "./plugins/host.ts";
-import { know_secret_settings, settings_feature } from "./settings.ts";
+import { create_settings_feature } from "./settings.ts";
 import { sources_feature } from "./sources/store.ts";
 import { stremio_feature } from "./sources/stremio/store.ts";
 import { trakt_feature } from "./sources/trakt/store.ts";
 
 // ── Features ─────────────────────────────────────────────────────────────────
 
-export const features = [settings_feature, library_feature, books_feature, games_feature, trakt_feature, stremio_feature, sources_feature, history_feature];
+const owning_features = [library_feature, books_feature, games_feature, trakt_feature, stremio_feature, sources_feature, history_feature];
+
+export const { store: settings_store, feature: settings_feature } = create_settings_feature(owning_features);
+
+export const features = [settings_feature, ...owning_features];
 
 export const sync_engine = create_sync_engine({ tables: features.flatMap((feature) => feature.tables), after_apply: forget_synced_changes });
 
-// Settings holding another service's key or token, left out of what other programs read.
-export const secret_settings = features.flatMap((feature) => feature.secret_settings ?? []);
-know_secret_settings(secret_settings);
-
 know_plugin_services({ import_titles: (database, items) => apply_import(database, items), import_books, import_games: import_games_by_title });
 
-export const setting_defaults = Object.assign({}, ...features.map((feature) => feature.setting_defaults ?? {})) as Record<string, unknown>;
+export const setting_defaults = settings_store.defaults;
 
 // ── Opening ──────────────────────────────────────────────────────────────────
 
@@ -56,18 +56,14 @@ export function open_store(database: SqlDatabase): void {
 
 // ── Calls ────────────────────────────────────────────────────────────────────
 
-const all_methods = {
-  ...(Object.assign({}, ...features.map((feature) => feature.methods)) as typeof settings_feature.methods &
-    typeof library_feature.methods &
-    typeof books_feature.methods &
-    typeof games_feature.methods &
-    typeof trakt_feature.methods &
-    typeof stremio_feature.methods &
-    typeof sources_feature.methods &
-    typeof history_feature.methods),
-  // Every setting, the ones never set at their defaults, so a page needs no list of defaults of its own.
-  get_settings: (database: SqlDatabase): Record<string, unknown> => ({ ...setting_defaults, ...settings_feature.methods.get_settings(database) }),
-};
+const all_methods = Object.assign({}, ...features.map((feature) => feature.methods)) as typeof settings_feature.methods &
+  typeof library_feature.methods &
+  typeof books_feature.methods &
+  typeof games_feature.methods &
+  typeof trakt_feature.methods &
+  typeof stremio_feature.methods &
+  typeof sources_feature.methods &
+  typeof history_feature.methods;
 
 // A call that leaves work running answers with what the work's Background carries.
 type Answer<Result> = Result extends Background<infer Carried> ? Carried : Result;

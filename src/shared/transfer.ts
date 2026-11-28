@@ -158,32 +158,3 @@ export function meet_row(tracked: Row, incoming: Row, own_columns: readonly stri
   }
   return { fill, conflict };
 }
-
-// ── Settings ─────────────────────────────────────────────────────────────────
-
-export interface SettingsFile {
-  app: "x-media-tracker";
-  kind: "settings";
-  version: 1;
-  exported_at: string;
-  settings: Record<string, unknown>;
-}
-
-export function settings_file(settings: Record<string, unknown>, now = new Date()): SettingsFile {
-  return { app: "x-media-tracker", kind: "settings", version: 1, exported_at: now.toISOString(), settings };
-}
-
-export function read_settings_file(file: unknown): Record<string, unknown> {
-  let parsed = file;
-  if (typeof parsed === "string") {
-    try {
-      parsed = JSON.parse(parsed);
-    } catch {
-      throw new Error("That file is not JSON.");
-    }
-  }
-  const envelope = (parsed ?? {}) as Partial<SettingsFile>;
-  if (envelope.app !== "x-media-tracker" || typeof envelope.settings !== "object" || envelope.settings === null || Array.isArray(envelope.settings)) throw new Error("That file is not an X-Media-Tracker settings export.");
-  if (envelope.kind !== "settings") throw new Error(`That file is an export of ${String(envelope.kind)}, not of settings.`);
-  return envelope.settings;
-}

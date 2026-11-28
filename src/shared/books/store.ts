@@ -6,8 +6,10 @@
 
 import { shift_day, today } from "@x-tech-laboratories/x-libs/dates";
 import { and, asc, desc, eq, inArray, or, sql, synced_tables } from "@x-tech-laboratories/x-libs/drizzle";
+import { read_setting, write_setting } from "@x-tech-laboratories/x-libs/settings";
 import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 
+import { feature_settings } from "../settings.ts";
 import { Background, define_feature, drizzle_of, new_id } from "../feature.ts";
 import { merge_columns, merge_ids, type SourceAnswers } from "../merging.ts";
 import { clean_other_ids, other_id_path, with_typed_other_ids, type OtherCatalog, type OtherIds } from "../other_ids.ts";
@@ -116,12 +118,11 @@ export interface BooksRefresh {
 type BooksSetting = keyof typeof books_setting_defaults;
 
 export function books_setting<Key extends BooksSetting>(database: SqlDatabase, key: Key): (typeof books_setting_defaults)[Key] {
-  const row = database.prepare("SELECT value FROM settings WHERE key = ?").get(key) as { value: string } | undefined;
-  return row ? JSON.parse(row.value) : books_setting_defaults[key];
+  return (read_setting(database, key) ?? books_setting_defaults[key]) as never;
 }
 
 function set_books_setting(database: SqlDatabase, key: BooksSetting, value: unknown): void {
-  database.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT (key) DO UPDATE SET value = excluded.value").run(key, JSON.stringify(value));
+  write_setting(database, key, value);
 }
 
 // The catalogues whose plugins are on, in the order their searches are joined; one waiting for its key is left out
@@ -784,8 +785,7 @@ export const books_feature = define_feature({
   id: "books",
   migrations: migrations.map((migration) => migration.statements),
   tables: synced_tables(books_tables, { map_columns: { books_books: ["other_ids"] } }),
-  setting_defaults: books_setting_defaults,
-  secret_settings: books_secret_settings,
+  settings: feature_settings(books_setting_defaults, books_secret_settings),
   on_open: (database: SqlDatabase) => move_settings_into_plugins(database, moved_book_keys),
   methods: {
     list_books: (database: SqlDatabase): Books => ({

@@ -5,8 +5,10 @@
 
 import { today } from "@x-tech-laboratories/x-libs/dates";
 import { and, asc, count, eq, inArray, or, sql, synced_tables } from "@x-tech-laboratories/x-libs/drizzle";
+import { read_setting } from "@x-tech-laboratories/x-libs/settings";
 import { in_transaction, type SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 
+import { feature_settings } from "../settings.ts";
 import { Background, define_feature, drizzle_of, new_id } from "../feature.ts";
 import { merge_columns, merge_ids, type SourceAnswers } from "../merging.ts";
 import { clean_other_ids, other_id_path, with_typed_other_ids, type OtherCatalog, type OtherIds } from "../other_ids.ts";
@@ -105,8 +107,7 @@ export interface ImportReport {
 type LibrarySetting = keyof typeof library_setting_defaults;
 
 export function setting<Key extends LibrarySetting>(database: SqlDatabase, key: Key): (typeof library_setting_defaults)[Key] {
-  const row = database.prepare("SELECT value FROM settings WHERE key = ?").get(key) as { value: string } | undefined;
-  return row ? JSON.parse(row.value) : library_setting_defaults[key];
+  return (read_setting(database, key) ?? library_setting_defaults[key]) as never;
 }
 
 // TMDB when its plugin is on and has its key, else null.
@@ -507,8 +508,7 @@ export const library_feature = define_feature({
   id: "library",
   migrations: migrations.map((migration) => migration.statements),
   tables: synced_tables(library_tables, { map_columns: { library_titles: ["other_ids"] } }),
-  setting_defaults: library_setting_defaults,
-  secret_settings: library_secret_settings,
+  settings: feature_settings(library_setting_defaults, library_secret_settings),
   on_open: (database: SqlDatabase) => move_settings_into_plugins(database, moved_library_keys),
   methods: {
     list_library: (database: SqlDatabase): Library => {

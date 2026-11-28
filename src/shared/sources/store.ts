@@ -5,12 +5,13 @@
 
 import { define_plugin } from "@x-tech-laboratories/x-libs/plugins";
 import type { MethodSpec } from "@x-tech-laboratories/x-libs/api_spec";
+import { read_stored_settings, write_setting } from "@x-tech-laboratories/x-libs/settings";
 import type { SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 
+import { feature_settings } from "../settings.ts";
 import { text } from "../api_schemas.ts";
 import { define_feature } from "../feature.ts";
 import type { ImportReport } from "../library/store.ts";
-import { settings_feature } from "../settings.ts";
 import { game_store_plugins } from "../games/plugins.ts";
 import { open_plugin_host, type MediaPlugin, type MediaPluginApi } from "../plugins/host.ts";
 import { stremio_manifest, trakt_manifest } from "./manifests.ts";
@@ -75,7 +76,7 @@ export const sources_feature = define_feature({
   id: "sources",
   migrations: [],
   tables: [],
-  setting_defaults: sources_setting_defaults,
+  settings: feature_settings(sources_setting_defaults),
   methods: {
     list_sources: async (database: SqlDatabase): Promise<SourceSummary[]> =>
       (await running_importers(database)).map((provided) => ({
@@ -95,7 +96,7 @@ export const sources_feature = define_feature({
     // Runs every source set to import automatically once enough hours have passed; one failing leaves the others, and a
     // failure still counts as a run, so a broken source is not retried every hour.
     run_due_imports: async (database: SqlDatabase): Promise<AutoImportRun | null> => {
-      const values = { ...sources_setting_defaults, ...settings_feature.methods.get_settings(database) };
+      const values = { ...sources_setting_defaults, ...read_stored_settings(database) };
       const hours = Math.max(1, Number(values["sources.auto_import_hours"]) || sources_setting_defaults["sources.auto_import_hours"]);
       const last = Date.parse(String(values["sources.last_auto_import"]));
       if (Number.isFinite(last) && Date.now() - last < hours * hour_in_milliseconds) return null;
@@ -111,8 +112,8 @@ export const sources_feature = define_feature({
         }
       }
       const run = { ran_at: new Date().toISOString(), result: lines.join("; ") };
-      settings_feature.methods.set_setting(database, "sources.last_auto_import", run.ran_at);
-      settings_feature.methods.set_setting(database, "sources.last_auto_result", run.result);
+      write_setting(database, "sources.last_auto_import", run.ran_at);
+      write_setting(database, "sources.last_auto_result", run.result);
       return run;
     },
   },

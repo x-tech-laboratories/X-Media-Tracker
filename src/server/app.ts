@@ -25,8 +25,6 @@ import { send_book_alerts } from "./book_alerts.ts";
 import { keep_checking_releases } from "../shared/books/schedule.ts";
 import { keep_importing } from "../shared/sources/schedule.ts";
 import { bind_methods, media_api, is_read_only, sync_engine, type MediaMethods } from "../shared/store.ts";
-import { without_secret_settings } from "../shared/settings.ts";
-import type { SettingsFile } from "../shared/transfer.ts";
 
 // ── Options ──────────────────────────────────────────────────────────────────
 
@@ -57,13 +55,6 @@ const instructions = [
   "list_library is the place to start; search_tmdb and add_title add new titles.",
 ].join(" ");
 
-// Settings that hold another service's key, which stay on the server and in the page's own settings.
-
-function without_secrets(method: string, result: unknown): unknown {
-  if (method === "export_settings") return { ...(result as SettingsFile), settings: without_secret_settings((result as SettingsFile).settings) };
-  if (method !== "get_settings") return result;
-  return without_secret_settings(result as Record<string, unknown>);
-}
 
 // ── App ──────────────────────────────────────────────────────────────────────
 
@@ -124,7 +115,8 @@ export async function build_app(options: AppOptions): Promise<FastifyInstance> {
         is_read_only,
         call: async (method, args) => {
           const methods = bind_methods(database, () => announce());
-          return without_secrets(method, await media_bridge.dispatch(methods, method, args));
+          // Keys and tokens for other services never leave through MCP.
+          return media_bridge.dispatch(methods, method, method === "export_settings" ? [false] : args);
         },
       });
 

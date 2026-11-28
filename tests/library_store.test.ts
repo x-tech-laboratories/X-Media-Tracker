@@ -332,6 +332,6 @@ describe("the TMDB plugin", () => {
     open_store(database);
 
     expect(store.get_settings()["library.tmdb_api_key"]).toBeUndefined();
-    expect(store.get_settings().plugins).toMatchObject({ "x-media-tracker.tmdb": { settings: { api_key: "old-key" } } });
+    expect(store.export_settings(true).settings.plugins).toMatchObject({ "x-media-tracker.tmdb": { settings: { api_key: "old-key" } } });
   });
 });

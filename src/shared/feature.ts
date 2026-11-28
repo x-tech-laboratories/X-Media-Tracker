@@ -5,6 +5,7 @@
 
 import type { ApiSpec } from "@x-tech-laboratories/x-libs/api_spec";
 import { open_drizzle, type Drizzle } from "@x-tech-laboratories/x-libs/drizzle";
+import type { SettingSpec } from "@x-tech-laboratories/x-libs/settings";
 import type { MigrationStep, SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
 import type { SyncedTable } from "@x-tech-laboratories/x-libs/sync_engine";
 
@@ -23,10 +24,8 @@ export interface Feature<Methods extends Record<string, StoreMethod>> {
   methods: Methods;
   // What each call does and takes, for programs that reach them through MCP or the API.
   api: ApiSpec<Methods>;
-  // Settings this feature reads, by key such as "library.poster_size", with their defaults.
-  setting_defaults?: Record<string, unknown>;
-  // Settings holding another service's key or token, left out of what other programs read.
-  secret_settings?: string[];
+  // The settings this feature owns, by key such as "library.poster_size".
+  settings?: Record<string, SettingSpec>;
   // Run each time the database opens, after the schema is up to date and sync stamps changes, such as moving old settings.
   on_open?: (database: SqlDatabase) => void;
 }
