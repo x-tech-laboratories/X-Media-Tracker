@@ -1,11 +1,11 @@
-// The web server: the page, every data call the page makes, and the sync every device runs against, all on one database.
+// The web server: the page, every data call the page makes, and the server's own sync peer, all on one database.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
 import { readFileSync } from "node:fs";
 
 import fastify, { type FastifyInstance } from "fastify";
-import { openapi_document, positional_args } from "@x-tech-laboratories/x-libs/api_spec";
+import { openapi_document } from "@x-tech-laboratories/x-libs/api_spec";
 import { EventStream } from "@x-tech-laboratories/x-libs/server/events";
 import { register_mcp_route } from "@x-tech-laboratories/x-libs/server/mcp";
 import { register_error_replies, register_lenient_json_body, send_text } from "@x-tech-laboratories/x-libs/server/replies";
@@ -13,7 +13,9 @@ import { register_accounts } from "@x-tech-laboratories/x-libs/server/account_si
 import { AccountStore } from "@x-tech-laboratories/x-libs/server/account_store";
 import type { Accounts } from "@x-tech-laboratories/x-libs/server/passwords";
 import { backup_method_names, type BackupMethods } from "@x-tech-laboratories/x-libs/backup_protocol";
-import { register_sync_routes } from "@x-tech-laboratories/x-libs/server/sync_routes";
+import { register_call_table } from "@x-tech-laboratories/x-libs/server/call_table";
+import { register_sync_peer_routes } from "@x-tech-laboratories/x-libs/server/sync_peer_routes";
+import { sync_device_methods, type SyncPeer } from "@x-tech-laboratories/x-libs/sync_peer";
 import { register_web_folder } from "@x-tech-laboratories/x-libs/server/web_folder";
 import { register_plugin_files } from "@x-tech-laboratories/x-libs/server/plugin_files";
 import type { SqlDatabase } from "@x-tech-laboratories/x-libs/sql";
@@ -24,7 +26,8 @@ import { keep_fetching_covers, type KeepFetchingCovers } from "../shared/covers.
 import { send_book_alerts } from "./book_alerts.ts";
 import { keep_checking_releases } from "../shared/books/schedule.ts";
 import { keep_importing } from "../shared/sources/schedule.ts";
-import { bind_methods, media_api, is_read_only, sync_engine, type MediaMethods } from "../shared/store.ts";
+import { bind_methods, media_api, is_read_only } from "../shared/store.ts";
+import { register_cover_files, register_media_calls } from "./calls.ts";
 
 // ── Options ──────────────────────────────────────────────────────────────────
 
@@ -41,8 +44,10 @@ export interface AppOptions {
   release_checks?: boolean;
   // The plugins folder, whose page sides the page loads from /api/plugins/; none are served without it.
   plugins_folder?: string;
-  // Where the covers kept on every device are stored; the server downloads them and the devices sync them from here.
+  // Where the covers kept on every device are stored; the server downloads them, serves them to its pages and syncs them.
   covers?: SyncFileStore;
+  // Makes the server's own sync peer, told how to announce what other devices changed; no sync without it.
+  sync_peer?: (on_remote_change: () => void) => SyncPeer;
 }
 
 // ── Other programs ───────────────────────────────────────────────────────────
@@ -58,16 +63,16 @@ const instructions = [
 
 // ── App ──────────────────────────────────────────────────────────────────────
 
-// An import, such as a StoryGraph export, arrives as one call's argument.
-const import_body_limit = 32 * 1024 * 1024;
+const admin_paths = ["/api/backup/", "/api/device/"];
 
 export async function build_app(options: AppOptions): Promise<FastifyInstance> {
   const app = fastify({ forceCloseConnections: true });
   register_lenient_json_body(app);
   register_error_replies(app);
   const accounts = new AccountStore({ database: options.database, app_name: "X-Media-Tracker", declared: options.declared, token_prefix: "xf" });
-  // Backups reach the whole database, the accounts included, so only an admin may manage them.
-  await register_accounts(app, { accounts, cookie_name: "x_media_tracker_session", read_only_paths: ["/api/mcp"], needed: (_method, path) => (path.startsWith("/api/backup/") ? { role: accounts.top_role } : "any") });
+  // Backups reach the whole database, the accounts included, and the server's pairings decide who syncs, so only an admin
+  // may manage them; each peer call is sealed between the two devices, so it needs no sign-in.
+  await register_accounts(app, { accounts, cookie_name: "x_media_tracker_session", read_only_paths: ["/api/mcp"], open_paths: ["/api/sync/peer"], needed: (_method, path) => (admin_paths.some((admin_path) => path.startsWith(admin_path)) ? { role: accounts.top_role } : "any") });
 
   const changes = new EventStream();
   const database = () => options.database;
@@ -78,29 +83,18 @@ export async function build_app(options: AppOptions): Promise<FastifyInstance> {
     changes.announce_change(client_id);
     covers?.soon();
   };
+  const sync = options.sync_peer?.(() => announce());
+  if (sync) {
+    sync.start();
+    app.addHook("onClose", async () => sync.stop());
+  }
 
   await app.register(
     async (api) => {
       changes.register(api, "/events");
 
-      // Calls arrive as POST /api/call/<method> with the arguments as a JSON list, or by name as a JSON object.
-      api.post<{ Params: { method: string } }>("/call/:method", { bodyLimit: import_body_limit }, async (request, reply) => {
-        const body: unknown = request.body ?? [];
-        const spec = media_api[request.params.method as keyof MediaMethods];
-        let args: unknown[];
-        if (Array.isArray(body)) args = body;
-        else if (spec && typeof body === "object" && body !== null) {
-          try {
-            args = positional_args(spec, body as Record<string, unknown>);
-          } catch (error) {
-            return send_text(reply, 400, (error as Error).message);
-          }
-        } else return send_text(reply, 400, "send the arguments as a JSON list or object");
-        const methods = bind_methods(database, () => announce(changes.client_id_of(request)));
-        const result = await media_bridge.dispatch(methods, request.params.method, args);
-        if (result === undefined) return reply.code(204).send();
-        return is_read_only(request.params.method) ? reply.header("cache-control", "no-store").send(result) : reply.send(result);
-      });
+      register_media_calls(api, database, (request) => announce(changes.client_id_of(request)));
+      if (options.covers) register_cover_files(api, options.covers);
 
       api.get("/openapi.json", async () =>
         openapi_document(media_api, { title: "X-Media-Tracker", version, description: instructions, path_of: (method) => `/api/call/${method}`, is_read_only }),
@@ -129,13 +123,10 @@ export async function build_app(options: AppOptions): Promise<FastifyInstance> {
         return result === undefined ? reply.code(204).send() : reply.header("cache-control", "no-store").send(result);
       });
       if (options.plugins_folder) register_plugin_files(api, { folder: options.plugins_folder, prefix: "/plugins", side: "web" });
-      register_sync_routes(api, {
-        engine: sync_engine,
-        database,
-        back_up: async () => void (await options.backups.create_backup()),
-        on_change: (request) => announce(changes.client_id_of(request)),
-        files: options.covers,
-      });
+      if (sync) {
+        register_sync_peer_routes(api, sync);
+        register_call_table(api, "/device", sync_device_methods(sync), { is_read_only });
+      }
     },
     { prefix: "/api" },
   );

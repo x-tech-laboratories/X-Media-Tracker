@@ -1,140 +1,151 @@
-// The desktop app: its own database in the profile folder, the page's calls answered on it, daily backups beside it,
-// and sync with a server when one is set, so it works offline and catches up once the server answers.
+// The desktop app's window: Electron's main process, which shows X-Media-Tracker and keeps its login entry, and leaves
+// the work to this computer's daemon in src/daemon or to the X-Media-Tracker server chosen under Settings → Connections.
 
 // ── Imports ──────────────────────────────────────────────────────────────────
 
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { watchFile } from "node:fs";
 import { hostname } from "node:os";
 import { join } from "node:path";
-import { DatabaseSync } from "node:sqlite";
 
-import { app, BrowserWindow, ipcMain, nativeTheme, protocol, screen, session, shell } from "electron";
-import { bring_to_front, hold_single_instance } from "@x-tech-laboratories/x-libs/electron/app";
-import type { IpcMainEventLike } from "@x-tech-laboratories/x-libs/electron/bridge";
-import { create_window, is_app_page } from "@x-tech-laboratories/x-libs/electron/window";
-import { keep_backing_up, type BackupSchedule } from "@x-tech-laboratories/x-libs/backups";
-import { sqlite_backups } from "@x-tech-laboratories/x-libs/server/sqlite_backups";
+import { app, BrowserWindow, dialog, ipcMain, nativeTheme, protocol, screen, shell } from "electron";
+import { launch_command, set_autostart } from "@x-tech-laboratories/x-libs/autostart";
+import { backup_method_names } from "@x-tech-laboratories/x-libs/backup_protocol";
+import { certificate_method_names } from "@x-tech-laboratories/x-libs/certificate_protocol";
 import { create_certificate_trust } from "@x-tech-laboratories/x-libs/certificates";
-import { trust_in_session, trusting_fetch } from "@x-tech-laboratories/x-libs/electron/certificates";
-import { register_file_scheme, serve_files } from "@x-tech-laboratories/x-libs/electron/file_protocol";
+import { connection_file_storage } from "@x-tech-laboratories/x-libs/connection_file_storage";
+import { create_connections } from "@x-tech-laboratories/x-libs/connections";
+import { create_daemon_link } from "@x-tech-laboratories/x-libs/daemon_link";
+import { create_daemon_router, default_local_tables } from "@x-tech-laboratories/x-libs/daemon_router";
+import { bring_to_front, hold_single_instance } from "@x-tech-laboratories/x-libs/electron/app";
+import type { Implementation, IpcMainEventLike } from "@x-tech-laboratories/x-libs/electron/bridge";
+import { file_response, register_file_scheme } from "@x-tech-laboratories/x-libs/electron/file_protocol";
+import { create_window, is_app_page } from "@x-tech-laboratories/x-libs/electron/window";
+import { call_daemon, daemon_log_path, daemon_socket_path, start_daemon } from "@x-tech-laboratories/x-libs/local_daemon";
 import { folder_file_store } from "@x-tech-laboratories/x-libs/node_file_store";
-import { create_sync_client, sync_device_methods } from "@x-tech-laboratories/x-libs/sync_client";
-import { file_sync_storage } from "@x-tech-laboratories/x-libs/sync_file_storage";
-import { load_plugin_folder, read_plugin_file } from "@x-tech-laboratories/x-libs/plugin_folder";
+import { peer_listening_method_names } from "@x-tech-laboratories/x-libs/sync_protocol";
 
-import { media_backup_naming, read_schedule } from "../shared/backups.ts";
-import { certificate_bridge, device_bridge, launchers_bridge, media_bridge, media_events, plugin_files_bridge, steam_files_bridge } from "../shared/bridge.ts";
-import { keep_fetching_covers, referenced_covers, type KeepFetchingCovers } from "../shared/covers.ts";
-import { cover_scheme } from "../shared/page_api.ts";
-import { keep_checking_releases } from "../shared/books/schedule.ts";
-import { keep_reading_steam_categories } from "../shared/games/schedule.ts";
+import {
+  backup_bridge,
+  certificate_bridge,
+  connection_bridge,
+  desktop_bridge,
+  device_bridge,
+  launchers_bridge,
+  media_bridge,
+  media_events,
+  peer_listening_bridge,
+  plugin_files_bridge,
+  steam_files_bridge,
+} from "../shared/bridge.ts";
+import type { DesktopMethods, DesktopSettings } from "../shared/desktop.ts";
 import { launcher_schemes } from "../shared/games/launch.ts";
-import { steam_manifest } from "../shared/games/manifests.ts";
-import { is_switched_on, plugin_settings, use_folder_plugins, type MediaPluginApi } from "../shared/plugins/host.ts";
-import { keep_importing } from "../shared/sources/schedule.ts";
+import { cover_scheme, device_method_names, is_read_only, launcher_method_names, steam_file_method_names, type PluginFileMethods } from "../shared/page_api.ts";
 import { stremio_scheme } from "../shared/sources/stremio/links.ts";
-import { bind_methods, needs_upgrade, open_store, sync_engine } from "../shared/store.ts";
-import { read_local_lutris_games } from "./lutris.ts";
-import { read_local_steam_categories } from "./steam_categories.ts";
+import { method_names } from "../shared/store.ts";
+import { remote_file_url } from "./remote_files.ts";
 
 // ── Profile ──────────────────────────────────────────────────────────────────
 
 // Dev runs set this so they never touch the installed app's data.
-if (process.env.X_MEDIA_TRACKER_USER_DATA) app.setPath("userData", join(process.cwd(), process.env.X_MEDIA_TRACKER_USER_DATA));
+const is_own_profile = process.env.X_MEDIA_TRACKER_USER_DATA === undefined;
+if (!is_own_profile) app.setPath("userData", join(process.cwd(), process.env.X_MEDIA_TRACKER_USER_DATA!));
 
 const profile = app.getPath("userData");
-const backups_folder = join(profile, "backups");
-
-// ── Database ─────────────────────────────────────────────────────────────────
-
 const database_path = join(profile, "media.db");
-mkdirSync(profile, { recursive: true });
-let database = new DatabaseSync(database_path);
-database.exec("PRAGMA journal_mode = WAL");
 
-// ── Backups ──────────────────────────────────────────────────────────────────
+// Any other profile gets a daemon, socket and log of its own, so a dev or test run never reaches the user's daemon.
+const socket_path = daemon_socket_path({ app: "x-media-tracker", data_file: is_own_profile ? null : database_path });
+const log_file = is_own_profile ? daemon_log_path("x-media-tracker") : join(profile, "daemon.log");
 
-const kept = sqlite_backups({
-  folder: () => {
-    mkdirSync(backups_folder, { recursive: true });
-    return backups_folder;
-  },
-  naming: media_backup_naming,
-  database: () => database,
-  database_path: () => database_path,
-  close: () => database.close(),
-  open: () => {
-    database = new DatabaseSync(database_path);
-    database.exec("PRAGMA journal_mode = WAL");
-    open_store(database);
-  },
-  after_restore: (restored) => sync_engine.forget_history(restored),
-});
+// The built app sits in out/main, and resources/ beside out/ both in the source tree and in the package.
+const icon_path = join(import.meta.dirname, "../../resources/icon.png");
 
-if (needs_upgrade(database)) await kept.create();
-open_store(database);
+// The command that starts this app again, which the login entry runs.
+const own_command = (args: string[]): string[] =>
+  launch_command({ launcher: process.env.X_MEDIA_TRACKER_LAUNCHER, is_packaged: app.isPackaged, app_path: app.getAppPath(), args });
 
-// The schedule belongs to this device, so it is kept beside the database rather than in the synced settings.
-const schedule_file = join(profile, "backup-schedule.json");
+// Must be named before the app is ready, so the page may load covers from it.
+register_file_scheme(protocol, cover_scheme);
 
-function read_backup_schedule(): BackupSchedule {
-  return read_schedule(existsSync(schedule_file) ? JSON.parse(readFileSync(schedule_file, "utf8")) : null);
+// ── Daemon ───────────────────────────────────────────────────────────────────
+
+function ensure_daemon(): Promise<unknown> {
+  return start_daemon({
+    socket_path,
+    script: join(import.meta.dirname, "daemon.js"),
+    env: { X_MEDIA_TRACKER_DB: database_path, X_MEDIA_TRACKER_SOCKET: socket_path },
+    log_file,
+  });
 }
 
-const backing_up = keep_backing_up(kept, read_backup_schedule);
+// ── Connections ──────────────────────────────────────────────────────────────
 
-// ── Covers ───────────────────────────────────────────────────────────────────
+// Certificates the user trusted, read again whenever the daemon saves the list, so calls to a server honour them.
+const certificates_file = join(profile, "trusted-certificates.json");
+const trust_certificates = (): void => void create_certificate_trust({ file: certificates_file, use_in_node: true });
+trust_certificates();
+watchFile(certificates_file, { interval: 2000 }, trust_certificates);
 
-// Kept beside the database and shown to the page as x-media-cover://<name>.
+// This computer's daemon, and X-Media-Tracker servers each signed in once with a token of this device's own.
+const connections = create_connections({ storage: connection_file_storage(join(profile, "connections.json")), offers_local: true, device_name: `X-Media-Tracker on ${hostname()}` });
+const link = create_daemon_link({ connections, socket_path });
+
+// Calls and change events go to the chosen daemon; this computer's sync, Steam and launchers stay on its own.
+const router = create_daemon_router({
+  connections,
+  link,
+  call_local: (path, args, headers) => call_daemon(socket_path, path, args, headers),
+  restart_local: ensure_daemon,
+  local_tables: [...default_local_tables, "peer_listening", "steam_files", "launchers"],
+  is_read_only,
+  on_change: () => {
+    media_events.emit(BrowserWindow.getAllWindows(), "changed", null);
+    void apply_window_settings().catch(() => undefined);
+  },
+  on_sync_status: (status) => media_events.emit(BrowserWindow.getAllWindows(), "sync_status", status),
+  on_switch: () => {
+    for (const window of BrowserWindow.getAllWindows()) window.webContents.reload();
+  },
+});
+const { call, forwarded, is_here } = router;
+
+// A file a server serves by GET, such as a cover or a plugin's page side, fetched with this device's token.
+async function fetch_remote(path: string): Promise<Response> {
+  const daemon = connections.current();
+  if (daemon?.kind !== "remote") return new Response(null, { status: 404 });
+  return fetch(remote_file_url(daemon.address, path), { headers: { authorization: `Bearer ${daemon.token}` } }).catch(() => new Response(null, { status: 502 }));
+}
+
+// Covers come from this computer's folder, or from the server the window works on.
 const covers = folder_file_store(join(profile, "covers"));
 
-// Plugins the user installed in the profile, each run with the app's full rights; their store side joins every plugin
-// host, and the page imports their web side through its bridge.
-const plugins_folder = join(profile, "plugins");
-void load_plugin_folder<MediaPluginApi>(plugins_folder, "store").then((loaded) => {
-  use_folder_plugins(loaded.plugins);
-  for (const problem of loaded.problems) console.warn(`plugin ${problem.name}: ${problem.problem}`);
-});
-register_file_scheme(protocol, cover_scheme);
-let fetching_covers: KeepFetchingCovers | undefined;
-
-let stop_importing = (): void => undefined;
-let stop_checking_releases = (): void => undefined;
-let stop_reading_categories = (): void => undefined;
-
-// The Steam client's categories of the profile set in Steam's plugin, read from this computer; none while it is off.
-function read_steam_categories(): string {
-  if (!is_switched_on(database, steam_manifest)) return "";
-  return read_local_steam_categories(String(plugin_settings(database, steam_manifest).profile).trim());
+function cover_response(request: Request): Promise<Response> {
+  return is_here() ? file_response(covers, request.url) : fetch_remote(`covers/${new URL(request.url).hostname}`);
 }
 
-function announce_change(): void {
-  media_events.emit(BrowserWindow.getAllWindows(), "changed", null);
+// The plugins of the daemon the window works on, whose page sides the page imports.
+const plugin_files: Implementation<PluginFileMethods> = {
+  read_plugin_file: async (path) => {
+    if (is_here()) return (await call("plugin_files/read_plugin_file", [path])) as string;
+    const response = await fetch_remote(`plugins/${path}`);
+    return response.ok ? response.text() : "";
+  },
+};
+
+// This computer's own settings, always from its own daemon.
+function get_desktop_settings(): Promise<DesktopSettings> {
+  return call("daemon/get_desktop_settings") as Promise<DesktopSettings>;
 }
 
-// A write may have changed a cover's address, so the covers are looked at again soon after.
-function after_write(): void {
-  announce_change();
-  fetching_covers?.soon();
+// Only the user's own profile starts at login; a dev run never writes the login entry.
+async function apply_window_settings(): Promise<void> {
+  if (!is_own_profile) return;
+  const settings = await get_desktop_settings();
+  set_autostart(
+    { id: "x-media-tracker-daemon", name: "X-Media-Tracker in the background", comment: "Sync, imports and backups for X-Media-Tracker", icon: icon_path, command: own_command(["--daemon"]) },
+    settings.start_at_login && settings.keep_running_in_background,
+  );
 }
-
-// ── Sync ─────────────────────────────────────────────────────────────────────
-
-// Server certificates the user trusted, such as a home server's self-signed one, kept beside the database.
-const certificates = create_certificate_trust({ file: join(profile, "trusted-certificates.json") });
-
-const sync = create_sync_client({
-  engine: sync_engine,
-  database: () => database,
-  storage: file_sync_storage({ file: join(profile, "sync.json"), back_up_before_download: async () => void (await kept.create()) }),
-  files: { store: covers, referenced: referenced_covers },
-  data_name: "media library",
-  device_name: `X-Media-Tracker on ${hostname()}`,
-  on_remote_change: announce_change,
-  on_status: (status) => media_events.emit(BrowserWindow.getAllWindows(), "sync_status", status),
-  // Chromium's network stack honours the trusted certificates, which Node's own fetch would not.
-  fetch: trusting_fetch(session, certificates),
-});
 
 // ── Window ───────────────────────────────────────────────────────────────────
 
@@ -147,7 +158,7 @@ function open_window(): BrowserWindow {
   return create_window(BrowserWindow, {
     ...page,
     title: "X-Media-Tracker",
-    icon: join(import.meta.dirname, "../../resources/icon.png"),
+    icon: icon_path,
     // electron-vite emits an ESM preload as .mjs; loading .js here silently yields no bridge.
     preload: join(import.meta.dirname, "../preload/index.mjs"),
     default_size: { width: 1100, height: 760 },
@@ -161,64 +172,87 @@ function open_window(): BrowserWindow {
   });
 }
 
-// ── Start ────────────────────────────────────────────────────────────────────
+function show_window(): void {
+  bring_to_front(BrowserWindow.getAllWindows()[0] ?? open_window());
+}
+
+// Stops the daemon as well, so nothing runs until the app is opened again.
+async function quit_completely(): Promise<void> {
+  router.quitting();
+  await call("daemon/stop_daemon").catch(() => undefined);
+  app.quit();
+}
+
+// ── Bridges ──────────────────────────────────────────────────────────────────
 
 // Only the app's own page may call in, never a site a link led to.
 function trusted(event: IpcMainEventLike): boolean {
   return is_app_page(event.senderFrame?.url ?? "", page);
 }
 
-function show_existing_window(): void {
-  const [window] = BrowserWindow.getAllWindows();
-  if (window) bring_to_front(window);
+// The page's calls go to the chosen daemon, but for the connections, quitting and the settings the window acts on.
+function register_bridges(): void {
+  const options = { trusted, envelopes: true };
+  media_bridge.handle(ipcMain, forwarded(method_names, "call") as never, options);
+  device_bridge.handle(ipcMain, forwarded(device_method_names, "device") as never, options);
+  // This computer's backups sit with its sync; a server's are an admin's, beside its other calls.
+  backup_bridge.handle(ipcMain, forwarded(backup_method_names, () => (is_here() ? "device" : "backup")) as never, options);
+  peer_listening_bridge.handle(ipcMain, forwarded(peer_listening_method_names, "peer_listening") as never, options);
+  certificate_bridge.handle(ipcMain, forwarded(certificate_method_names, "certificates") as never, options);
+  steam_files_bridge.handle(ipcMain, forwarded(steam_file_method_names, "steam_files") as never, options);
+  launchers_bridge.handle(ipcMain, forwarded(launcher_method_names, "launchers") as never, options);
+  plugin_files_bridge.handle(ipcMain, plugin_files, options);
+  connection_bridge.handle(ipcMain, connections.methods, options);
+  const desktop: Implementation<DesktopMethods> = {
+    get_desktop_settings,
+    set_desktop_setting: async (key, value) => {
+      await call("daemon/set_desktop_setting", [key, value]);
+      await apply_window_settings();
+    },
+    quit_completely,
+  };
+  desktop_bridge.handle(ipcMain, desktop, options);
 }
 
-if (hold_single_instance(app, show_existing_window)) {
-  void app.whenReady().then(() => {
-    serve_files(protocol, cover_scheme, covers);
-    media_bridge.handle(ipcMain, bind_methods(() => database, after_write), { trusted, envelopes: true });
-    certificate_bridge.handle(ipcMain, certificates.methods, { trusted, envelopes: true });
-    trust_in_session(session.defaultSession, certificates.is_trusted);
-    steam_files_bridge.handle(ipcMain, { read_steam_categories }, { trusted, envelopes: true });
-    launchers_bridge.handle(ipcMain, { list_lutris_games: read_local_lutris_games }, { trusted, envelopes: true });
-    plugin_files_bridge.handle(ipcMain, { read_plugin_file: (path) => read_plugin_file(plugins_folder, path) }, { trusted, envelopes: true });
-    device_bridge.handle(
-      ipcMain,
-      {
-        ...sync_device_methods(sync),
-        list_backups: kept.list,
-        create_backup: () => kept.create(),
-        // The restored data no longer matches the server's, so sync waits until the user picks which copy wins.
-        restore_backup: async (name) => {
-          sync.disconnect();
-          await kept.restore(name);
-          announce_change();
-        },
-        remove_backup: kept.remove,
-        get_backup_schedule: read_backup_schedule,
-        set_backup_schedule: (schedule) => {
-          writeFileSync(schedule_file, JSON.stringify(read_schedule(schedule), null, 2));
-          void backing_up.check();
-        },
-      },
-      { trusted, envelopes: true },
-    );
-    open_window();
-    sync.start();
-    fetching_covers = keep_fetching_covers({ database: () => database, store: covers, on_change: announce_change });
-    stop_importing = keep_importing(() => bind_methods(() => database, () => undefined), after_write);
-    stop_checking_releases = keep_checking_releases(() => bind_methods(() => database, () => undefined), after_write);
-    stop_reading_categories = keep_reading_steam_categories(() => bind_methods(() => database, () => undefined), after_write, read_steam_categories);
+// ── Start ────────────────────────────────────────────────────────────────────
+
+function start_app(): void {
+  void app.whenReady().then(async () => {
+    try {
+      await ensure_daemon();
+    } catch (error) {
+      dialog.showErrorBox("X-Media-Tracker could not start", `${error instanceof Error ? error.message : String(error)}\n\nSee ${log_file}.`);
+      app.exit(1);
+      return;
+    }
+    protocol.handle(cover_scheme, cover_response);
+    register_bridges();
+    router.start();
+    await apply_window_settings().catch(() => undefined);
+    show_window();
   });
 
-  app.on("window-all-closed", () => {
-    stop_importing();
-    stop_checking_releases();
-    stop_reading_categories();
-    fetching_covers?.stop();
-    sync.stop();
-    backing_up.stop();
-    database.close();
-    app.quit();
-  });
+  app.on("will-quit", () => router.stop());
+
+  // Closing the window ends only the window; the daemon runs on.
+  app.on("window-all-closed", () => app.quit());
 }
+
+// `x-media-tracker-desktop --daemon`, as the login entry runs it, starts only the daemon.
+async function start_daemon_alone(): Promise<void> {
+  try {
+    await ensure_daemon();
+    app.exit(0);
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error);
+    app.exit(1);
+  }
+}
+
+// A second launch brings the window forward, but one that only starts the daemon leaves the window be.
+function open_from_second_launch(argv: string[]): void {
+  if (!argv.includes("--daemon")) show_window();
+}
+
+if (process.argv.includes("--daemon")) void start_daemon_alone();
+else if (hold_single_instance(app, open_from_second_launch)) start_app();

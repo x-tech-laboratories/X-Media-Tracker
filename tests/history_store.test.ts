@@ -39,7 +39,7 @@ describe("history", () => {
     const desktop = open_methods();
     const mood = phone.store.save_collection({ name: "Comfort", group_id: null });
 
-    sync_engine.apply_changes(desktop.database, sync_engine.collect_unpushed_changes(phone.database).changes);
+    sync_engine.apply_changes(desktop.database, sync_engine.collect_changes_since(phone.database, 0, "").changes);
     expect(desktop.store.list_item_history("collection", mood).map((version) => [version.change, version.origin])).toEqual([["created", "elsewhere"]]);
 
     desktop.store.save_collection({ name: "Crime", group_id: null });

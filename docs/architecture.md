@@ -5,17 +5,32 @@
 The page in `src/web` is the same React tree everywhere. At start, `src/web/main.tsx` picks the host it runs on and hands
 the page a `PageApi` (`src/shared/page_api.ts`):
 
-| Host    | Where the data is                                   | How a call travels                                   | Sync                        |
-| ------- | --------------------------------------------------- | ---------------------------------------------------- | --------------------------- |
-| web     | the server's SQLite file                            | `POST api/call/<method>` with the arguments as JSON  | none; the browser is online |
-| desktop | `media.db` in Electron's profile folder             | IPC through the preload (`src/preload/index.ts`)     | X-Libs `sync_client`        |
-| android | SQLite in WebAssembly, saved to IndexedDB           | straight to the store in the same page               | X-Libs `sync_client`        |
+| Host    | Where the data is                                   | How a call travels                                              | Sync                           |
+| ------- | --------------------------------------------------- | --------------------------------------------------------------- | ------------------------------ |
+| web     | the server's SQLite file                            | `POST api/call/<method>` with the arguments as JSON             | the server's own `sync_peer`   |
+| desktop | the chosen daemon's: this computer's or a server's  | IPC through the preload to the main process, then to the daemon | the local daemon's `sync_peer` |
+| android | SQLite in WebAssembly, saved to IndexedDB           | straight to the store in the same page                          | X-Libs `sync_peer` in the page |
+
+## The desktop app
+
+The desktop app is two programs. `src/daemon/daemon.ts` is a plain Node program that opens `media.db` in the profile
+folder, keeps its backups, covers and plugins, runs sync and the schedules (imports, release checks, Steam categories,
+cover downloads), and serves the server's `api/call/<method>` and `api/covers/<name>` routes (`src/server/calls.ts`) on
+a Unix socket, plus `device` (sync and backups), `peer_listening`, `certificates`, `steam_files`, `launchers`,
+`plugin_files` and `daemon` call tables. It runs on Electron's binary as Node and keeps running with the window closed.
+
+`src/main/index.ts` is only the window. It starts the local daemon, keeps the list of daemons in X-Libs `connections`
+(This computer, or X-Media-Tracker servers signed in to as this device), and passes every call of the page to the chosen
+one through X-Libs `daemon_router`. This computer's sync, peer listening, certificates, Steam files, launchers and own
+settings always go to its own daemon, since that work belongs to the computer in front of the user. Covers
+(`x-media-cover://`) and plugin files come from this computer's folders, or by GET from the server in use. Choosing
+another daemon reloads the window, and `src/web/hosts/desktop.ts` reads which one it is on.
 
 Views never ask which host they are on. They call `calls().<method>(...)` from `src/web/api.ts` and load with
 `use_data`, which reloads quietly whenever `data_watch` is bumped: after this page writes, and when another page or
 device changed something.
 
-TMDB is asked from wherever the store runs: the server, Electron's main process, or the phone's page through
+TMDB is asked from wherever the store runs: the server, the desktop app's daemon, or the phone's page through
 Capacitor's native HTTP, so no browser cross-origin rule applies.
 
 ## Features
@@ -210,10 +225,12 @@ are all covered; writes that arrive by sync are left to the device that made the
 
 ## Sync
 
-The server and every device run the same store. X-Libs `sync_engine` stamps every write to a synced table through
-triggers, value by value; the newest write of each value wins. A device sends its changes within seconds and takes
-everyone else's in the same round trip, follows the server's event stream to hear of changes at once, and keeps working
-offline. On first connecting, the user chooses whether the server's copy or the device's wins; the other is backed up.
+The server and every device run the same store, and each is a peer of the others through X-Libs `sync_peer`. X-Libs
+`sync_engine` stamps every write to a synced table through triggers, value by value; the newest write of each value
+wins. Two copies pair once through a code shown by the one the other can reach, then merge with nothing asked. Each
+sends its changes within seconds, takes the other's in the same round trip, and keeps working offline. The server
+answers peers at `api/sync/peer` with no sign-in, since every call is sealed between the two devices, and serves its own
+pairings at `api/device/` to admins.
 
 ## Covers
 
@@ -222,8 +239,8 @@ offline. On first connecting, the user chooses whether the server's copy or the 
 sha256 of its bytes), and `cover_file_from`, the address it was taken from, or `custom` for one set by hand, which is
 never replaced. `keep_fetching_covers` runs on the server, the desktop and the phone. Every minute, and soon after a
 write, it downloads the image of each row whose address differs from `cover_file_from`; a title's address is its poster
-at `library.saved_poster_size`. The sync client is given `referenced_covers`, so after each exchange it sends the
-server the files it lacks and fetches the ones the device lacks. The page shows a kept cover through `use_cover`
+at `library.saved_poster_size`. Each sync peer is given `referenced_covers`, so after each exchange it sends the
+other device the files it lacks and fetches the ones it lacks itself. The page shows a kept cover through `use_cover`
 (`src/web/covers.tsx`), with `PageApi.cover_src` naming where each host serves it from: the server's
-`api/sync/files/<name>`, the desktop's `x-media-cover://<name>` scheme, or a blob address on the phone. It falls back to
+`api/covers/<name>`, the desktop's `x-media-cover://<name>` scheme, or a blob address on the phone. It falls back to
 the address until the file is there.

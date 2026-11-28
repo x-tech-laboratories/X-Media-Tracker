@@ -6,7 +6,10 @@
 import type { Client } from "@x-tech-laboratories/x-libs/electron/bridge";
 import { backup_method_names, type BackupClient, type BackupMethods } from "@x-tech-laboratories/x-libs/backup_protocol";
 import type { CertificateClient } from "@x-tech-laboratories/x-libs/certificate_protocol";
-import { sync_device_method_names, type SyncDeviceMethods, type SyncStatus } from "@x-tech-laboratories/x-libs/sync_protocol";
+import type { ConnectionClient } from "@x-tech-laboratories/x-libs/connection_protocol";
+import { sync_device_method_names, type PeerListeningClient, type SyncDeviceMethods, type SyncStatus } from "@x-tech-laboratories/x-libs/sync_protocol";
+
+import type { DesktopMethods } from "./desktop.ts";
 
 import type { LutrisGame } from "./games/launch.ts";
 import type { MediaMethods } from "./store.ts";
@@ -20,17 +23,21 @@ export const certificates_api_name = "x_media_tracker_certificates";
 export const steam_files_api_name = "x_media_tracker_steam_files";
 export const launchers_api_name = "x_media_tracker_launchers";
 export const plugin_files_api_name = "x_media_tracker_plugin_files";
+export const backups_api_name = "x_media_tracker_backups";
+export const desktop_api_name = "x_media_tracker_desktop";
+export const connections_api_name = "x_media_tracker_connections";
+export const peer_listening_api_name = "x_media_tracker_peer_listening";
 // The desktop page's scheme for the covers kept on the device, as x-media-cover://<name>.
 export const cover_scheme = "x-media-cover";
 
 // ── Device calls ─────────────────────────────────────────────────────────────
 
-// Sync with a server and backups of the device's own database; a browser is already on the server.
+// Sync with the paired devices and backups of the device's own database.
 export type DeviceMethods = SyncDeviceMethods & BackupMethods;
 
 export const device_method_names = [...sync_device_method_names, ...backup_method_names] as const;
 
-// The Steam client's files on the desktop's own computer.
+// The Steam client's files on the desktop's own computer, read by its own daemon whichever daemon the window uses.
 export interface SteamFileMethods {
   // The library categories file, or "" when Steam is not installed here.
   read_steam_categories: () => string;
@@ -38,7 +45,7 @@ export interface SteamFileMethods {
 
 export const steam_file_method_names = ["read_steam_categories"] as const;
 
-// The game launchers installed on the desktop's own computer.
+// The game launchers installed on the desktop's own computer, listed by its own daemon whichever daemon the window uses.
 export interface LauncherMethods {
   // The games installed in Lutris, or none when Lutris is not installed here.
   list_lutris_games: () => LutrisGame[];
@@ -46,7 +53,7 @@ export interface LauncherMethods {
 
 export const launcher_method_names = ["list_lutris_games"] as const;
 
-// The web sides of the desktop's plugins folder, which the page imports as a server's page would.
+// The web sides of the plugins folder of the daemon the window uses, which the page imports as a server's page would.
 export interface PluginFileMethods {
   // "index.json" for the list of web entries, as the server's /api/plugins/index.json gives it, else a file as "<plugin>/<path>"; "" when there is none.
   read_plugin_file: (path: string) => string;
@@ -67,7 +74,7 @@ export type Host = "web" | "desktop" | "android";
 export interface PageApi {
   host: Host;
   calls: Client<MediaMethods>;
-  // Null in a browser, which syncs nothing itself.
+  // The sync of the copy the page works on, with its backups on a device; null in a desktop window on a server's daemon.
   device: Client<DeviceMethods> | null;
   // The backups of whichever database the page works on: the device's own, or the server's for a browser; left out where
   // none are offered, and Settings then shows no Backups section.
@@ -80,8 +87,13 @@ export interface PageApi {
   steam_files?: Client<SteamFileMethods>;
   // Set on the desktop, which can see the launchers installed on it.
   launchers?: Client<LauncherMethods>;
-  // Set on the desktop, whose plugins folder is in its profile; a browser loads the server's from /api/plugins/.
+  // Set on the desktop, which reads the plugins of the daemon it uses; a browser loads the server's from /api/plugins/.
   plugin_files?: Client<PluginFileMethods>;
+  // Set in the desktop app: the daemons it can work on, and its own settings.
+  connections?: ConnectionClient;
+  desktop?: Client<DesktopMethods>;
+  // Set on the desktop while it works on this computer's daemon, which other devices may be let reach.
+  peer_listening?: PeerListeningClient;
   // Where the page shows a kept cover from, by its file's name, or "" while this device does not have it yet.
   cover_src: (name: string) => Promise<string>;
   // Runs whenever the data changed somewhere else; returns the function that stops listening.

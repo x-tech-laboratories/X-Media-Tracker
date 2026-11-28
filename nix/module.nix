@@ -17,10 +17,13 @@ let
 
   state_directory = "/var/lib/x-media-tracker";
 
-  config_file = (pkgs.formats.json { }).generate "x-media-tracker.json" {
-    database = "${state_directory}/media.db";
-    backups_folder = "${state_directory}/backups";
-  };
+  config_file = (pkgs.formats.json { }).generate "x-media-tracker.json" (
+    {
+      database = "${state_directory}/media.db";
+      backups_folder = "${state_directory}/backups";
+    }
+    // lib.optionalAttrs (cfg.syncAddress != null) { sync_address = cfg.syncAddress; }
+  );
 in
 {
   options.services.x-media-tracker = {
@@ -43,6 +46,13 @@ in
       type = types.port;
       default = 7750;
       description = "Port the page, API and sync listen on.";
+    };
+
+    syncAddress = mkOption {
+      type = types.nullOr types.str;
+      default = null;
+      example = "https://media.example.org/api/";
+      description = "Where devices reach this server's sync, ending in /api/; without it devices can still pair from a code made on another device.";
     };
 
     openFirewall = mkOption {

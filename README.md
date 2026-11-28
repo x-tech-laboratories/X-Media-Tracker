@@ -269,10 +269,25 @@ adds users under **Settings → Server → Users**.
 
 ## Sync
 
-In the desktop or Android app, open **Settings → This device → Sync**, enter the server's address, your name and
-password, and choose whether this device starts from the server's library or the server from this device's. The copy
-that loses is backed up first. After that, changes go both ways within seconds, and a device that is offline catches up
-once it is back. A title's id is its strongest id, so a title added on two devices stays one.
+Every copy of the library is a peer of the others: the server, each desktop app and each phone. Pair two of them once
+under **Settings → Sync**: one shows a pairing code and the other enters it. The device showing the code must be one the
+other can reach, such as the server (set `sync_address` in its config, or `services.x-media-tracker.syncAddress`) or a
+desktop app with **Let other devices connect** turned on. The two copies merge, and the newest change to each value
+wins. After that, changes go both ways within seconds, a device that is offline catches up once it is back, and each
+device passes on what it took from the others. In a browser the section shows the server's own pairings, for admins. A
+title's id is its strongest id, so a title added on two devices stays one.
+
+### The desktop app and its daemon
+
+The desktop app is a window onto a daemon that holds the library, its covers, plugins, sync, scheduled imports, release
+checks and backups. "This computer" is a daemon the window starts on its own Unix socket
+(`$XDG_RUNTIME_DIR/x-media-tracker/daemon.sock`). It keeps running with the window closed unless **Settings → Desktop
+app → Keep running in the background** is off, and starts at login unless **Start at login** is off. **Quit completely**
+stops it too. `x-media-tracker-desktop --daemon` starts only the daemon.
+
+Under **Settings → Connections** the window can work on an X-Media-Tracker server instead, signed in once with a name and
+password for a token of this device's own. The window then shows the server's library, covers and plugins. Reading
+Steam's categories and Lutris's games, and starting games, still happen on this computer.
 
 ### Covers
 
@@ -369,7 +384,8 @@ services.x-media-tracker = {
 ```
 src/
   server/    Fastify app and main.ts
-  main/      Electron main process: its database, the page's calls, sync
+  daemon/    the desktop app's daemon: its database, covers, plugins, sync, schedules, Steam and Lutris, on a Unix socket
+  main/      Electron main process: the window, the login entry, and the page's calls passed to the chosen daemon
   preload/   the desktop page's bridge
   web/       the React page, one folder per feature, and hosts/ for web, desktop and Android
   shared/    the store every host runs, one folder per feature, and the bridge's method tables

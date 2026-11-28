@@ -11,11 +11,9 @@ function open_device(): DatabaseSync {
   return database;
 }
 
-// Sends one device's unpushed changes to another, as an exchange through the server does.
+// Sends one device's changes to another, as an exchange between two paired devices does.
 function push(from: DatabaseSync, to: DatabaseSync): void {
-  const outgoing = sync_engine.collect_unpushed_changes(from);
-  sync_engine.write_state(from, { pushed_seq: outgoing.up_to_seq });
-  sync_engine.apply_changes(to, outgoing.changes);
+  sync_engine.apply_changes(to, sync_engine.collect_changes_since(from, 0, "").changes);
 }
 
 describe("sync between devices", () => {
